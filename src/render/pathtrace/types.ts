@@ -8,7 +8,21 @@
  * Per material: colour(3) metallic roughness emission(3) emissionStrength
  * alpha transmission ior.
  */
-export const MATERIAL_STRIDE = 12;
+/**
+ * Floats per material.
+ *
+ * Twelve of these describe the surface; the last five say which picture is on
+ * it and how it is laid out. Without them the final render ignored every
+ * image texture in the scene — a checker, a photograph, a painted map — and
+ * returned the flat base colour, so the preview viewport and the finished
+ * render disagreed about what the model looked like.
+ */
+export const MATERIAL_STRIDE = 17;
+
+/** Offsets into a material record, so the tracer and the builder cannot drift. */
+export const MAT_TEXTURE = 12;
+export const MAT_UV_SCALE = 13;
+export const MAT_UV_OFFSET = 15;
 /** Per light: position(3) type colour(3) radius direction(3) spotCos. */
 export const LIGHT_STRIDE = 12;
 
@@ -46,6 +60,16 @@ export interface TraceScene {
   /** One material index per triangle. */
   material: Int32Array;
   materials: Float32Array;
+  /**
+   * Every image the materials refer to, decoded and packed end to end.
+   *
+   * Linear, premultiplied by nothing, four channels. Decoded once on the main
+   * thread — a worker has no DOM to decode a data URL with — and handed over
+   * as one transferable block rather than a structure per texture.
+   */
+  textures: Float32Array;
+  /** Where each texture starts in that block, plus its size: [offset, w, h]. */
+  textureIndex: Int32Array;
   lights: Float32Array;
   lightCount: number;
   /**

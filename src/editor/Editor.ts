@@ -30,6 +30,7 @@ import { transferUV } from '../uv/transfer';
 import { RenderJob } from '../render/pathtrace/RenderJob';
 import { RenderSettings, defaultRenderSettings } from '../render/pathtrace/types';
 import { buildTraceScene, cameraFromObject, cameraFromViewport } from '../render/pathtrace/build';
+import { EMPTY_TEXTURES, PackedTextures, packTextures } from '../render/pathtrace/textures';
 import { Preferences, defaultPreferences, loadPreferences, savePreferences } from './persistence';
 import { RecoveryStore } from './recovery';
 import { RevisionSession } from './revision';
@@ -1672,10 +1673,22 @@ export class Editor {
   // ----------------------------------------------------------------- render
 
   /**
+   * Decode the scene's textures, then render.
+   *
+   * Decoding a data URL needs a document and returns asynchronously, which is
+   * why this is separate from `startRender` — that stays synchronous for the
+   * tests and for any caller that has already done the decoding.
+   */
+  async renderWithTextures(fromCamera = true): Promise<RenderJob | null> {
+    const packed = await packTextures(this.scene);
+    return this.startRender(fromCamera, packed);
+  }
+
+  /**
    * Kick off a path-traced render. `fromCamera` uses the scene camera when one
    * exists so the framing is reproducible; otherwise it renders the viewport.
    */
-  startRender(fromCamera = true): RenderJob | null {
+  startRender(fromCamera = true, packed: PackedTextures = EMPTY_TEXTURES): RenderJob | null {
     this.cancelRender();
     let cam = null;
     if (fromCamera) {
@@ -1683,7 +1696,7 @@ export class Editor {
       if (camObj) cam = cameraFromObject(this.scene, camObj.id);
     }
     if (!cam) cam = cameraFromViewport(this.camera);
-    const traceScene = buildTraceScene(this.scene, cam, this.scene.world.sky);
+    const traceScene = buildTraceScene(this.scene, cam, this.scene.world.sky, packed);
     if (traceScene.positions.length === 0) {
       this.setStatus('Nothing to render');
       return null;

@@ -6,7 +6,8 @@ import { buildPrimitive } from '../src/mesh/primitives';
 import { buildTraceScene, cameraFromObject } from '../src/render/pathtrace/build';
 import { buildBvh, renderBand, tonemapToImage } from '../src/render/pathtrace/tracer';
 import { denoise } from '../src/render/pathtrace/denoise';
-import { defaultRenderSettings, LIGHT_STRIDE, MATERIAL_STRIDE } from '../src/render/pathtrace/types';
+import { defaultRenderSettings, LIGHT_STRIDE, MATERIAL_STRIDE, MAT_TEXTURE } from '../src/render/pathtrace/types';
+import { EMPTY_TEXTURES, PackedTextures } from '../src/render/pathtrace/textures';
 import { Vec3 } from '../src/core/math';
 import type { TraceCamera } from '../src/render/pathtrace/types';
 
@@ -422,4 +423,171 @@ test('filtering an already clean image barely changes it', () => {
   for (let i = 0; i < cleaned.length; i++) {
     assert.ok(Math.abs(cleaned[i] - 0.4) < 1e-4, `pixel ${i} moved to ${cleaned[i]}`);
   }
+});
+
+// ------------------------------------------------- textures in the real render
+
+/**
+ * A two-by-two checker, built by hand.
+ *
+ * Not decoded from an image: decoding needs a document, and the point of the
+ * test is what the tracer does with pixels once it has them, not how they were
+ * obtained. This is exactly the shape `packTextures` hands over.
+ */
+function checker(): PackedTextures {
+  const w = 2;
+  const h = 2;
+  const data = new Float32Array(w * h * 4);
+  const put = (i: number, r: number, g: number, b: number): void => {
+    data[i * 4] = r; data[i * 4 + 1] = g; data[i * 4 + 2] = b; data[i * 4 + 3] = 1;
+  };
+  // Top row red, black; bottom row black, red.
+  put(0, 1, 0, 0); put(1, 0, 0, 0);
+  put(2, 0, 0, 0); put(3, 1, 0, 0);
+  return { data, index: new Int32Array([0, w, h]), slotOf: new Map([[7, 0]]) };
+}
+
+/** One big textured quad facing the camera, lit flatly. */
+function texturedWall(): { scene: Scene; camera: TraceCamera } {
+  const scene = new Scene();
+  scene.materials.push(createMaterial({
+    name: 'Mapped', color: [1, 1, 1], roughness: 1, metallic: 0,
+  }));
+  scene.materials[0].baseColorTexture = 7;
+  const plane = buildPrimitive('plane');
+  // Coordinates across the whole quad. Without them every sample lands on one
+  // texel and a tiling test cannot tell a working transform from a missing
+  // one — which is exactly how a texture lookup that ignored uvScale would
+  // sneak past.
+  const box = plane.bounds();
+  const span = box.size();
+  for (let f = 0; f < plane.faces.length; f++) {
+    const loop = plane.faces[f];
+    const run: number[] = [];
+    for (const v of loop) {
+      const p = plane.positions[v];
+      run.push(
+        (p.x - box.min.x) / Math.max(1e-6, span.x),
+        (p.y - box.min.y) / Math.max(1e-6, span.y),
+      );
+    }
+    plane.setUV(f, run);
+  }
+  plane.markDirty();
+  const wall = scene.add('mesh', 'Wall', plane);
+  wall.rotation = new Vec3(Math.PI / 2, 0, 0);
+  wall.scale = new Vec3(4, 4, 1);
+  wall.materialSlots = [0];
+  const light = scene.add('light', 'Key');
+  light.position = new Vec3(0, -4, 0);
+  if (light.light) light.light.energy = 4000;
+  return { scene, camera: lookAt(new Vec3(0, -5, 0), new Vec3(0, 0, 0)) };
+}
+
+/** Render the wall and hand back the raw pixels, normalised per sample. */
+function renderPixels(
+  scene: Scene, camera: TraceCamera, packed: PackedTextures,
+): Float32Array {
+  const ts = buildTraceScene(scene, camera, 0.05, packed);
+  const bvh = buildBvh(ts.positions);
+  const settings = { ...defaultRenderSettings(), width: 24, height: 24, samples: 6 };
+  const band = renderBand(ts, bvh, settings, {
+    y0: 0, y1: settings.height, pass: 0, samples: settings.samples, seed: 3,
+  });
+  const out = new Float32Array(band.data.length);
+  for (let i = 0; i < band.data.length; i++) out[i] = band.data[i] / settings.samples;
+  return out;
+}
+
+/** Mean linear colour of a render, per channel. */
+function meanColour(scene: Scene, camera: TraceCamera, packed: PackedTextures): number[] {
+  const px = renderPixels(scene, camera, packed);
+  const sums = [0, 0, 0];
+  for (let i = 0; i < px.length; i += 3) {
+    sums[0] += px[i];
+    sums[1] += px[i + 1];
+    sums[2] += px[i + 2];
+  }
+  return sums.map((s) => s / (px.length / 3));
+}
+
+/** How far apart two renders are, per pixel — the mean absolute difference. */
+function pixelDistance(a: Float32Array, b: Float32Array): number {
+  let total = 0;
+  for (let i = 0; i < a.length; i++) total += Math.abs(a[i] - b[i]);
+  return total / a.length;
+}
+
+test('the final render carries the material over into the flattened scene', () => {
+  const { scene, camera } = texturedWall();
+  const packed = checker();
+  const ts = buildTraceScene(scene, camera, 0.05, packed);
+  assert.equal(ts.materials[MAT_TEXTURE], 0, 'the material does not name its texture');
+  assert.ok(ts.textures.length > 0, 'the pixels did not travel to the tracer');
+  assert.deepEqual([...ts.textureIndex], [0, 2, 2]);
+
+  // The control: the same scene with no texture bound must differ.
+  const bare = new Scene();
+  bare.materials.push(createMaterial({ name: 'Plain', color: [1, 1, 1] }));
+  assert.equal(buildTraceScene(bare, camera, 0.05).materials[MAT_TEXTURE], -1);
+});
+
+test('a textured surface renders differently from an untextured one', () => {
+  const { scene, camera } = texturedWall();
+  const withTexture = meanColour(scene, camera, checker());
+  const withoutTexture = meanColour(scene, camera, EMPTY_TEXTURES);
+
+  // The checker is half red, half black, so a textured wall is darker overall
+  // and strongly biased to red. An unmapped white wall is neither.
+  assert.ok(withTexture[0] > withTexture[2] * 3,
+    `the texture did not reach the render: ${withTexture.map((n) => n.toFixed(3))}`);
+  assert.ok(withoutTexture[0] < withoutTexture[2] * 2,
+    `the control should be neutral: ${withoutTexture.map((n) => n.toFixed(3))}`);
+});
+
+test('uvScale and uvOffset change the rendered image', () => {
+  const { scene, camera } = texturedWall();
+  const packed = checker();
+  const plain = renderPixels(scene, camera, packed);
+
+  // Compared pixel by pixel rather than by average brightness: a checker is
+  // periodic, so tiling it changes where every square lands while leaving the
+  // mean of the picture almost exactly where it was. An averaged test would
+  // pass against a tracer that ignored the transform entirely.
+  scene.materials[0].uvScale = [8, 8];
+  const tiled = renderPixels(scene, camera, packed);
+  assert.ok(pixelDistance(plain, tiled) > 0.01,
+    `uvScale made no difference to the rendered image (distance ${pixelDistance(plain, tiled)})`);
+
+  // And sliding it half a tile swaps the squares over.
+  scene.materials[0].uvScale = [1, 1];
+  scene.materials[0].uvOffset = [0.5, 0];
+  const shifted = renderPixels(scene, camera, packed);
+  assert.ok(pixelDistance(plain, shifted) > 0.01,
+    `uvOffset made no difference to the rendered image (distance ${pixelDistance(plain, shifted)})`);
+
+  // The control: re-rendering with the same settings is deterministic, so a
+  // nonzero distance above really is the transform and not noise.
+  scene.materials[0].uvOffset = [0, 0];
+  assert.equal(pixelDistance(plain, renderPixels(scene, camera, packed)), 0,
+    'the renderer is not deterministic, so the comparisons above mean nothing');
+});
+
+test('painted vertex colour still renders, with and without a texture', () => {
+  const { scene, camera } = texturedWall();
+  const wall = [...scene.objects.values()].find((o) => o.name === 'Wall')!;
+  const mesh = wall.mesh!;
+  mesh.colors = new Float32Array(mesh.vertCount * 3);
+  for (let v = 0; v < mesh.vertCount; v++) {
+    mesh.colors[v * 3] = 0;
+    mesh.colors[v * 3 + 1] = 1;
+    mesh.colors[v * 3 + 2] = 0;
+  }
+  mesh.markDirty();
+
+  // Green paint under a red-and-black checker leaves almost nothing: the two
+  // multiply. That is the existing behaviour and it must survive the repair.
+  const painted = meanColour(scene, camera, EMPTY_TEXTURES);
+  assert.ok(painted[1] > painted[0] * 3,
+    `vertex colour stopped rendering: ${painted.map((n) => n.toFixed(3))}`);
 });

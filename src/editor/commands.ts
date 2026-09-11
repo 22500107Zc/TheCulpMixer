@@ -1264,11 +1264,11 @@ export const COMMANDS: Command[] = [
   // ---------------------------------------------------------------- Render
   {
     id: 'render.image', label: 'Render Image', category: 'View', shortcut: 'F12',
-    run: (ed) => ed.startRender(true),
+    run: (ed) => { void ed.renderWithTextures(true); },
   },
   {
     id: 'render.viewport', label: 'Render Current View', category: 'View',
-    run: (ed) => ed.startRender(false),
+    run: (ed) => { void ed.renderWithTextures(false); },
   },
   {
     id: 'render.cancel', label: 'Cancel Render', category: 'View',

@@ -117,7 +117,7 @@ export class RenderWindow {
       this.bar.style.width = '0%';
       this.actions.appendChild(h('button', {
         class: 'btn primary', text: 'Render',
-        on: { click: () => this.editor.startRender(true) },
+        on: { click: () => void this.editor.renderWithTextures(true) },
       }));
       return;
     }
@@ -151,7 +151,7 @@ export class RenderWindow {
     } else {
       this.actions.append(
         h('button', {
-          class: 'btn', text: 'Render again', on: { click: () => this.editor.startRender(true) },
+          class: 'btn', text: 'Render again', on: { click: () => void this.editor.renderWithTextures(true) },
         }),
         h('button', { class: 'btn primary', text: 'Save PNG', on: { click: () => this.savePNG() } }),
       );

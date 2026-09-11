@@ -1,4 +1,4 @@
-import { BandRequest, BandResult, LIGHT_STRIDE, MATERIAL_STRIDE, RenderSettings, TraceScene } from './types';
+import { BandRequest, BandResult, LIGHT_STRIDE, MATERIAL_STRIDE, RenderSettings, TraceScene, MAT_TEXTURE, MAT_UV_OFFSET, MAT_UV_SCALE } from './types';
 
 /**
  * A progressive path tracer.
@@ -446,6 +446,8 @@ function bsdfPdfFor(
 
 const shadowHit: Hit = { ...noHit };
 const shadowTint = new Float64Array(3);
+/** Scratch for one texture lookup, reused rather than allocated per hit. */
+const texel = new Float32Array(3);
 
 /**
  * How much of a light survives the trip to a shading point, as an RGB factor
@@ -565,6 +567,61 @@ function emissivePdf(scene: TraceScene, tri: number, dist: number, cosAtLight: n
   // Uniform over total area, converted to solid angle at the shading point.
   return (dist * dist) / (cosAtLight * scene.emissiveArea);
 }
+/**
+ * The colour of a material's picture at one point on a triangle.
+ *
+ * Bilinear, wrapping, and in linear light — the pixels were converted on the
+ * way in. Wrapping rather than clamping because that is what the viewport does
+ * and what a tiled `uvScale` above one is for; a render that clamped where the
+ * preview tiled would disagree with the screen at exactly the edges people
+ * look at.
+ *
+ * Returns false when the material has no texture, so the caller can leave the
+ * base colour alone rather than multiplying by white.
+ */
+function sampleTexture(
+  scene: TraceScene, mi: number, uvU: number, uvV: number, out: Float32Array,
+): boolean {
+  const slot = scene.materials[mi + MAT_TEXTURE];
+  if (slot < 0 || scene.textureIndex.length === 0) return false;
+  const si = (slot | 0) * 3;
+  if (si + 2 >= scene.textureIndex.length) return false;
+  const base = scene.textureIndex[si];
+  const w = scene.textureIndex[si + 1];
+  const h = scene.textureIndex[si + 2];
+  if (w <= 0 || h <= 0) return false;
+
+  // Tiling and offset, the same transform the viewport applies.
+  const su = uvU * scene.materials[mi + MAT_UV_SCALE] + scene.materials[mi + MAT_UV_OFFSET];
+  const sv = uvV * scene.materials[mi + MAT_UV_SCALE + 1] + scene.materials[mi + MAT_UV_OFFSET + 1];
+
+  // The V axis runs the other way in an image than it does in a UV layout.
+  const x = su * w - 0.5;
+  const y = (1 - sv) * h - 0.5;
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const fx = x - x0;
+  const fy = y - y0;
+  const wrap = (n: number, size: number): number => ((n % size) + size) % size;
+  const xa = wrap(x0, w);
+  const xb = wrap(x0 + 1, w);
+  const ya = wrap(y0, h);
+  const yb = wrap(y0 + 1, h);
+
+  const at = (px: number, py: number): number => base + (py * w + px) * 4;
+  const p00 = at(xa, ya);
+  const p10 = at(xb, ya);
+  const p01 = at(xa, yb);
+  const p11 = at(xb, yb);
+  const t = scene.textures;
+  for (let c = 0; c < 3; c++) {
+    const top = t[p00 + c] * (1 - fx) + t[p10 + c] * fx;
+    const bottom = t[p01 + c] * (1 - fx) + t[p11 + c] * fx;
+    out[c] = top * (1 - fy) + bottom * fy;
+  }
+  return true;
+}
+
 
 /**
  * The balance heuristic, squared — the "power heuristic" with beta 2. Given
@@ -649,6 +706,20 @@ function radiance(
     let albR = scene.materials[mi];
     let albG = scene.materials[mi + 1];
     let albB = scene.materials[mi + 2];
+    // The picture on the surface, if there is one. Multiplied into the base
+    // colour exactly as the viewport does it, so the finished render and the
+    // preview agree — which they did not, because this lookup did not exist
+    // and every image texture was ignored by the final renderer.
+    if (scene.uvs.length > 0 && scene.materials[mi + MAT_TEXTURE] >= 0) {
+      const uo = tri * 6;
+      const tu = scene.uvs[uo] * w + scene.uvs[uo + 2] * u + scene.uvs[uo + 4] * v;
+      const tv = scene.uvs[uo + 1] * w + scene.uvs[uo + 3] * u + scene.uvs[uo + 5] * v;
+      if (sampleTexture(scene, mi, tu, tv, texel)) {
+        albR *= texel[0];
+        albG *= texel[1];
+        albB *= texel[2];
+      }
+    }
     if (scene.colors.length > 0) {
       // Painted colour multiplies in, interpolated across the triangle exactly
       // as the viewport shades it.

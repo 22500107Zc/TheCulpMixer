@@ -1,10 +1,23 @@
 import { Mat4, Vec3 } from '../../core/math';
 import { Scene } from '../../scene/Scene';
 import { ViewportCamera } from '../../scene/ViewportCamera';
-import { LIGHT_STRIDE, MATERIAL_STRIDE, TraceCamera, TraceScene } from './types';
+import {
+  LIGHT_STRIDE, MATERIAL_STRIDE, MAT_TEXTURE, MAT_UV_OFFSET, MAT_UV_SCALE,
+  TraceCamera, TraceScene,
+} from './types';
+import { EMPTY_TEXTURES, PackedTextures } from './textures';
 
 /** Flatten the editable scene into the tracer's transferable form. */
-export function buildTraceScene(scene: Scene, camera: TraceCamera, skyStrength = 0.6): TraceScene {
+export function buildTraceScene(
+  scene: Scene, camera: TraceCamera, skyStrength = 0.6,
+  /**
+   * Decoded pictures for the materials that use them.
+   *
+   * Handed in rather than fetched here because decoding needs a document and
+   * this runs wherever a scene needs flattening, tests included.
+   */
+  packed: PackedTextures = EMPTY_TEXTURES,
+): TraceScene {
   const posList: number[] = [];
   const nrmList: number[] = [];
   const uvList: number[] = [];
@@ -70,9 +83,18 @@ export function buildTraceScene(scene: Scene, camera: TraceCamera, skyStrength =
     materials[o + 9] = m.alpha;
     materials[o + 10] = m.transmission;
     materials[o + 11] = Math.max(1.0001, m.ior);
+    // Which picture, and how it is laid out. -1 is "no texture", which is why
+    // the slot is a float holding an integer rather than an index into a
+    // parallel array that would have to be checked for length everywhere.
+    const slot = m.baseColorTexture == null ? undefined : packed.slotOf.get(m.baseColorTexture);
+    materials[o + MAT_TEXTURE] = slot === undefined ? -1 : slot;
+    materials[o + MAT_UV_SCALE] = m.uvScale[0];
+    materials[o + MAT_UV_SCALE + 1] = m.uvScale[1];
+    materials[o + MAT_UV_OFFSET] = m.uvOffset[0];
+    materials[o + MAT_UV_OFFSET + 1] = m.uvOffset[1];
   }
   if (scene.materials.length === 0) {
-    materials.set([0.75, 0.75, 0.78, 0, 0.5, 0, 0, 0, 0, 1, 0, 1.45]);
+    materials.set([0.75, 0.75, 0.78, 0, 0.5, 0, 0, 0, 0, 1, 0, 1.45, -1, 1, 1, 0, 0]);
   }
 
   const lightObjects = [...scene.objects.values()].filter((o) => o.type === 'light' && o.visible && o.light);
@@ -139,6 +161,8 @@ export function buildTraceScene(scene: Scene, camera: TraceCamera, skyStrength =
     colors: anyColor ? new Float32Array(colList) : new Float32Array(0),
     material,
     materials,
+    textures: packed.data,
+    textureIndex: packed.index,
     emissive: new Int32Array(emissiveList),
     emissiveCdf: new Float32Array(cdfList),
     emissiveArea: area,
