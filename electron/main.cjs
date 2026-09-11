@@ -284,6 +284,37 @@ const FILTERS = {
 };
 
 // Every export goes through a real Save dialog rather than a silent download.
+/**
+ * Write a file so that a failure half way through cannot destroy the version
+ * that was already there.
+ *
+ * The previous write went straight at the destination, so an interruption —
+ * a full disk, a pulled drive, power — left the person's project truncated
+ * with no copy of what it had been. Writing beside it and renaming into place
+ * means the destination only ever holds a whole file: the rename is atomic on
+ * POSIX, and on Windows it replaces in one step.
+ *
+ * The data is flushed before the rename. Without that the rename can land
+ * while the contents are still in the page cache, which is the one ordering
+ * that turns a crash into an empty file with a valid name.
+ */
+function writeAtomic(filePath, data, binary) {
+  const tmp = `${filePath}.kline-tmp-${process.pid}-${Date.now()}`;
+  let handle = null;
+  try {
+    handle = fs.openSync(tmp, 'wx');
+    fs.writeFileSync(handle, binary ? Buffer.from(data) : data, binary ? undefined : 'utf8');
+    fs.fsyncSync(handle);
+    fs.closeSync(handle);
+    handle = null;
+    fs.renameSync(tmp, filePath);
+  } catch (err) {
+    if (handle !== null) { try { fs.closeSync(handle); } catch (e) { /* already gone */ } }
+    try { if (fs.existsSync(tmp)) fs.unlinkSync(tmp); } catch (e) { /* best effort */ }
+    throw err;
+  }
+}
+
 ipcMain.handle('kline:save-file', async (_event, { defaultName, data, binary }) => {
   const ext = String(defaultName ?? '').split('.').pop()?.toLowerCase() ?? '';
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
@@ -291,13 +322,16 @@ ipcMain.handle('kline:save-file', async (_event, { defaultName, data, binary }) 
     defaultPath: defaultName ?? 'untitled',
     filters: FILTERS[ext] ? [FILTERS[ext]] : [],
   });
-  if (canceled || !filePath) return null;
+  // Cancelled and failed are different answers and the caller acts on them
+  // differently: one is a decision, the other is a problem. Returning null for
+  // both is what let "Saved" appear over a disk that was full.
+  if (canceled || !filePath) return { status: 'cancelled' };
   try {
-    fs.writeFileSync(filePath, binary ? Buffer.from(data) : data, binary ? undefined : 'utf8');
-    return filePath;
+    writeAtomic(filePath, data, binary);
+    return { status: 'saved', path: filePath };
   } catch (err) {
     dialog.showErrorBox('Could not save file', `${filePath}\n\n${err.message}`);
-    return null;
+    return { status: 'failed', reason: err.message };
   }
 });
 

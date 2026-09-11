@@ -119,6 +119,16 @@ export class Editor {
   preferences: Preferences = defaultPreferences();
   /** Set when a mesh edit has happened since the last autosave. */
   private dirtySinceSave = false;
+  /**
+   * Whether the document has changed since it was last *explicitly* saved.
+   *
+   * Kept separate from `dirtySinceSave`, which a recovery snapshot clears. A
+   * recovery copy is not a save: it lives in browser storage under a name
+   * nobody chose, it is overwritten by the next one, and it disappears with the
+   * profile. Letting an autosave mark the document clean is how somebody
+   * closes over their work having been shown no warning at all.
+   */
+  private unsavedChanges = false;
   private autosaveTimer: number | null = null;
   private playbackHandle: number | null = null;
   private playbackClock = 0;
@@ -601,6 +611,7 @@ export class Editor {
       return false;
     }
     this.history.push(this.snapshot(label));
+    this.unsavedChanges = true;
     return true;
   }
 
@@ -670,6 +681,18 @@ export class Editor {
     if (s.warnings?.length) this.notify(`Undo: ${s.label}`, s.warnings);
   }
 
+  /** Whether there is work that has not been written to a file the user named. */
+  get hasUnsavedChanges(): boolean {
+    return this.unsavedChanges;
+  }
+
+  /** Called once a save has actually completed. */
+  markSaved(): void {
+    this.unsavedChanges = false;
+    this.dirtySinceSave = false;
+    this.changed();
+  }
+
   /**
    * Start an empty document, keeping the undo history.
    *
@@ -690,6 +713,7 @@ export class Editor {
     this.mode = 'object';
     this.editObjectId = null;
     this.clearElementSelection();
+    this.unsavedChanges = false;
     this.changed();
   }
 
@@ -704,6 +728,7 @@ export class Editor {
     this.editObjectId = null;
     this.clearElementSelection();
     this.frameAll();
+    this.unsavedChanges = false;
     this.changed();
   }
 
@@ -1474,6 +1499,7 @@ export class Editor {
     if (this.paintSurface.commit()) {
       this.renderer.invalidateTextures();
       this.dirtySinceSave = true;
+      this.unsavedChanges = true;
       this.changed();
     }
   }
@@ -1550,6 +1576,7 @@ export class Editor {
     this.strokeStart = null;
     this.sculpt.invert = false;
     this.dirtySinceSave = true;
+    this.unsavedChanges = true;
     this.changed();
   }
 
@@ -1720,19 +1747,33 @@ export class Editor {
    * may be tens of megabytes. The store serializes overlapping saves itself.
    */
   autosaveNow(announce = true): Promise<boolean> {
-    // Not while a revision is being previewed. The scene on screen is a
-    // proposal nobody has agreed to, and a crash-recovery copy of it would
-    // come back with no way left to reject it — the one state the whole
-    // staging arrangement exists to keep escapable.
-    if (this.revision.active) {
-      if (announce) this.setStatus('Autosave held while a revision is waiting — accept or reject it first');
-      return Promise.resolve(false);
-    }
-    const scene = this.scene.toJSON();
+    // A recovery copy must never contain a proposal. The scene on screen
+    // during a review is a proposal nobody has agreed to, and a crash-recovery
+    // copy of *that* would come back with no way left to reject it.
+    //
+    // Refusing outright was the wrong answer to the right problem, though: it
+    // meant that for as long as a review was open — which can be a long time,
+    // since the whole point is to look before deciding — the work underneath
+    // it had no recovery copy at all. A crash during a review lost the
+    // session, and the longer somebody deliberated the more they stood to
+    // lose.
+    //
+    // The revision session already knows how to describe the document with the
+    // proposal taken back out, because the undo history is built on exactly
+    // that. So the committed state is what gets written: recovery keeps
+    // working throughout a review, and what comes back is the document as it
+    // stood before the preview, with the preview neither accepted nor
+    // serialized.
+    const scene = this.revision.committedScene() ?? this.scene.toJSON();
     return this.recovery.save(scene, 'Autosave').then((res) => {
       if (res.ok) {
+        // A recovery copy, not a save: `unsavedChanges` is deliberately left
+        // alone so closing still asks.
         this.dirtySinceSave = false;
-        if (announce) this.setStatus(`Autosaved (${res.where === 'indexeddb' ? 'local database' : 'browser storage'})`);
+        if (announce) {
+          this.setStatus(`Autosaved${this.revision.active ? ' (the document, not the proposal)' : ''}`
+            + ` (${res.where === 'indexeddb' ? 'local database' : 'browser storage'})`);
+        }
         return true;
       }
       if (announce || this.dirtySinceSave) {

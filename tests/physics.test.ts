@@ -414,3 +414,134 @@ test('a baked rotation reaches the scene as euler angles', () => {
   assert.equal(rot.length, 3, 'all three rotation channels should be keyed');
   for (const c of rot) for (const key of c.keys) assert.ok(Number.isFinite(key.value));
 });
+
+// ------------------------------------------------ baking under a parent
+
+/**
+ * A body under a parent that is moved, turned and scaled.
+ *
+ * The solver works in world space; an animation channel is parent-relative.
+ * Those are the same numbers only when the parent is the identity, and this
+ * fixture makes sure it is not.
+ */
+function parentedFall(): { scene: Scene; parent: ReturnType<Scene['add']>; box: ReturnType<Scene['add']> } {
+  const scene = new Scene();
+  scene.timeline.start = 1;
+  scene.timeline.end = 40;
+
+  const floor = scene.add('mesh', 'Floor', buildPrimitive('cube'));
+  floor.scale = new Vec3(10, 10, 0.1);
+  floor.position = new Vec3(0, 0, -0.1);
+  floor.physics = createPhysicsBody('passive');
+
+  const parent = scene.add('empty', 'Rig');
+  parent.position = new Vec3(5, -3, 2);
+  parent.rotation = new Vec3(0, 0, Math.PI / 2);
+  parent.scale = new Vec3(2, 2, 2);
+
+  const box = scene.add('mesh', 'Box', buildPrimitive('cube'));
+  box.position = new Vec3(0, 0, 4);
+  box.physics = createPhysicsBody('active');
+  scene.setParent(box.id, parent.id);
+  return { scene, parent, box };
+}
+
+/** Where an object actually ends up on a frame, after the whole hierarchy. */
+function worldAt(scene: Scene, id: number, frame: number): Vec3 {
+  scene.timeline.current = frame;
+  const obj = scene.get(id)!;
+  const sampled = sampleChannels(obj.animation, frame);
+  const before = { p: obj.position, r: obj.rotation };
+  if (sampled.position) obj.position = sampled.position;
+  if (sampled.rotation) obj.rotation = sampled.rotation;
+  const m = obj.worldMatrix(scene);
+  obj.position = before.p;
+  obj.rotation = before.r;
+  return new Vec3(m.m[12], m.m[13], m.m[14]);
+}
+
+test('a baked body under a transformed parent lands where the simulation put it', () => {
+  const { scene, box } = parentedFall();
+
+  // Where the simulation says it goes, independent of any hierarchy.
+  const settled = settle(scene, 2.5);
+  const simulated = settled.get(box.id)!;
+
+  bakeToKeyframes(scene);
+
+  // The keys are parent-relative, so the only fair comparison is the world
+  // placement they produce once the parent has been applied.
+  const last = Math.round(scene.timeline.end);
+  const baked = worldAt(scene, box.id, last);
+
+  assert.ok(
+    Math.abs(baked.z - simulated.position.z) < 0.25,
+    `baked world height ${baked.z.toFixed(3)} does not match the simulation's `
+    + `${simulated.position.z.toFixed(3)}`,
+  );
+  assert.ok(
+    Math.hypot(baked.x - simulated.position.x, baked.y - simulated.position.y) < 0.25,
+    `baked world position (${baked.x.toFixed(2)}, ${baked.y.toFixed(2)}) does not match the `
+    + `simulation's (${simulated.position.x.toFixed(2)}, ${simulated.position.y.toFixed(2)})`,
+  );
+});
+
+test('an unparented bake is unchanged by the parent-aware path', () => {
+  const scene = new Scene();
+  scene.timeline.start = 1;
+  scene.timeline.end = 40;
+  const floor = scene.add('mesh', 'Floor', buildPrimitive('cube'));
+  floor.scale = new Vec3(10, 10, 0.1);
+  floor.position = new Vec3(0, 0, -0.1);
+  floor.physics = createPhysicsBody('passive');
+  const box = scene.add('mesh', 'Box', buildPrimitive('cube'));
+  box.position = new Vec3(0, 0, 6);
+  box.physics = createPhysicsBody('active');
+
+  const simulated = settle(scene, 2.5).get(box.id)!;
+  bakeToKeyframes(scene);
+  const baked = worldAt(scene, box.id, Math.round(scene.timeline.end));
+  assert.ok(Math.abs(baked.z - simulated.position.z) < 0.25,
+    `unparented bake drifted: ${baked.z.toFixed(3)} vs ${simulated.position.z.toFixed(3)}`);
+});
+
+test('a spinning body keeps its origin offset attached to it as it turns', () => {
+  const scene = new Scene();
+  scene.timeline.start = 1;
+  scene.timeline.end = 20;
+  const floor = scene.add('mesh', 'Floor', buildPrimitive('cube'));
+  floor.scale = new Vec3(10, 10, 0.1);
+  floor.position = new Vec3(0, 0, -0.1);
+  floor.physics = createPhysicsBody('passive');
+
+  // Geometry pushed well off its own origin, so origin and centre of mass are
+  // different points and the vector between them turns with the body.
+  const mesh = buildPrimitive('cube');
+  for (let i = 0; i < mesh.positions.length; i++) {
+    mesh.positions[i] = mesh.positions[i].add(new Vec3(3, 0, 0));
+  }
+  mesh.markDirty();
+  const box = scene.add('mesh', 'Offset', mesh);
+  box.position = new Vec3(0, 0, 5);
+  box.rotation = new Vec3(0.3, 0.4, 0.2);
+  box.physics = createPhysicsBody('active');
+
+  const simulated = settle(scene, 2.5).get(box.id)!;
+  bakeToKeyframes(scene);
+
+  // The body's own centre, reconstructed from the baked origin pose.
+  const last = Math.round(scene.timeline.end);
+  scene.timeline.current = last;
+  const obj = scene.get(box.id)!;
+  const sampled = sampleChannels(obj.animation, last);
+  if (sampled.position) obj.position = sampled.position;
+  if (sampled.rotation) obj.rotation = sampled.rotation;
+  const local = obj.evaluated(false)!.bounds();
+  const centre = obj.worldMatrix(scene)
+    .transformPoint(local.min.add(local.max.sub(local.min).scale(0.5)));
+
+  assert.ok(centre.sub(simulated.position).length() < 0.35,
+    `baked centre (${centre.x.toFixed(2)}, ${centre.y.toFixed(2)}, ${centre.z.toFixed(2)}) `
+    + `drifted from the simulated centre (${simulated.position.x.toFixed(2)}, `
+    + `${simulated.position.y.toFixed(2)}, ${simulated.position.z.toFixed(2)})`);
+});

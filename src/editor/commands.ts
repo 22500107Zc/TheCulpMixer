@@ -23,7 +23,9 @@ import { SNAP_LABELS, SnapMode } from './snapping';
 import { BRUSH_LABELS, SculptBrush } from '../sculpt/sculpt';
 import { pickFile } from '../io/files';
 import { preserveUV, transferUV } from '../uv/transfer';
-import { downloadBinary, downloadText, openTextFile } from '../io/files';
+import {
+  describeExport, describeSave, openTextFile, saveAll, saveBinary, saveText, saveWorked,
+} from '../io/files';
 import { MTL_FILENAME, exportMTL, exportOBJ, importOBJ, texturesForMTL } from '../io/obj';
 import { exportSTL } from '../io/stl';
 import { exportGLTF } from '../io/gltf';
@@ -153,7 +155,7 @@ export const COMMANDS: Command[] = [
   },
   {
     id: 'file.save', label: 'Save Scene (.kline)', category: 'File', shortcut: 'Ctrl+S',
-    run: (ed) => {
+    run: async (ed) => {
       // Saving mid-preview would write a proposal into the file as though it
       // were the model. Said out loud rather than silently written: the
       // proposal is on screen, so nothing about the file looks wrong until it
@@ -162,8 +164,15 @@ export const COMMANDS: Command[] = [
         ed.setStatus('A revision is waiting — accept or reject it before saving, or the file will hold the preview');
         return;
       }
-      downloadText('scene.kline', JSON.stringify(ed.scene.toJSON(), null, 1), 'application/json');
-      ed.setStatus('Saved scene.kline');
+      ed.setStatus('Saving scene.kline…');
+      const outcome = await saveText(
+        'scene.kline', JSON.stringify(ed.scene.toJSON(), null, 1), 'application/json',
+      );
+      ed.setStatus(describeSave(outcome, 'scene.kline'));
+      // Only a save that actually happened clears the document. Marking it
+      // clean on a cancel is how somebody ends up closing over their work
+      // having been told it was safe.
+      if (saveWorked(outcome)) ed.markSaved();
     },
   },
   {
@@ -202,30 +211,41 @@ export const COMMANDS: Command[] = [
   },
   {
     id: 'file.exportObj', label: 'Export OBJ', category: 'File',
-    run: (ed) => {
-      downloadText('scene.obj', exportOBJ(ed.scene), 'text/plain');
-      downloadText(MTL_FILENAME, exportMTL(ed.scene), 'text/plain');
-      // MTL can only name an image file sitting next to it, so the images
-      // have to come out too. glTF embeds them and needs none of this.
+    run: async (ed) => {
+      // One export, several files. MTL can only name an image sitting next to
+      // it, so the images have to come out too; glTF embeds them and needs
+      // none of this. They go out in order and the first refusal stops the
+      // rest — a .obj whose .mtl was cancelled is not a partial success, it is
+      // a model that opens grey.
+      const files: { filename: string; text?: string; bytes?: ArrayBuffer; mime?: string }[] = [
+        { filename: 'scene.obj', text: exportOBJ(ed.scene), mime: 'text/plain' },
+        { filename: MTL_FILENAME, text: exportMTL(ed.scene), mime: 'text/plain' },
+      ];
       for (const t of texturesForMTL(ed.scene)) {
         const bytes = dataUrlToBytes(t.url);
-        if (bytes) downloadBinary(t.filename, bytes, 'image/png');
+        if (bytes) files.push({ filename: t.filename, bytes, mime: 'image/png' });
       }
-      ed.setStatus('Exported scene.obj + scene.mtl');
+      ed.setStatus(`Exporting ${files.length} file(s)…`);
+      ed.setStatus(describeExport(await saveAll(files), files.length));
     },
   },
   {
     id: 'file.exportStl', label: 'Export STL', category: 'File',
-    run: (ed) => {
-      downloadBinary('scene.stl', exportSTL(ed.scene), 'model/stl');
-      ed.setStatus('Exported scene.stl');
+    run: async (ed) => {
+      ed.setStatus(describeSave(
+        await saveBinary('scene.stl', exportSTL(ed.scene), 'model/stl'), 'scene.stl',
+      ));
     },
   },
   {
     id: 'file.exportGltf', label: 'Export glTF', category: 'File',
-    run: (ed) => {
-      downloadText('scene.gltf', exportGLTF(ed.scene), 'model/gltf+json');
-      ed.setStatus('Exported scene.gltf');
+    run: async (ed) => {
+      const { json, warnings } = exportGLTF(ed.scene);
+      const outcome = await saveText('scene.gltf', json, 'model/gltf+json');
+      // Anything the format could not carry is said here rather than left for
+      // somebody to discover in another application.
+      const note = warnings.length ? ` — ${warnings.join('; ')}` : '';
+      ed.setStatus(describeSave(outcome, 'scene.gltf') + (saveWorked(outcome) ? note : ''));
     },
   },
 

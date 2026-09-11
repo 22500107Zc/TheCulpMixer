@@ -126,12 +126,12 @@ test('glTF export carries the animation and UV channels', () => {
   setKey(obj.animation, 'position', 0, 1, 0, 'linear');
   setKey(obj.animation, 'position', 0, 10, 4, 'linear');
   scene.timeline = { ...defaultTimeline(), start: 1, end: 10, fps: 24 };
-  const gltf = JSON.parse(exportGLTF(scene));
+  const gltf = JSON.parse(exportGLTF(scene).json);
   assert.equal(gltf.animations.length, 1);
   assert.equal(gltf.animations[0].channels[0].target.path, 'translation');
   assert.ok(gltf.animations[0].samplers.length >= 1);
 
-  const noUV = JSON.parse(exportGLTF(scene));
+  const noUV = JSON.parse(exportGLTF(scene).json);
   assert.equal(noUV.meshes[0].primitives[0].attributes.TEXCOORD_0, undefined);
 });
 

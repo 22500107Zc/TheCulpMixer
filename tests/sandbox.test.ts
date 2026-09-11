@@ -174,3 +174,98 @@ test('the revision prompt carries the program and asks for the smallest change',
   // Part names are the merge's only handle on which part is which.
   assert.match(text, /part name/i);
 });
+
+// ------------------------------------------------- isolation is not optional
+
+test('generated code never runs on the main thread when a worker will not start', async () => {
+  const { runProgramSandboxed } = await import('../src/build/sandbox');
+  const g = globalThis as unknown as { Worker?: unknown; URL: { createObjectURL?: unknown } };
+  const hadWorker = 'Worker' in g;
+  const previousUrl = g.URL.createObjectURL;
+
+  // A browser that refuses blob workers — an unusual Content Security Policy
+  // is enough. The old code quietly ran the program on this thread instead,
+  // which drops the time limit and every removed global at once.
+  delete g.Worker;
+  delete g.URL.createObjectURL;
+  try {
+    await assert.rejects(
+      () => runProgramSandboxed('box(0, 0, 0.5, 1, 1, 1);'),
+      /isolated worker|will not start one/i,
+      'a program ran without an isolated worker',
+    );
+  } finally {
+    if (!hadWorker) delete g.Worker;
+    if (previousUrl) g.URL.createObjectURL = previousUrl;
+  }
+});
+
+test('an infinite loop cannot be started without the means to stop it', async () => {
+  const { runProgramSandboxed } = await import('../src/build/sandbox');
+  const g = globalThis as unknown as { Worker?: unknown; URL: { createObjectURL?: unknown } };
+  const previousUrl = g.URL.createObjectURL;
+  delete g.Worker;
+  delete g.URL.createObjectURL;
+  try {
+    // The case that matters: this would have hung the tab.
+    await assert.rejects(() => runProgramSandboxed('for (;;) {}'), /isolated worker/i);
+  } finally {
+    if (previousUrl) g.URL.createObjectURL = previousUrl;
+  }
+});
+
+test('the harness refuses to run if a blocked global survives lockdown', () => {
+  // The lockdown *is* the isolation; shadowing a parameter only hides one
+  // spelling of a name. This stands the harness up in something that looks
+  // like a worker but will not let `fetch` go, which has to refuse rather than
+  // run with a hole open.
+  //
+  // A stand-in object rather than the real global: the harness deletes every
+  // blocked name from whatever `self` is, and doing that to this process would
+  // take the rest of the suite with it.
+  const g = globalThis as unknown as Record<string, unknown>;
+  const hadImportScripts = 'importScripts' in g;
+  const hadSelf = 'self' in g;
+  const previousSelf = g.self;
+
+  const stubborn: Record<string, unknown> = {};
+  Object.defineProperty(stubborn, 'fetch', {
+    value: () => {}, configurable: false, writable: false, enumerable: true,
+  });
+  g.importScripts = () => {};
+  g.self = stubborn;
+  try {
+    assert.throws(
+      () => runProgramHere('box(0, 0, 0.5, 1, 1, 1);'),
+      /could not be locked down|still reachable/i,
+      'the harness ran with a blocked global still reachable',
+    );
+  } finally {
+    if (!hadImportScripts) delete g.importScripts;
+    if (hadSelf) g.self = previousSelf;
+    else delete g.self;
+  }
+});
+
+test('the harness runs normally once lockdown succeeds', () => {
+  // The other half: a worker-like global that *does* give the names up runs
+  // the program as usual. Without this the check above could be satisfied by a
+  // harness that simply never runs anything.
+  const g = globalThis as unknown as Record<string, unknown>;
+  const hadImportScripts = 'importScripts' in g;
+  const hadSelf = 'self' in g;
+  const previousSelf = g.self;
+
+  g.importScripts = () => {};
+  g.self = { fetch: () => {}, indexedDB: {}, localStorage: {} };
+  try {
+    const out = runProgramHere('box(0, 0, 0.5, 2, 2, 2, "#ff0000");');
+    assert.equal(out.parts.length, 1);
+    assert.equal((g.self as Record<string, unknown>).fetch, undefined,
+      'the lockdown left fetch in place');
+  } finally {
+    if (!hadImportScripts) delete g.importScripts;
+    if (hadSelf) g.self = previousSelf;
+    else delete g.self;
+  }
+});

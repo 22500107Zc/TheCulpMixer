@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Vec3 } from '../src/core/math';
 import { Scene } from '../src/scene/Scene';
-import { createCube, createUVSphere } from '../src/mesh/primitives';
+import { buildPrimitive, createCube, createUVSphere } from '../src/mesh/primitives';
+import { createBone } from '../src/anim/armature';
 import { createMaterial } from '../src/scene/Material';
 import { createTexture } from '../src/scene/Texture';
 import { meshFromPhoto } from '../src/imaging/photo';
@@ -65,7 +66,7 @@ test('glTF export produces a valid-looking document', () => {
   s.add('light', 'Light').position = new Vec3(3, 3, 3);
   const obj = s.activeObject ?? [...s.objects.values()][0];
   obj.modifiers.push(createModifier('subsurf'));
-  const gltf = JSON.parse(exportGLTF(s));
+  const gltf = JSON.parse(exportGLTF(s).json);
 
   assert.equal(gltf.asset.version, '2.0');
   assert.equal(gltf.meshes.length, 1);
@@ -95,7 +96,7 @@ test('glTF export honours the selection filter', () => {
   const s = sceneWithCube();
   s.add('mesh', 'Sphere', createUVSphere(1, 8, 6));
   s.selection = new Set([[...s.objects.values()][0].id]);
-  const gltf = JSON.parse(exportGLTF(s, true));
+  const gltf = JSON.parse(exportGLTF(s, true).json);
   assert.equal(gltf.meshes.length, 1);
 });
 
@@ -262,7 +263,7 @@ test('glTF carries the picture, not just the coordinates', () => {
   // Blender or a game engine grey, and glTF is the format people actually
   // move models with.
   const { scene, textureId } = texturedPhotoScene();
-  const doc = JSON.parse(exportGLTF(scene));
+  const doc = JSON.parse(exportGLTF(scene).json);
 
   assert.equal(doc.images?.length, 1, 'no image in the glTF');
   assert.ok(String(doc.images[0].uri).startsWith('data:image'), 'the image is a reference to a file that will not be there');
@@ -278,14 +279,155 @@ test('glTF carries the picture, not just the coordinates', () => {
   // declared rather than exported silently as something else.
   assert.equal(doc.extensionsUsed?.includes('KHR_texture_transform') ?? false, false);
   scene.materials[0].uvScale = [3, 3];
-  const tiled = JSON.parse(exportGLTF(scene));
+  const tiled = JSON.parse(exportGLTF(scene).json);
   assert.ok(tiled.extensionsUsed.includes('KHR_texture_transform'), 'tiling was exported silently');
   assert.deepEqual(tiled.materials[0].pbrMetallicRoughness.baseColorTexture.extensions.KHR_texture_transform.scale, [3, 3]);
 
   // A scene with no textures should not grow empty arrays for them.
-  const plain = JSON.parse(exportGLTF(sceneWithCube()));
+  const plain = JSON.parse(exportGLTF(sceneWithCube()).json);
   assert.equal(plain.images, undefined);
   assert.equal(plain.textures, undefined);
   assert.equal(plain.samplers, undefined);
   assert.ok(textureId > 0);
+});
+
+// --------------------------------------------------- glTF fidelity, verified
+
+/** A scene with everything the audit asked to see travel: colour, rig, cameras. */
+function richScene(): Scene {
+  const scene = new Scene();
+  scene.timeline.start = 1;
+  scene.timeline.end = 6;
+
+  const mesh = buildPrimitive('cube');
+  mesh.colors = new Float32Array(mesh.vertCount * 3);
+  for (let v = 0; v < mesh.vertCount; v++) {
+    mesh.colors[v * 3] = 1;
+    mesh.colors[v * 3 + 1] = 0.25;
+    mesh.colors[v * 3 + 2] = 0;
+  }
+  mesh.markDirty();
+  const body = scene.add('mesh', 'Body', mesh);
+
+  const wide = scene.add('camera', 'Wide');
+  wide.camera = { fov: 90, near: 0.05, far: 500, orthographic: false, orthoScale: 5 };
+  const long = scene.add('camera', 'Long');
+  long.camera = { fov: 20, near: 1, far: 2000, orthographic: false, orthoScale: 5 };
+  return scene;
+}
+
+test('glTF carries painted vertex colours', () => {
+  const doc = JSON.parse(exportGLTF(richScene()).json);
+  const prim = doc.meshes[0].primitives[0];
+  assert.ok(prim.attributes.COLOR_0 !== undefined, 'painted colour was dropped from the export');
+  const acc = doc.accessors[prim.attributes.COLOR_0];
+  assert.equal(acc.type, 'VEC4');
+  assert.equal(acc.componentType, 5126);
+  assert.ok(acc.count > 0);
+});
+
+test('each camera exports its own settings rather than a shared default', () => {
+  const doc = JSON.parse(exportGLTF(richScene()).json);
+  assert.equal(doc.cameras.length, 2, 'two cameras should produce two camera definitions');
+
+  const nodes = doc.nodes.filter((n: { camera?: number }) => n.camera !== undefined);
+  assert.equal(nodes.length, 2);
+  // The bug: every camera node pointed at cameras[0].
+  assert.notEqual(nodes[0].camera, nodes[1].camera, 'both cameras shared one definition');
+
+  const yfovs = doc.cameras.map((c: { perspective: { yfov: number } }) => c.perspective.yfov);
+  assert.ok(Math.abs(yfovs[0] - yfovs[1]) > 0.3, `both cameras got the same lens: ${yfovs}`);
+  const nears = doc.cameras.map((c: { perspective: { znear: number } }) => c.perspective.znear);
+  assert.deepEqual(nears, [0.05, 1], 'the near planes were not carried');
+  const fars = doc.cameras.map((c: { perspective: { zfar: number } }) => c.perspective.zfar);
+  assert.deepEqual(fars, [500, 2000], 'the far planes were not carried');
+});
+
+test('an orthographic camera is exported as one', () => {
+  const scene = new Scene();
+  const cam = scene.add('camera', 'Top');
+  cam.camera = { fov: 50, near: 0.1, far: 100, orthographic: true, orthoScale: 8 };
+  const doc = JSON.parse(exportGLTF(scene).json);
+  assert.equal(doc.cameras[0].type, 'orthographic');
+  assert.equal(doc.cameras[0].orthographic.xmag, 4);
+  assert.equal(doc.cameras[0].perspective, undefined);
+});
+
+test('a skinned mesh exports joints, weights and a skin instead of a frozen pose', () => {
+  const scene = new Scene();
+  const rig = scene.add('armature', 'Rig');
+  rig.armature = {
+    bones: [
+      createBone({ name: 'root', head: [0, 0, 0], tail: [0, 0, 1] }),
+      createBone({ name: 'tip', parent: 0, head: [0, 0, 1], tail: [0, 0, 2] }),
+    ],
+  };
+
+  const mesh = buildPrimitive('cube');
+  mesh.skin = {
+    bones: new Int32Array(mesh.vertCount * 4),
+    weights: new Float32Array(mesh.vertCount * 4),
+  };
+  for (let v = 0; v < mesh.vertCount; v++) {
+    mesh.skin.bones[v * 4] = v % 2;
+    mesh.skin.weights[v * 4] = 1;
+  }
+  mesh.markDirty();
+  const body = scene.add('mesh', 'Body', mesh);
+  body.modifiers = [createModifier('armature')];
+  (body.modifiers[0] as unknown as { objectId: number }).objectId = rig.id;
+
+  const out = exportGLTF(scene);
+  const doc = JSON.parse(out.json);
+
+  assert.ok(doc.skins?.length, 'no skin was written, so the rig does not travel');
+  const skin = doc.skins[0];
+  assert.equal(skin.joints.length, 2, 'a node per bone should exist');
+  assert.ok(skin.inverseBindMatrices !== undefined, 'no inverse bind matrices');
+  const ibm = doc.accessors[skin.inverseBindMatrices];
+  assert.equal(ibm.type, 'MAT4');
+  assert.equal(ibm.count, 2);
+
+  const prim = doc.meshes[0].primitives[0];
+  assert.ok(prim.attributes.JOINTS_0 !== undefined, 'joint indices were dropped');
+  assert.ok(prim.attributes.WEIGHTS_0 !== undefined, 'skin weights were dropped');
+  assert.equal(doc.accessors[prim.attributes.JOINTS_0].componentType, 5123, 'joints must be ushort');
+  assert.equal(doc.accessors[prim.attributes.WEIGHTS_0].type, 'VEC4');
+
+  const meshNode = doc.nodes.find((n: { mesh?: number }) => n.mesh !== undefined);
+  assert.equal(meshNode.skin, 0, 'the mesh node does not reference the skin');
+
+  // Every joint has to be reachable, or the file is invalid.
+  const named = new Set<number>(skin.joints);
+  for (const j of skin.joints) assert.ok(doc.nodes[j], `joint ${j} is not a node`);
+  assert.equal(named.size, skin.joints.length, 'a joint was listed twice');
+
+  // And it says what it could not carry, rather than implying full fidelity.
+  assert.ok(out.warnings.some((w) => /per-bone/i.test(w)),
+    `no note about per-bone animation: ${out.warnings.join(' | ')}`);
+});
+
+test('an export states what it could not carry', () => {
+  const scene = new Scene();
+  const cube = scene.add('mesh', 'Cube', buildPrimitive('cube'));
+  cube.animation = [
+    { path: 'material.roughness', index: 0, keys: [{ frame: 1, value: 0.2, interp: 'linear' }, { frame: 5, value: 0.9, interp: 'linear' }] },
+  ];
+  scene.materials[0].transmission = 0.8;
+  scene.materials[0].emissionStrength = 5;
+
+  const out = exportGLTF(scene);
+  assert.ok(out.warnings.some((w) => /material\.roughness/.test(w)),
+    'an animated material property was dropped without a word');
+  assert.ok(out.warnings.some((w) => /transmission/i.test(w)));
+  assert.ok(out.warnings.some((w) => /emission/i.test(w)));
+
+  const doc = JSON.parse(out.json);
+  assert.ok(doc.extensionsUsed.includes('KHR_materials_transmission'));
+  assert.equal(doc.materials[0].extensions.KHR_materials_transmission.transmissionFactor, 0.8);
+});
+
+test('a clean scene claims nothing it did not do', () => {
+  const out = exportGLTF(sceneWithCube());
+  assert.deepEqual(out.warnings, [], `a plain cube produced warnings: ${out.warnings.join(' | ')}`);
 });

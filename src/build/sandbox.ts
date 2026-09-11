@@ -14,9 +14,17 @@ import { BuildPart, validatePlan } from './plan';
 export interface RunLimits {
   maxParts: number;
   maxMs: number;
+  /**
+   * The largest result the worker may hand back, in rough bytes.
+   *
+   * A part cap alone does not bound memory: a program can put a very long
+   * string in a name or an id and stay well under four thousand parts while
+   * returning hundreds of megabytes to a thread that has to parse it.
+   */
+  maxBytes?: number;
 }
 
-export const DEFAULT_LIMITS: RunLimits = { maxParts: 4000, maxMs: 3000 };
+export const DEFAULT_LIMITS: RunLimits = { maxParts: 4000, maxMs: 3000, maxBytes: 16 * 1024 * 1024 };
 
 export interface RunResult {
   parts: BuildPart[];
@@ -97,7 +105,15 @@ function buildParts(code, maxParts) {
   // needs Function itself. They are handled below instead.
   var blocked = ['self', 'globalThis', 'fetch', 'XMLHttpRequest', 'WebSocket', 'importScripts',
     'postMessage', 'Worker', 'SharedWorker', 'indexedDB', 'caches', 'localStorage',
-    'sessionStorage', 'require', 'process', 'window', 'document', 'navigator'];
+    'sessionStorage', 'require', 'process', 'window', 'document', 'navigator',
+    // Everything else in a worker that can reach the network, persist, or talk
+    // to another context. Shadowing a name as a parameter only stops the plain
+    // spelling of it; these are removed from the global for real below, and
+    // the removal is checked rather than assumed.
+    'Request', 'Response', 'Headers', 'EventSource', 'BroadcastChannel',
+    'MessageChannel', 'MessagePort', 'FileReader', 'FileReaderSync',
+    'createImageBitmap', 'OffscreenCanvas', 'WebAssembly', 'SharedArrayBuffer',
+    'Atomics', 'reportError', 'crossOriginIsolated', 'origin', 'location'];
   var args = names.concat(blocked);
   var vals = values.concat(blocked.map(function () { return undefined; }));
 
@@ -111,8 +127,23 @@ function buildParts(code, maxParts) {
   // Worker — never to a page or Node global.
   var inWorker = typeof importScripts !== 'undefined' && typeof self !== 'undefined';
   if (inWorker) {
+    var survivors = [];
     for (var bi = 0; bi < blocked.length; bi++) {
-      try { self[blocked[bi]] = undefined; } catch (e) { /* frozen; shadowing still applies */ }
+      var name = blocked[bi];
+      try { delete self[name]; } catch (e) { /* not configurable; try assignment */ }
+      if (self[name] !== undefined) {
+        try { self[name] = undefined; } catch (e2) { /* read-only */ }
+      }
+      // Shadowing is defeated by Function('return this')(), so the parameter
+      // list is not the isolation — this removal is. If a name is still
+      // reachable afterwards the program does not run at all: a sandbox that
+      // reports itself as one while a hole is open is worse than no sandbox,
+      // because it is the version people trust.
+      if (self[name] !== undefined) survivors.push(name);
+    }
+    if (survivors.length) {
+      throw new Error('The isolated worker could not be locked down (' + survivors.join(', ')
+        + ' still reachable), so the program was not run.');
     }
   }
 
@@ -164,9 +195,19 @@ function harness(): Harness {
 }
 
 /**
- * Run a program on this thread. Used by the tests and as the fallback when a
- * Worker cannot be created; it cannot enforce the time limit, so the Worker
- * path is preferred wherever it is available.
+ * Run a program on this thread, with no isolation whatsoever.
+ *
+ * This is **not** a sandbox and the application never calls it. It exists so
+ * the test suite can exercise the same harness source that the worker runs,
+ * in a runtime that has no Worker at all.
+ *
+ * It used to double as a fallback for `runProgramSandboxed`, which meant that
+ * on any browser where a blob Worker could not start — an unusual Content
+ * Security Policy is enough — untrusted generated code quietly ran on the main
+ * thread instead: no time limit, so an infinite loop hung the tab with the
+ * document in it, and none of the globals removed, because the removal only
+ * ever applies inside a worker. A fallback that silently drops every guarantee
+ * the feature is sold on is worse than not running at all, so it is gone.
  */
 export function runProgramHere(code: string, limits: RunLimits = DEFAULT_LIMITS): RunResult {
   const started = Date.now();
@@ -183,7 +224,15 @@ var reply = self.postMessage.bind(self);
 self.onmessage = function (e) {
   try {
     var out = buildParts(e.data.code, e.data.maxParts);
-    reply({ ok: true, parts: out.parts, log: out.log });
+    // Measured here, where the strings still live in the worker, so an
+    // oversized result is refused before the main thread has to hold a copy.
+    var bytes = 0;
+    try { bytes = JSON.stringify(out.parts).length * 2; } catch (sizeErr) { bytes = Infinity; }
+    if (e.data.maxBytes && bytes > e.data.maxBytes) {
+      reply({ ok: true, parts: [], log: out.log, bytes: bytes });
+      return;
+    }
+    reply({ ok: true, parts: out.parts, log: out.log, bytes: bytes });
   } catch (err) {
     reply({ ok: false, error: String((err && err.message) || err) });
   }
@@ -198,12 +247,26 @@ export function runProgramSandboxed(
   code: string, limits: RunLimits = DEFAULT_LIMITS,
 ): Promise<RunResult> {
   if (typeof Worker === 'undefined' || typeof URL.createObjectURL !== 'function') {
-    return Promise.resolve(runProgramHere(code, limits));
+    return Promise.reject(new Error(
+      'Generated code needs an isolated worker and this browser will not start one. '
+      + 'It is usually a Content Security Policy that blocks blob: workers, or a '
+      + 'private-mode restriction. Nothing was run. The built-in shapes and the '
+      + 'modelling tools all work without it.',
+    ));
   }
   const started = Date.now();
   const blob = new Blob([workerSource()], { type: 'text/javascript' });
   const url = URL.createObjectURL(blob);
-  const worker = new Worker(url);
+  let worker: Worker;
+  try {
+    worker = new Worker(url);
+  } catch (err) {
+    URL.revokeObjectURL(url);
+    return Promise.reject(new Error(
+      `The isolated worker could not be started (${(err as Error).message}), so the program `
+      + 'was not run.',
+    ));
+  }
 
   return new Promise<RunResult>((resolve, reject) => {
     const cleanup = (): void => {
@@ -218,9 +281,19 @@ export function runProgramSandboxed(
 
     worker.onmessage = (event: MessageEvent) => {
       cleanup();
-      const data = event.data as { ok: boolean; parts?: unknown[]; log?: string[]; error?: string };
+      const data = event.data as {
+        ok: boolean; parts?: unknown[]; log?: string[]; error?: string; bytes?: number;
+      };
       if (!data.ok) {
         reject(new Error(data.error ?? 'The program failed.'));
+        return;
+      }
+      const cap = limits.maxBytes ?? DEFAULT_LIMITS.maxBytes ?? 0;
+      if (cap > 0 && (data.bytes ?? 0) > cap) {
+        reject(new Error(
+          `The program returned ${Math.round((data.bytes ?? 0) / 1024 / 1024)}MB of parts, over `
+          + `the ${Math.round(cap / 1024 / 1024)}MB limit, and was stopped.`,
+        ));
         return;
       }
       const { plan, warnings } = validatePlan({ name: 'Build', parts: data.parts ?? [] });
@@ -234,6 +307,6 @@ export function runProgramSandboxed(
       cleanup();
       reject(new Error(event.message || 'The program could not be started.'));
     };
-    worker.postMessage({ code, maxParts: limits.maxParts });
+    worker.postMessage({ code, maxParts: limits.maxParts, maxBytes: limits.maxBytes });
   });
 }
