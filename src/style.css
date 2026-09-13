@@ -55,7 +55,7 @@ body {
 #app {
   display: grid;
   /* header · heat · recovery · workspace · timeline · status */
-  grid-template-rows: 34px 2px auto 1fr auto 24px;
+  grid-template-rows: 34px 2px auto auto 1fr auto 24px;
   height: 100vh;
   height: 100dvh;
   /*
@@ -103,9 +103,10 @@ body {
 #app > .header { grid-row: 1; }
 #app > .heat-bar { grid-row: 2; }
 #app > .recovery-bar { grid-row: 3; }
-#app > .workspace { grid-row: 4; }
-#app > .timeline { grid-row: 5; }
-#app > .status-bar { grid-row: 6; }
+#app > .update-bar { grid-row: 4; }
+#app > .workspace { grid-row: 5; }
+#app > .timeline { grid-row: 6; }
+#app > .status-bar { grid-row: 7; }
 
 .mono {
   font-family: var(--mono);
@@ -1691,7 +1692,8 @@ button:disabled {
 .render-window.hidden,
 .uv-editor.hidden,
 .sculpt-panel.hidden,
-.recovery-bar.hidden {
+.recovery-bar.hidden,
+.update-bar.hidden {
   display: none;
 }
 

@@ -62,6 +62,15 @@ export class App {
   private revisionPanel!: RevisionPanel;
   private setupGuide!: SetupGuide;
   private recoveryBar = h('div', { class: 'recovery-bar hidden' });
+  /**
+   * "A new version is ready."
+   *
+   * An installed app that updates itself out from under an open document is
+   * the wrong trade: the worker holds the new version back until this is
+   * pressed, so a reload happens when the creator is ready for one rather than
+   * in the middle of a sculpt.
+   */
+  private updateBar = h('div', { class: 'recovery-bar update-bar hidden' });
 
   constructor(private mount: HTMLElement) {
     this.canvas = h('canvas', { class: 'viewport-canvas' });
@@ -137,6 +146,7 @@ export class App {
       header.root,
       this.heatBar,
       this.recoveryBar,
+      this.updateBar,
       h('div', { class: 'workspace' }, [toolbar.root, viewport, scrim, right, drawerToggle]),
       timeline.root,
       status.root,
@@ -156,6 +166,7 @@ export class App {
     // it meant anyone who quit without ticking the box never saw the guide
     // again.
     this.setupGuide.showOnStart();
+    this.watchForUpdates();
     this.editor.renderer.onTexturesReady = () => this.editor.requestRender();
     // Closing the tab: write a recovery copy, and let the browser ask its own
     // "leave site?" question when there is unsaved work. A page cannot put its
@@ -437,6 +448,62 @@ export class App {
       );
       this.recoveryBar.classList.remove('hidden');
     // A recovery store that cannot be read is not worth interrupting over.
+    }).catch(() => undefined);
+  }
+
+  /**
+   * Offer a reload when a newer build has installed itself.
+   *
+   * The service worker deliberately does not take over a running tab — it
+   * installs, precaches, and waits — so without this the new version would sit
+   * there until every Kline tab had been closed. This is the control that
+   * releases it, and it only appears when there is genuinely something waiting
+   * *and* a worker already in charge, so a first-ever install stays silent.
+   */
+  private watchForUpdates(): void {
+    if (!('serviceWorker' in navigator)) return;
+    const offer = (worker: ServiceWorker): void => {
+      if (!navigator.serviceWorker.controller) return;
+      clear(this.updateBar);
+      this.updateBar.append(
+        h('span', { text: 'A new version of Kline is ready.' }),
+        h('button', {
+          class: 'btn primary', text: 'Reload',
+          on: {
+            click: () => {
+              // One reload, when the new worker has actually taken over.
+              let reloaded = false;
+              navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (reloaded) return;
+                reloaded = true;
+                location.reload();
+              });
+              worker.postMessage({ type: 'kline:activate-update' });
+              this.updateBar.classList.add('hidden');
+            },
+          },
+        }),
+        h('button', {
+          class: 'btn', text: 'Later',
+          on: { click: () => this.updateBar.classList.add('hidden') },
+        }),
+      );
+      this.updateBar.classList.remove('hidden');
+    };
+
+    // `ready` rather than `getRegistration`: the worker is registered on the
+    // window's load event, which is after this runs, so asking now would find
+    // nothing and this would sit there listening to a registration that did
+    // not exist yet.
+    void navigator.serviceWorker.ready.then((reg) => {
+      if (reg.waiting) offer(reg.waiting);
+      reg.addEventListener('updatefound', () => {
+        const installing = reg.installing;
+        if (!installing) return;
+        installing.addEventListener('statechange', () => {
+          if (installing.state === 'installed') offer(installing);
+        });
+      });
     }).catch(() => undefined);
   }
 

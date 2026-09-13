@@ -74,8 +74,12 @@ npm start       # builds, then opens http://localhost:4173
 ```
 
 Chrome and Edge can install that page as a standalone app too (⋮ ▸ *Install page
-as app*), which is lighter than the Electron build and works offline once
-cached. Kline needs WebGL2 — Chrome, Firefox, Edge and Safari 15+ all have it.
+as app*), which is lighter than the Electron build and works offline from the
+first visit — the service worker caches the shell while it installs rather than
+waiting for a second visit to see the traffic. Each build gets its own cache,
+and a new version waits behind a **Reload** bar instead of swapping itself in
+under an open document. The depth model is kept separately and survives an
+update, so a rebuild does not cost forty megabytes of download. Kline needs WebGL2 — Chrome, Firefox, Edge and Safari 15+ all have it.
 Opening `dist/index.html` straight off disk will *not* work: browsers block ES
 modules over `file://`.
 

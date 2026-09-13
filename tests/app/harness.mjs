@@ -14,7 +14,7 @@
  */
 
 import { createServer } from 'node:http';
-import { createReadStream, existsSync, statSync, readdirSync } from 'node:fs';
+import { createReadStream, existsSync, statSync, readdirSync, writeFileSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -284,4 +284,57 @@ export async function samplePixels(page, points) {
 /** Perceived brightness, which is what "is this in shadow" actually asks. */
 export function luma([r, g, b]) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * A browser and a server, with no page opened yet.
+ *
+ * The offline tests cannot share `launchApp`'s page: a service worker belongs
+ * to a browser context, and what is being tested is what happens across a
+ * first visit, a rebuild and a reload — so each case needs a context of its
+ * own, starting with an empty cache store.
+ */
+export async function launchBare() {
+  let playwright;
+  try {
+    playwright = await import('playwright-core');
+  } catch {
+    return refuseToSkip('playwright-core is not installed');
+  }
+  const executablePath = findChromium(playwright);
+  if (!executablePath) return refuseToSkip('no Chromium build was found');
+
+  ensureBuild();
+  const { server, port } = await serveDist();
+  const browser = await playwright.chromium.launch({
+    executablePath,
+    args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox'],
+  });
+  const origin = `http://127.0.0.1:${port}/`;
+  return {
+    browser,
+    origin,
+    async close() {
+      await browser.close();
+      server.close();
+    },
+  };
+}
+
+/**
+ * Rebuild `dist`, optionally as a *different* version.
+ *
+ * The build is deterministic on purpose — the service worker's cache name is a
+ * hash of what it holds — so producing a genuinely new version for an update
+ * test means changing the input. A marker file in `public/` is the smallest
+ * honest way to do that: it goes through the same pipeline a real change would.
+ */
+export function rebuild(marker = null) {
+  const probe = join(ROOT, 'public', '__rebuild-probe.txt');
+  if (marker) writeFileSync(probe, marker);
+  try {
+    execFileSync('npx', ['vite', 'build'], { cwd: ROOT, stdio: 'ignore' });
+  } finally {
+    if (marker) rmSync(probe, { force: true });
+  }
 }
