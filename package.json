@@ -3,7 +3,7 @@
   "version": "0.10.0",
   "private": false,
   "description": "Kline \u2014 an open source 3D modelling application. Runs in a browser tab or as a desktop app.",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "scripts": {
     "start": "vite build && vite preview --port 4173 --open",

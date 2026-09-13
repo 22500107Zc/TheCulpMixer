@@ -1,7 +1,7 @@
 # Kline
 
 **A 3D modelling application for your desktop — and your browser.** Kline is an
-open source alternative to Blender's modelling workflow: mesh editing with
+alternative to Blender's modelling workflow: mesh editing with
 bevel and booleans, sculpting, UV unwrapping, keyframe animation, a
 non-destructive modifier stack, PBR materials, a path-traced renderer and glTF
 export — in dependency-free TypeScript. Drop in a photo or a video and it
@@ -968,5 +968,9 @@ for anything touching `src/mesh` are the easiest to merge.
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE). Kline contains no Blender code; the resemblance is
-in the keymap, which is deliberate.
+**Proprietary — see [LICENSE](LICENSE).** Kline is not open source and is not
+free to use, copy, modify or redistribute; a commercial licence is required.
+Kline contains no Blender code; the resemblance is in the keymap, which is
+deliberate. Third-party components Kline depends on keep their own licences,
+which are reproduced in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) and
+`licences/`.
