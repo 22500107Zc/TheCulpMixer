@@ -966,6 +966,34 @@ cost money rather than code.
 See [CONTRIBUTING.md](CONTRIBUTING.md). Small, focused pull requests with a test
 for anything touching `src/mesh` are the easiest to merge.
 
+## Selling it
+
+Kline verifies an offline signed licence key. You hold the private key and mint
+keys yourself; the application has no payment code in it and never calls home.
+
+```bash
+node tools/kline-licence.mjs keygen               # once — keep the .pem, never commit it
+node tools/kline-licence.mjs owner --name "You"   # your own key: free, never expires
+node tools/kline-licence.mjs issue --name "Acme Studio" \
+     --plan Studio --seats 5 --months 1           # one month; run it again when they renew
+```
+
+Paste the public key it prints into `PUBLIC_KEY_SPKI` in
+`src/licence/licence.ts` and build. A subscription is simply a key with an
+expiry, reissued each period — so a customer who stops paying keeps every file
+they ever made and just stops receiving new keys.
+
+Three things the licensing deliberately cannot do, each covered by a test:
+
+- **Lock you out of your own application.** A build made from source is never
+  gated at all, and the owner key is perpetual by construction — an expiry
+  accidentally set on one is ignored.
+- **Brick every copy.** A build shipped without a public key enforces nothing,
+  rather than refusing everything.
+- **Hold work hostage.** Only saving and exporting are ever gated, and only
+  after a fourteen-day full trial. Opening, editing, sculpting, rigging,
+  animating and rendering to the screen always work, licensed or not.
+
 ## Licence
 
 **Proprietary — see [LICENSE](LICENSE).** Kline is not open source and is not

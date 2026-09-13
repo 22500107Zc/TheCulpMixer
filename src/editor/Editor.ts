@@ -30,6 +30,10 @@ import { Brush, PaintSurface, defaultBrush, paintTargets, uvScaleAt } from '../p
 import { SceneTexture } from '../scene/Texture';
 import { transferUV } from '../uv/transfer';
 import { forgetSaveTargets } from '../io/files';
+import {
+  LicenceState, canExport as licenceAllowsExport, clearLicence, describeLicence, licenceState,
+  storeLicence, verifyKey, whyBlocked,
+} from '../licence/licence';
 import { RenderJob } from '../render/pathtrace/RenderJob';
 import { RenderSettings, defaultRenderSettings } from '../render/pathtrace/types';
 import { buildTraceScene, cameraFromObject, cameraFromViewport } from '../render/pathtrace/build';
@@ -66,7 +70,7 @@ type Modal =
   | { type: 'box'; rect: Rect; extend: boolean; subtract: boolean }
   | { type: 'knife'; points: [number, number][]; preview: [number, number] | null };
 
-export type EditorEvent = 'change' | 'status' | 'modal' | 'render' | 'frame' | 'diff' | 'revision';
+export type EditorEvent = 'change' | 'status' | 'modal' | 'render' | 'frame' | 'diff' | 'revision' | 'licence';
 
 /**
  * The application controller: owns the scene, the viewport camera, input
@@ -174,6 +178,7 @@ export class Editor {
     toggleGuide?: () => void;
     openCreate?: () => void;
     focusBuild?: (prefill?: string) => void;
+    toggleLicence?: () => void;
   } = {};
   private pointer = { x: 0, y: 0, down: false, button: -1, startX: 0, startY: 0, dragging: false };
   /**
@@ -656,6 +661,64 @@ export class Editor {
    * may be minutes of work away from being noticed.
    */
   notice: { title: string; warnings: string[] } | null = null;
+
+  // --------------------------------------------------------------- licence
+
+  /**
+   * Where this copy stands.
+   *
+   * Starts permissive and is narrowed once the real answer arrives, because
+   * verifying a signature is asynchronous and the alternative is a moment at
+   * startup where a paying customer is told they cannot export.
+   */
+  licence: LicenceState = { status: 'source' };
+
+  /** Ask the licence layer, and tell the interface what it said. */
+  async refreshLicence(): Promise<LicenceState> {
+    this.licence = await licenceState();
+    this.emit('licence');
+    this.changed();
+    return this.licence;
+  }
+
+  /** Whether finished work can leave the application. */
+  get canExport(): boolean {
+    return licenceAllowsExport(this.licence);
+  }
+
+  get licenceSummary(): string {
+    return describeLicence(this.licence);
+  }
+
+  get licenceBlockedMessage(): string {
+    return whyBlocked(this.licence);
+  }
+
+  /**
+   * Take a key somebody pasted in.
+   *
+   * Returns what to tell them either way. A key that does not verify is a
+   * typo far more often than it is an attack, so the message says so.
+   */
+  async applyLicenceKey(key: string): Promise<{ ok: boolean; message: string }> {
+    const trimmed = key.trim();
+    if (!trimmed) {
+      clearLicence();
+      await this.refreshLicence();
+      return { ok: false, message: 'Licence key removed.' };
+    }
+    const payload = await verifyKey(trimmed);
+    if (!payload) {
+      return {
+        ok: false,
+        message: 'That key did not verify. Check it was copied whole — they are long, '
+          + 'and a missing character at either end is the usual reason.',
+      };
+    }
+    storeLicence(trimmed);
+    await this.refreshLicence();
+    return { ok: true, message: describeLicence(this.licence) };
+  }
 
   notify(title: string, warnings: string[]): void {
     if (!warnings.length) return;

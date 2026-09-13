@@ -3,6 +3,7 @@ import { COMMANDS, runCommand } from './editor/commands';
 import { buildPrimitive } from './mesh/primitives';
 import { Mesh } from './mesh/Mesh';
 import './style.css';
+import * as licence from './licence/licence';
 
 // Registering the worker is what lets browsers install Kline as a desktop app,
 // and what makes it start without a network connection afterwards.
@@ -32,6 +33,9 @@ try {
     buildPrimitive,
     meshFromJSON: (data: Parameters<typeof Mesh.fromJSON>[0]) => Mesh.fromJSON(data),
   };
+  // The licence module, so the end-to-end suite can mint a key with a throwaway
+  // pair and drive the real verification rather than a copy of it.
+  (window as unknown as { __klineLicence: unknown }).__klineLicence = licence;
   const global = window as unknown as { kline: unknown; kiln: unknown };
   global.kline = handle;
   // The handle was called `kiln` before the application was renamed, and it is

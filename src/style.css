@@ -2628,3 +2628,60 @@ button:disabled {
   font-size: 12px;
   color: var(--ember);
 }
+
+/*
+ * The licence panel.
+ *
+ * Plain on purpose. This is the screen somebody sees when something they
+ * wanted to do did not happen, and the job of it is to say what is paused and
+ * what is not — never to pressure.
+ */
+.licence-panel {
+  max-width: 560px;
+}
+
+.licence-panel.hidden {
+  display: none;
+}
+
+.licence-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+}
+
+.licence-state {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.licence-blocked {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--ember-deep);
+  border-radius: var(--radius);
+  background: var(--ember-wash);
+  font-size: 12px;
+}
+
+.licence-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.licence-list li {
+  margin: 3px 0;
+}
+
+.licence-input {
+  min-height: 80px;
+  font-size: 11px;
+}
+
+.licence-note.licence-bad {
+  color: var(--ember);
+}

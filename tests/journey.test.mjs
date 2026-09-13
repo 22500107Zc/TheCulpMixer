@@ -982,7 +982,98 @@ if (app.skip) {
       'the reloaded strips evaluate differently from the ones that were saved');
   });
 
-  test('18 · nothing logged an error along the whole journey', () => {
+  test('18 · the shipped build does not gate anything without a signing key', async () => {
+    // The release that just went out has no public key in it, and that must
+    // mean "nothing to enforce" rather than "nobody can export". Checked in the
+    // actual production bundle, because this is the failure that would brick
+    // every copy at once.
+    await resetScene(page);
+    const state = await page.evaluate(async () => {
+      const ed = window.kline.editor;
+      await ed.refreshLicence();
+      return {
+        status: ed.licence.status,
+        canExport: ed.canExport,
+        summary: ed.licenceSummary,
+        blocked: ed.licenceBlockedMessage,
+      };
+    });
+    assert.equal(state.canExport, true, 'a build with no signing key refused to export');
+    assert.equal(state.blocked, '', 'it gave a reason for blocking something it did not block');
+    assert.match(state.summary, /no licence needed|source/i, `it said: ${state.summary}`);
+
+    // And saving actually works, rather than merely claiming it would.
+    const saved = await page.evaluate(async () => {
+      window.__saved = [];
+      window.showSaveFilePicker = async ({ suggestedName }) => ({
+        name: suggestedName,
+        createWritable: async () => {
+          const parts = [];
+          return {
+            async write(d) { parts.push(d); },
+            async close() { window.__saved.push(suggestedName); },
+            async abort() {},
+          };
+        },
+      });
+      window.kline.run('add.cube');
+      window.kline.run('file.save');
+      await new Promise((r) => setTimeout(r, 600));
+      return { files: window.__saved, status: window.kline.editor.statusMessage };
+    });
+    assert.deepEqual(saved.files, ['scene.kline'],
+      `saving was refused in an unlicensed build: ${saved.status}`);
+  });
+
+  test('19 · an expired licence pauses export and never touches the work', async () => {
+    // The customer-facing half, driven through the real command path. The key
+    // is minted here with the same scheme the selling tool uses.
+    const result = await page.evaluate(async () => {
+      const ed = window.kline.editor;
+      const enc = new TextEncoder();
+      const b64u = (b) => btoa(String.fromCharCode(...new Uint8Array(b)))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+      const pair = await crypto.subtle.generateKey(
+        { name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify'],
+      );
+      const spki = b64u(await crypto.subtle.exportKey('spki', pair.publicKey));
+      const mint = async (payload) => {
+        const body = b64u(enc.encode(JSON.stringify(payload)));
+        const sig = await crypto.subtle.sign(
+          { name: 'ECDSA', hash: 'SHA-256' }, pair.privateKey, enc.encode(body),
+        );
+        return `${body}.${b64u(sig)}`;
+      };
+
+      const mod = window.__klineLicence;
+      const now = Date.now();
+      const live = await mint({ name: 'Acme', plan: 'Studio', seats: 5, issued: now, expires: now + 8.64e7 });
+      const dead = await mint({ name: 'Acme', plan: 'Studio', seats: 5, issued: 0, expires: now - 1 });
+      const owner = await mint({ name: 'Zach', plan: 'Owner', seats: 0, issued: 0, expires: null, owner: true });
+
+      const at = async (key) => mod.licenceState({ fromSource: false, key, publicKey: spki, now });
+      const [a, b, c] = await Promise.all([at(live), at(dead), at(owner)]);
+      return {
+        live: { status: a.status, can: mod.canExport(a) },
+        dead: { status: b.status, can: mod.canExport(b), why: mod.whyBlocked(b) },
+        owner: { status: c.status, can: mod.canExport(c) },
+        objects: ed.scene.objects.size,
+      };
+    });
+
+    assert.equal(result.live.status, 'licensed');
+    assert.equal(result.live.can, true, 'a live subscription could not export');
+    assert.equal(result.dead.status, 'expired');
+    assert.equal(result.dead.can, false, 'an expired licence still exported');
+    assert.match(result.dead.why, /still here|locked in/i,
+      `the expiry message did not reassure: ${result.dead.why}`);
+    assert.equal(result.owner.status, 'owner');
+    assert.equal(result.owner.can, true, 'the owner licence could not export');
+    assert.ok(result.objects >= 1, 'the scene was disturbed by a licence check');
+  });
+
+  test('20 · nothing logged an error along the whole journey', () => {
     const noise = app.consoleErrors.filter((m) => !/favicon|404/i.test(m));
     assert.deepEqual(noise, [], `the app logged: ${noise.join(' | ')}`);
   });

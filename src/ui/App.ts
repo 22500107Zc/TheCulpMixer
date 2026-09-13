@@ -22,6 +22,7 @@ import { askUnsaved } from './UnsavedDialog';
 import { describeSave, saveText, saveWorked } from '../io/files';
 import { formatAge } from '../editor/recovery';
 import { altKeyName, ctrlKeyName, isMac, navigationHint, scrollPhrase } from './platform';
+import { LicencePanel } from './LicencePanel';
 
 /** Assembles the shell around the viewport and routes keyboard input. */
 export class App {
@@ -37,6 +38,7 @@ export class App {
     return el;
   })();
   private shortcuts = h('div', { class: 'overlay-panel shortcuts hidden' });
+  private licencePanel: LicencePanel;
   private viewportHint = h('div', { class: 'viewport-hint' });
   private dropVeil = h('div', { class: 'drop-veil' }, [
     h('p', { text: 'Drop to build geometry from it' }),
@@ -75,6 +77,7 @@ export class App {
   constructor(private mount: HTMLElement) {
     this.canvas = h('canvas', { class: 'viewport-canvas' });
     this.editor = new Editor(this.canvas);
+    this.licencePanel = new LicencePanel(this.editor);
 
     const header = new Header(this.editor, () => this.toggleShortcuts());
     const toolbar = new Toolbar(this.editor);
@@ -108,7 +111,7 @@ export class App {
       this.canvas, this.buildBar.root, this.boxSelect, this.knifeLine, this.viewportHint,
       sculptPanel.root, this.uvEditor.root, this.graphEditor.root, this.diffPanel.root,
       this.revisionPanel.root,
-      this.setupGuide.root, this.dropVeil, this.shortcuts,
+      this.setupGuide.root, this.dropVeil, this.shortcuts, this.licencePanel.root,
       this.renderWindow.root, this.palette.root,
     ]);
     const right = h('div', { class: 'sidebar' }, [outliner.root, properties.root]);
@@ -167,6 +170,15 @@ export class App {
     // again.
     this.setupGuide.showOnStart();
     this.watchForUpdates();
+    this.editor.panels.toggleLicence = () => this.licencePanel.toggle();
+    // Asked once at startup. A build from source, or one shipped without a
+    // signing key, answers "nothing to enforce" and nothing else happens.
+    void this.editor.refreshLicence();
+    // And whenever an export is refused, the way out is put on screen rather
+    // than left as a line in the status bar somebody has to notice.
+    this.editor.on('licence', () => {
+      if (!this.editor.canExport && this.editor.licence.status !== 'source') this.licencePanel.show();
+    });
     this.editor.renderer.onTexturesReady = () => this.editor.requestRender();
     // Closing the tab: write a recovery copy, and let the browser ask its own
     // "leave site?" question when there is unsaved work. A page cannot put its

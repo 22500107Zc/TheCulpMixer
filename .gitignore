@@ -7,3 +7,8 @@ dist/
 release/
 .scratch/
 release/
+
+# The licence signing key. Everything you ever sell is signed with it, and
+# anyone who has it can issue licences in your name.
+kline-private-key.pem
+*.pem

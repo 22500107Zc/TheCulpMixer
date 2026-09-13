@@ -826,6 +826,10 @@ export const COMMANDS: Command[] = [
     run: (ed) => ed.panels.toggleGuide?.(),
   },
   {
+    id: 'help.licence', label: 'Licence', category: 'Help',
+    run: (ed) => ed.panels.toggleLicence?.(),
+  },
+  {
     id: 'help.guideOnStart',
     label: 'Show The Guide When Kline Opens',
     category: 'Help',
@@ -1573,6 +1577,19 @@ function heldDuringRevision(id: string): boolean {
     || id === 'file.autosave' || id.startsWith('file.export');
 }
 
+/**
+ * Commands a licence gates.
+ *
+ * Getting finished work *out* — and nothing else. Every modelling, sculpting,
+ * rigging, animating and viewport operation stays available for ever, licensed
+ * or not, because an application that stops you editing what you already made
+ * is holding your work hostage rather than asking to be paid.
+ */
+const NEEDS_LICENCE = new Set([
+  'file.save', 'file.autosave', 'file.exportObj', 'file.exportStl', 'file.exportGltf',
+  'render.animation', 'render.video',
+]);
+
 const MODE_NAMES: Record<string, string> = {
   object: 'Object Mode', edit: 'Edit Mode', sculpt: 'Sculpt Mode',
 };
@@ -1599,6 +1616,14 @@ export function runCommand(editor: Editor, id: string): void {
   // and any future caller. Unfiltered, "Unwrap" in Object Mode reported
   // "Unwrapped into 0 islands", which is the language of success for something
   // that could not have done anything.
+  // The licence gate. Checked here, once, rather than in each command: a gate
+  // somebody has to remember to add is a gate that will be missing from the
+  // next export somebody writes.
+  if (NEEDS_LICENCE.has(id) && !editor.canExport) {
+    editor.setStatus(editor.licenceBlockedMessage);
+    editor.emit('licence');
+    return;
+  }
   if (cmd.mode && cmd.mode !== editor.mode) {
     editor.setStatus(
       `${cmd.label} is a ${MODE_NAMES[cmd.mode]} command — you are in ${MODE_NAMES[editor.mode]}`,
