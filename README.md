@@ -1001,10 +1001,10 @@ Three things the licensing deliberately cannot do, each covered by a test:
 
 ## Licence
 
-**Proprietary — see [LICENSE](LICENSE).** Kline is not open source. A
-fourteen-day evaluation is free and needs no permission; beyond that a
-commercial licence is required. You may not copy, modify or redistribute the
-Software itself.
+**Proprietary — see [LICENSE](LICENSE).** Kline is not open source and it is
+not free. Fourteen days to try it; after that you pay or you have no right to
+use it — not to run it, not to keep a copy, not to build it from source. You
+may not copy, modify, resell or redistribute the Software.
 
 **What you make with it is yours.** The licence claims no ownership of and no
 rights over your models, scenes, renders or animations, and you may use them
