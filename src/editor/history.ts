@@ -68,6 +68,59 @@ function estimateMeshBytes(d: SerializedMesh): number {
   if (d.faceUV) for (const uv of d.faceUV) if (uv) n += uv.length * 8 + 32;
   if (d.seams) n += d.seams.length * 24;
   if (d.edgeWeights) n += d.edgeWeights.length * 32;
+  // Three attributes the estimate used to walk straight past, and they are not
+  // small: skin weights are eight numbers per vertex and are usually the
+  // largest thing on a rigged character, painted colour is three, a sculpt
+  // mask is one. A budget that ignores them is a budget that lets a rigged,
+  // painted, sculpted project — exactly the kind that needs the limit — grow
+  // several times past it before anything is dropped.
+  if (d.skin) n += (d.skin.bones.length + d.skin.weights.length) * 8;
+  if (d.colors) n += d.colors.length * 8;
+  if (d.mask) n += d.mask.length * 8;
+  return n;
+}
+
+/**
+ * Roughly what a string costs to hold, in bytes.
+ *
+ * Two per character is the usual figure for a JavaScript string, and these are
+ * base64 data URLs — a photograph embedded in the document, or a depth map
+ * encoded beside it — which is the one place in a scene where the numbers get
+ * genuinely large.
+ */
+function stringBytes(s: string): number {
+  return s.length * 2;
+}
+
+/** What one object's record costs beyond its mesh. */
+function estimateObjectExtras(o: SerializedObject, seen: Set<object>): number {
+  let n = 0;
+  // Provenance carries a baseline, and a baseline carries a serialized mesh
+  // per part — a full copy of the asset's geometry as the generator last made
+  // it. For a model built from a photograph it also carries the encoded depth
+  // map, which is a few hundred kilobytes on its own. None of that was counted.
+  const prov = o.provenance as unknown as Record<string, unknown> | null | undefined;
+  if (prov && !seen.has(prov)) {
+    seen.add(prov);
+    const baseline = prov.baseline as
+      { parts?: { mesh?: SerializedMesh | null }[]; mesh?: SerializedMesh | null } | undefined;
+    for (const part of baseline?.parts ?? []) {
+      if (part.mesh) n += estimateMeshBytes(part.mesh);
+    }
+    // A single-mesh baseline — what a reference-derived asset records — is the
+    // same copy of the geometry under a different key.
+    if (baseline?.mesh) n += estimateMeshBytes(baseline.mesh);
+    const params = prov.params as Record<string, unknown> | undefined;
+    for (const value of Object.values(params ?? {})) {
+      if (typeof value === 'string') n += stringBytes(value);
+    }
+    if (typeof prov.code === 'string') n += stringBytes(prov.code);
+  }
+  for (const channel of o.animation ?? []) {
+    // A key is a small object; the count is what matters on a baked
+    // simulation, where every frame of every axis is one.
+    n += channel.keys.length * 48;
+  }
   return n;
 }
 
@@ -98,16 +151,41 @@ export class History {
     }
   }
 
-  /** Bytes held by the history, counting each shared mesh blob once. */
+  /**
+   * Bytes held by the history, counting each shared thing once.
+   *
+   * "Once" is the hard part and the reason this is not simply a walk. A mesh
+   * blob is shared between every snapshot that did not change it — that is the
+   * whole point of the store — so counting it per snapshot would report a
+   * scene as tens of times larger than it is. The same is true of an embedded
+   * texture: `toJSON` gives each snapshot its own wrapper object but the data
+   * URL inside it is one string, shared by reference, so the dedup has to be
+   * on the string rather than on the object holding it.
+   *
+   * What is *not* shared is counted per snapshot, because it genuinely exists
+   * per snapshot.
+   */
   footprint(): number {
     const seen = new Set<object>();
+    const seenText = new Set<string>();
     let total = 0;
     for (const stack of [this.undoStack, this.redoStack]) {
       for (const snap of stack) {
         for (const o of snap.scene.objects as SerializedObject[]) {
-          if (!o.mesh || seen.has(o.mesh)) continue;
-          seen.add(o.mesh);
-          total += this.store.sizeOf(o.mesh);
+          if (o.mesh && !seen.has(o.mesh)) {
+            seen.add(o.mesh);
+            total += this.store.sizeOf(o.mesh);
+          }
+          total += estimateObjectExtras(o, seen);
+        }
+        // Embedded images. A scene built from a photograph keeps the
+        // photograph inside it, which is usually larger than all its geometry
+        // put together, and none of it was being counted at all.
+        for (const t of snap.scene.textures ?? []) {
+          const url = (t as { url?: string }).url;
+          if (typeof url !== 'string' || seenText.has(url)) continue;
+          seenText.add(url);
+          total += stringBytes(url);
         }
       }
     }

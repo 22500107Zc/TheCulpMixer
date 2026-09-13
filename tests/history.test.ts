@@ -185,3 +185,154 @@ test('ages read the way a person would say them', () => {
   assert.equal(formatAge(3 * 3600 * 1000), '3 h ago');
   assert.equal(formatAge(2 * 24 * 3600 * 1000), '2 days ago');
 });
+
+// --------------------------------------------- what the history actually holds
+
+/** A base64-ish payload of a given size, so a fixture can carry a real image. */
+function fakeImage(kb: number): string {
+  return 'data:image/png;base64,' + 'A'.repeat(kb * 1024);
+}
+
+function skinnedPaintedSculpted(scene: Scene): void {
+  for (const o of scene.objects.values()) {
+    const m = o.mesh!;
+    const n = m.positions.length;
+    m.skin = { bones: new Int32Array(n * 4).fill(0), weights: new Float32Array(n * 4).fill(0.25) };
+    m.colors = new Float32Array(n * 3).fill(0.5);
+    m.mask = new Float32Array(n).fill(0.25);
+    m.markDirty();
+  }
+}
+
+test('the memory estimate counts skin weights, vertex colour and sculpt mask', () => {
+  // These three are per-vertex arrays and skin is eight numbers of it. A budget
+  // that walks past them lets exactly the projects that need the limit — rigged,
+  // painted, sculpted characters — grow several times past it before anything
+  // is dropped.
+  const plain = sceneWith(1, true);
+  const bare = new History();
+  bare.push(snap(plain, bare.store, 'plain'));
+  const bareBytes = bare.footprint();
+
+  const rigged = sceneWith(1, true);
+  skinnedPaintedSculpted(rigged);
+  const loaded = new History();
+  loaded.push(snap(rigged, loaded.store, 'rigged'));
+  const loadedBytes = loaded.footprint();
+
+  const verts = [...plain.objects.values()][0].mesh!.positions.length;
+  assert.ok(verts > 50, 'the fixture needs enough vertices to measure');
+  // Eight skin numbers, three colour, one mask: twelve doubles a vertex. Allow
+  // generous slack, but nothing like zero.
+  const expected = verts * 12 * 8;
+  assert.ok(
+    loadedBytes - bareBytes > expected * 0.5,
+    `skin, colour and mask added ${loadedBytes - bareBytes} bytes to the estimate, expected about ${expected}`,
+  );
+});
+
+test('the memory estimate counts embedded images, and counts each one once', () => {
+  const scene = sceneWith(1);
+  scene.textures.push({ id: 1, name: 'photo', url: fakeImage(512), width: 8, height: 8 });
+  const history = new History();
+  const store = history.store;
+
+  history.push(snap(scene, store, 'a'));
+  const one = history.footprint();
+  // Half a megabyte of base64 is two bytes a character in memory.
+  assert.ok(one > 512 * 1024, `an embedded 512 KB image was estimated at ${one} bytes`);
+
+  // Ten more snapshots of the same document. `toJSON` gives each its own
+  // texture *wrapper*, but the data URL inside is one string shared by
+  // reference — so the total must barely move.
+  for (let i = 0; i < 10; i++) history.push(snap(scene, store, `s${i}`));
+  const many = history.footprint();
+  assert.ok(
+    many < one * 1.5,
+    `one image was counted ${many / one} times over eleven snapshots`,
+  );
+});
+
+test('the memory estimate counts what provenance retains', () => {
+  const scene = sceneWith(1, true);
+  const object = [...scene.objects.values()][0];
+  const baselineMesh = object.mesh!.toJSON();
+  object.provenance = {
+    schema: 2,
+    source: 'reference',
+    assetId: 'a1',
+    generator: 'reference:silhouette',
+    generatorVersion: 1,
+    params: { depth: fakeImage(256) },
+    baseline: { version: 2, parts: [{
+      key: 'body#0', name: 'body',
+      position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1],
+      mesh: baselineMesh,
+    }] },
+    createdAt: 0,
+    revision: 0,
+  };
+
+  const withProv = new History();
+  withProv.push(snap(scene, withProv.store, 'with'));
+
+  const bare = new History();
+  bare.push(snap(sceneWith(1, true), bare.store, 'without'));
+
+  const extra = withProv.footprint() - bare.footprint();
+  // A quarter-megabyte depth map plus a whole second copy of the geometry.
+  assert.ok(extra > 256 * 1024, `provenance added only ${extra} bytes to the estimate`);
+});
+
+test('a shared mesh blob is counted once however deep the history goes', () => {
+  const scene = sceneWith(3, true);
+  const history = new History();
+  const store = history.store;
+  history.push(snap(scene, store, 'first'));
+  const one = history.footprint();
+
+  for (let i = 0; i < 20; i++) history.push(snap(scene, store, `s${i}`));
+  assert.equal(history.depth, 21);
+  assert.ok(
+    history.footprint() < one * 1.2,
+    'untouched geometry was counted again for every snapshot',
+  );
+
+  // And an edit genuinely costs: the changed mesh is a new blob.
+  const target = [...scene.objects.values()][1];
+  target.mesh!.positions[0].x += 1;
+  target.mesh!.markDirty();
+  history.push(snap(scene, store, 'moved'));
+  assert.ok(history.footprint() > one, 'an edited mesh was not counted');
+});
+
+test('a realistically large project is held to the budget', () => {
+  // Twenty subdivided, rigged, painted objects and an embedded photograph — the
+  // shape of a real character file. The budget has to be measured against what
+  // the project actually costs rather than guessed, so it is set from one
+  // snapshot of this very scene; with skin, colour, mask and the image all
+  // uncounted that measurement came out near zero and nothing was ever dropped.
+  const scene = sceneWith(20, true);
+  skinnedPaintedSculpted(scene);
+  scene.textures.push({ id: 1, name: 'photo', url: fakeImage(64), width: 16, height: 16 });
+
+  const history = new History(64, Number.MAX_SAFE_INTEGER);
+  const store = history.store;
+  history.push(snap(scene, store, 'start'));
+  const oneSnapshot = history.footprint();
+  assert.ok(oneSnapshot > 400 * 1024, `the fixture only measured ${oneSnapshot} bytes`);
+  history.budgetBytes = oneSnapshot * 2;
+
+  for (let i = 0; i < 40; i++) {
+    const target = [...scene.objects.values()][i % 20];
+    target.mesh!.positions[0].x += 0.01;
+    target.mesh!.markDirty();
+    history.push(snap(scene, store, `edit ${i}`));
+  }
+  assert.ok(history.depth > 0, 'the history dropped everything');
+  assert.ok(history.depth < 41, `nothing was dropped: ${history.depth} steps held`);
+  assert.ok(
+    history.footprint() <= history.budgetBytes,
+    `the history holds ${history.footprint()} bytes against a ${history.budgetBytes} byte budget`,
+  );
+});
