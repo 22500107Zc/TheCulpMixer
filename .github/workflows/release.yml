@@ -212,6 +212,81 @@ jobs:
           done
           exit "$fail"
 
+      # Windows was the one platform whose packaged application was never
+      # started before it went out. It is also the one most people download.
+      # electron-builder leaves an unpacked tree beside the installers, which
+      # is the same application the installer places — so it is run here, put
+      # through the same piece of real work as everywhere else, and made to
+      # exit zero before anybody is offered it.
+      - name: Prove the Windows app actually launches
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Get-ChildItem -Path release -Recurse -Filter Kline.exe |
+                 Where-Object { $_.FullName -match 'win-unpacked|win-ia32-unpacked|win-arm64-unpacked' } |
+                 Select-Object -First 1
+          if (-not $exe) { Write-Error 'no unpacked Kline.exe to launch'; exit 1 }
+          Write-Host "launching $($exe.FullName)"
+          $shot = Join-Path $env:RUNNER_TEMP 'windows-launch.png'
+          $env:KLINE_SMOKE = $shot
+          # A GPU-less runner: the same software renderer the other platforms use.
+          & $exe.FullName --enable-unsafe-swiftshader --use-angle=swiftshader 2>&1 |
+            ForEach-Object { Write-Host "    $_" }
+          $code = $LASTEXITCODE
+          if ($code -ne 0) { Write-Error "the app exited $code — its own checks failed"; exit 1 }
+          if (-not (Test-Path $shot)) { Write-Error 'it started but never rendered'; exit 1 }
+          Write-Host "LAUNCHED — rendered $((Get-Item $shot).Length) bytes"
+
+      - name: Keep the screenshot the Windows app took of itself
+        if: matrix.os == 'windows-latest'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-launch-proof
+          path: ${{ runner.temp }}/windows-launch.png
+          if-no-files-found: warn
+          retention-days: 7
+
+      # The Linux AppImage, likewise: extracted and run under a virtual
+      # display, because an AppImage that will not start is invisible from a
+      # build log that says "success".
+      - name: Prove the Linux AppImage actually launches
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libfuse2 >/dev/null
+          shopt -s nullglob
+          fail=0
+          for image in release/*.AppImage; do
+            echo "===================================================== $image"
+            chmod +x "$image"
+            work="$(mktemp -d)"
+            (cd "$work" && "$OLDPWD/$image" --appimage-extract >/dev/null)
+            binary="$work/squashfs-root/kline"
+            [ -x "$binary" ] || { echo "    NO EXECUTABLE INSIDE"; fail=1; continue; }
+            shot="$RUNNER_TEMP/linux-launch.png"
+            if KLINE_SMOKE="$shot" xvfb-run -a "$binary" --no-sandbox \
+                 --enable-unsafe-swiftshader --use-angle=swiftshader 2>&1 | sed 's/^/    /'; then
+              [ -s "$shot" ] && echo "    LAUNCHED — rendered $(wc -c < "$shot") bytes" \
+                || { echo "    STARTED BUT NEVER RENDERED"; fail=1; }
+            else
+              echo "    FAILED ITS OWN CHECKS"; fail=1
+            fi
+          done
+          exit "$fail"
+
+      - name: Keep the screenshot the Linux app took of itself
+        if: matrix.os == 'ubuntu-latest'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-launch-proof
+          path: ${{ runner.temp }}/linux-launch.png
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Keep the screenshots the macOS app took of itself
         if: matrix.os == 'macos-latest'
         continue-on-error: true

@@ -954,6 +954,10 @@ reference images cannot be pinned in the viewport to model against;
 photogrammetry from a video's many frames is not implemented; and meshes above
 roughly a million triangles make the viewport uncomfortable.
 
+Every release runs the packaged application on its own platform before it is
+published — macOS, Windows and Linux each start the real installed build,
+model a sphere, unwrap it, undo, rig it with an IK constraint, keyframe it and
+save and reopen the document, and the job fails if any of that does not work.
 The desktop builds are **unsigned**, and signing them needs certificates that
 cost money rather than code.
 

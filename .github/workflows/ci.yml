@@ -38,11 +38,15 @@ jobs:
       - run: npm ci
       - run: npx vite build
       - name: Smoke-test the desktop shell
-        # Boots the real Electron app under a virtual display, screenshots it
-        # and exits — proves the packaged shell renders, not just the web build.
+        # Boots the real Electron app under a virtual display and puts it
+        # through a piece of real work — model, unwrap, undo, rig with an IK
+        # constraint, keyframe, save and reopen — before screenshotting itself
+        # and exiting. It exits non-zero when any of that fails, which is what
+        # makes it a test rather than a picture: a build that renders a window
+        # and then throws on the first operation used to pass.
         run: xvfb-run -a npx electron . --no-sandbox --enable-unsafe-swiftshader
         env:
-          KILN_SMOKE: ${{ runner.temp }}/kiln-desktop.png
+          KLINE_SMOKE: ${{ runner.temp }}/kiln-desktop.png
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-smoke-screenshot

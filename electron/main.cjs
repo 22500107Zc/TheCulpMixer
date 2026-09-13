@@ -151,29 +151,126 @@ function createWindow() {
 
   mainWindow.loadURL('kline://app/');
 
-  // Smoke-test hook: `KLINE_SMOKE=<png path> electron .` boots the shell, saves
-  // a screenshot and exits, so CI can prove the desktop build actually renders
-  // — including the packaged app, on a real machine of that platform.
+  // Smoke-test hook: `KLINE_SMOKE=<png path> electron .` boots the shell, puts
+  // it through a short piece of real work, saves a screenshot and exits — so
+  // CI can prove the packaged app on each platform *works*, not merely that it
+  // opened a window. A build that renders a grey box and then throws on the
+  // first modelling operation used to pass this.
+  //
   // KILN_SMOKE is the pre-rename name, still honoured so an older workflow or
   // a script someone has locally keeps working.
   const smokeTarget = process.env.KLINE_SMOKE || process.env.KILN_SMOKE;
   if (smokeTarget) {
     mainWindow.webContents.once('did-finish-load', () => {
       setTimeout(async () => {
+        let checks = { ok: false, error: 'the page never reported back' };
+        try {
+          checks = await mainWindow.webContents.executeJavaScript(SMOKE_SCRIPT, true);
+        } catch (err) {
+          checks = { ok: false, error: String(err && err.message ? err.message : err) };
+        }
         const image = await mainWindow.webContents.capturePage();
         fs.writeFileSync(smokeTarget, image.toPNG());
         const menu = Menu.getApplicationMenu();
         console.log(JSON.stringify({
           menus: menu ? menu.items.map((i) => i.label) : [],
           title: mainWindow.getTitle(),
+          checks,
         }));
-        app.exit(0);
+        // A non-zero exit is what makes this a test rather than a screenshot.
+        app.exit(checks.ok ? 0 : 1);
       }, 2500);
     });
   }
 
   return mainWindow;
 }
+
+/**
+ * What the packaged application is asked to prove it can do.
+ *
+ * Deliberately a spread rather than one feature: geometry, the modifier stack,
+ * rigging with a constraint solve, animation, the undo history and the
+ * document format. Each is a subsystem that has, at some point, worked in the
+ * browser build and not in the packaged one — a missing asset, a worker that
+ * will not start, a path that resolves differently under a custom protocol.
+ *
+ * Returned rather than thrown so the failure arrives as a readable line in the
+ * build log instead of an Electron stack trace.
+ */
+const SMOKE_SCRIPT = `(() => {
+  try {
+    const k = window.kline;
+    if (!k) return { ok: false, error: 'Kline did not start: window.kline is missing' };
+    const ed = k.editor;
+    const notes = {};
+
+    // Geometry and the operators.
+    k.run('add.uvsphere');
+    const id = ed.scene.active;
+    const before = ed.scene.get(id).mesh.faces.length;
+    k.run('edit.toggleMode');
+    k.run('select.all');
+    k.run('mesh.subdivide');
+    notes.subdivided = ed.scene.get(id).mesh.faces.length > before;
+    k.run('uv.smart');
+    notes.unwrapped = (ed.scene.get(id).mesh.faceUV || []).filter(Boolean).length > 0;
+    k.run('edit.toggleMode');
+
+    // Undo has to put it back.
+    k.run('edit.undo');
+    k.run('edit.undo');
+    notes.undone = ed.scene.get(id).mesh.faces.length === before;
+
+    // Undo restores the mode it was recorded in, so this lands back in Edit
+    // Mode — where the commands below are refused, correctly and silently
+    // enough that the first version of this script blamed the rig.
+    if (ed.mode !== 'object') k.run('edit.toggleMode');
+    notes.backInObjectMode = ed.mode === 'object';
+
+    // A rig with a constraint, which is the newest evaluation path.
+    k.run('add.armature');
+    const rigId = ed.scene.active;
+    k.run('rig.extrudeBone');
+    k.run('rig.addControlBone');
+    const rig = ed.scene.get(rigId);
+    const control = rig.armature.bones[rig.armature.bones.length - 1];
+    control.head = [1, 0.6, 0];
+    control.tail = [1, 0.8, 0];
+    const tip = rig.armature.bones[1];
+    tip.constraints = [{ type: 'ik', target: control.name, chain: 2, iterations: 24 }];
+    const posed = ed.scene.get(rigId).armature.bones.length;
+    notes.rigged = posed >= 3;
+
+    // Animation through the one evaluation path. Keying works on what is
+    // selected, and what is selected right now is the armature.
+    ed.selectObject(id);
+    ed.scene.timeline.start = 1;
+    ed.scene.timeline.end = 10;
+    ed.setFrame(1);
+    ed.scene.get(id).position.x = 0;
+    k.run('anim.insertKey');
+    ed.setFrame(10);
+    ed.scene.get(id).position.x = 5;
+    k.run('anim.insertKey');
+    ed.setFrame(5);
+    const mid = ed.scene.get(id).position.x;
+    notes.animated = mid > 0.5 && mid < 4.5;
+
+    // The document format, out and back.
+    const json = JSON.stringify(ed.scene.toJSON());
+    ed.newScene();
+    ed.loadSceneJSON(JSON.parse(json));
+    notes.reopened = ed.scene.objects.size >= 2;
+
+    const failed = Object.keys(notes).filter((key) => !notes[key]);
+    return failed.length
+      ? { ok: false, error: 'these did not work in the packaged app: ' + failed.join(', '), notes }
+      : { ok: true, notes };
+  } catch (err) {
+    return { ok: false, error: String(err && err.message ? err.message : err) };
+  }
+})()`;
 
 /** Turn Kline's own shortcut strings into Electron accelerators. */
 function toAccelerator(shortcut) {
