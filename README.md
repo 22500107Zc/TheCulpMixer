@@ -655,9 +655,9 @@ the UI are all in this repository, and each piece is readable on its own.
   has, and you can re-grade the exposure or toggle the denoiser without
   restarting
 - Save a still as a PNG, or **render an animation**: a deterministic frame
-  sequence with progress, a cancel button and a stated frame range, written to
-  a folder you choose on the desktop and to a WebM recording or a capped run of
-  numbered PNGs in the browser, depending on what it can actually do
+  sequence with progress, a cancel button and a stated frame range, written as
+  numbered files into one folder you pick — on the desktop and in the browser
+  alike — or recorded straight to WebM where you want a single file
 
 **Scene**
 - Object hierarchy with parenting, per-object visibility and locking

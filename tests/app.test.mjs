@@ -1642,6 +1642,13 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       ed.setMode('object');
 
       // 5. Export it, through the real command, and read what it wrote.
+      //
+      // Chrome saves to a file the person picks, and that picker needs a live
+      // user gesture it cannot have inside a script. This is the documented
+      // fallback path — the one Firefox and Safari always take — so it is
+      // taken here on purpose rather than worked around.
+      const realPicker = window.showSaveFilePicker;
+      delete window.showSaveFilePicker;
       const written = [];
       const realCreate = URL.createObjectURL;
       URL.createObjectURL = (blob) => { written.push(blob); return realCreate.call(URL, blob); };
@@ -1651,6 +1658,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       await settle();
       URL.createObjectURL = realCreate;
       HTMLAnchorElement.prototype.click = realClick;
+      if (realPicker) window.showSaveFilePicker = realPicker;
       const gltf = JSON.parse(await written[written.length - 1].text());
       return {
         built, reopened, editing, subdivided, afterUndo,

@@ -492,17 +492,58 @@ if (app.skip) {
     // Exported through the File command, caught as a real download, and parsed
     // here by code that knows nothing about Kline's own loader — which is the
     // only way to find out whether the file is any use to anybody else.
-    const grab = async (commandId) => {
-      const wait = page.waitForEvent('download', { timeout: 20000 });
+    //
+    // Saving goes through the File System Access API, which is what Chrome and
+    // Edge actually do: a file the person picks, a write that either lands or
+    // throws, and a real "Saved" rather than a guess. A multi-file export asks
+    // for one folder instead of one dialog per file, because a picker spends
+    // the gesture that opened it and the second dialog would throw. Both
+    // pickers need a live user gesture a script cannot have, so they are stood
+    // in for here; everything past the picker is Kline's own code.
+    const installPickers = () => page.evaluate(() => {
+      window.__saved = [];
+      const writable = (name) => {
+        const parts = [];
+        return {
+          async write(data) { parts.push(data); },
+          async close() {
+            window.__saved.push({ name, text: await new Blob(parts).text() });
+          },
+          async abort() {},
+        };
+      };
+      window.showSaveFilePicker = async ({ suggestedName }) => ({
+        name: suggestedName,
+        createWritable: async () => writable(suggestedName),
+      });
+      window.showDirectoryPicker = async () => ({
+        name: 'chosen-folder',
+        async getFileHandle(name) {
+          return { name, createWritable: async () => writable(name) };
+        },
+      });
+    });
+
+    const grab = async (commandId, expected = 1) => {
+      await installPickers();
       await page.evaluate((id) => window.kline.run(id), commandId);
-      const download = await wait;
-      const stream = await download.createReadStream();
-      const chunks = [];
-      for await (const chunk of stream) chunks.push(chunk);
-      return { name: download.suggestedFilename(), text: Buffer.concat(chunks).toString('utf8') };
+      await page.waitForFunction(
+        (want) => (window.__saved ?? []).length >= want, expected, { timeout: 20000 },
+      ).catch(async () => {
+        const why = await page.evaluate(() => window.kline.editor.statusMessage);
+        throw new Error(`${commandId} wrote ${(await page.evaluate(() => window.__saved.length))}`
+          + ` of ${expected} files. Status bar: "${why}"`);
+      });
+      const files = await page.evaluate(() => window.__saved);
+      const status = await page.evaluate(() => window.kline.editor.statusMessage);
+      assert.doesNotMatch(status, /cancel|could not|failed/i,
+        `after saving, the status bar said: ${status}`);
+      return { files, status, ...files[0] };
     };
 
-    const { name, text } = await grab('file.exportGltf');
+    const { name, text, status: gltfStatus } = await grab('file.exportGltf');
+    assert.match(gltfStatus, /^Saved /,
+      `a real save should report a saved file, not: ${gltfStatus}`);
     assert.match(name, /\.gltf$/, `the export was named ${name}`);
     const doc = JSON.parse(text);
 
@@ -596,9 +637,17 @@ if (app.skip) {
       }
     }
 
-    // OBJ comes out as two files that have to agree with each other.
-    const obj = await grab('file.exportObj');
-    assert.match(obj.name, /\.obj$/);
+    // OBJ is not one file: geometry, a material library, and an image for
+    // every texture the library names. They arrive together or not at all.
+    const objExport = await grab('file.exportObj', 3);
+    const obj = objExport.files.find((f) => f.name.endsWith('.obj'));
+    assert.ok(obj, `no .obj among ${objExport.files.map((f) => f.name).join(', ')}`);
+    assert.ok(objExport.files.some((f) => f.name.endsWith('.mtl')),
+      'the material library did not come with the geometry');
+    assert.ok(objExport.files.some((f) => /\.(png|jpe?g|webp)$/i.test(f.name)),
+      'the texture the material names did not come with it');
+    assert.match(objExport.status, /^Exported/,
+      `a complete multi-file export should say so, not: ${objExport.status}`);
     const usedMaterials = [...obj.text.matchAll(/^usemtl (.+)$/gm)].map((m) => m[1].trim());
     assert.ok(/^v /m.test(obj.text), 'the OBJ has no vertices');
     assert.ok(/^f /m.test(obj.text), 'the OBJ has no faces');

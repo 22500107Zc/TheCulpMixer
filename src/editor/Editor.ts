@@ -27,6 +27,7 @@ import { createModifier } from '../modifiers';
 import { Brush, PaintSurface, defaultBrush, paintTargets, uvScaleAt } from '../paint/texture';
 import { SceneTexture } from '../scene/Texture';
 import { transferUV } from '../uv/transfer';
+import { forgetSaveTargets } from '../io/files';
 import { RenderJob } from '../render/pathtrace/RenderJob';
 import { RenderSettings, defaultRenderSettings } from '../render/pathtrace/types';
 import { buildTraceScene, cameraFromObject, cameraFromViewport } from '../render/pathtrace/build';
@@ -717,6 +718,9 @@ export class Editor {
     this.editObjectId = null;
     this.clearElementSelection();
     this.unsavedChanges = false;
+    // A new document has never been saved. Keeping the old file handle would
+    // make the next Ctrl+S quietly overwrite the previous project's file.
+    forgetSaveTargets();
     this.changed();
   }
 

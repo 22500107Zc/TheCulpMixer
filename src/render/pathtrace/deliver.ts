@@ -1,5 +1,7 @@
 import { desktop } from '../../desktop';
-import { saveBinary } from '../../io/files';
+import {
+  DirectoryHandle, canSaveToFolder, pickFolder, saveBinary, writeInFolder,
+} from '../../io/files';
 import { FrameImage, frameFilename } from './sequence';
 
 /**
@@ -72,6 +74,42 @@ export function folderDestination(folder: string): Destination {
       if (failed) return `Stopped after ${written} frame(s): ${failed}`;
       if (cancelled) return `Cancelled after ${written} frame(s), which are in ${folder}`;
       return `Rendered ${written} frame(s) into ${folder}`;
+    },
+  };
+}
+
+/**
+ * Write every frame into a folder the person picked, in a browser.
+ *
+ * The same shape as the desktop path, and for the same reason: a sequence is
+ * one act, so it should cost one dialog and produce one folder of numbered
+ * files. Where a browser has the File System Access API this is available
+ * there too, and the sixty-frame download cap below stops applying — a four
+ * hundred frame render is a folder, not four hundred download prompts.
+ */
+export function browserFolderDestination(folder: DirectoryHandle): Destination {
+  let failed: string | null = null;
+  return {
+    describe: () => `Writing frames into ${folder.name}`,
+    async write(image, total) {
+      const png = await toPng(image);
+      if (!png) {
+        failed = 'the frame could not be encoded';
+        return false;
+      }
+      const outcome = await writeInFolder(
+        folder, frameFilename(image.frame, total), new Blob([png], { type: 'image/png' }),
+      );
+      if (outcome.status === 'failed') {
+        failed = outcome.reason;
+        return false;
+      }
+      return outcome.status !== 'cancelled';
+    },
+    async finish(written, cancelled) {
+      if (failed) return `Stopped after ${written} frame(s): ${failed}`;
+      if (cancelled) return `Cancelled after ${written} frame(s), which are in ${folder.name}`;
+      return `Rendered ${written} frame(s) into ${folder.name}`;
     },
   };
 }
@@ -200,13 +238,22 @@ export async function chooseDestination(
     const dest = folderDestination(picked.path);
     return { destination: dest, reason: dest.describe() };
   }
+  if (canSaveToFolder()) {
+    const folder = await pickFolder();
+    if (folder && 'failed' in folder) {
+      return { destination: null, reason: `That folder could not be opened: ${folder.failed}` };
+    }
+    if (!folder) return { destination: null, reason: 'No folder was chosen, so nothing was rendered.' };
+    const dest = browserFolderDestination(folder);
+    return { destination: dest, reason: dest.describe() };
+  }
   if (frames > MAX_BROWSER_FRAMES) {
     return {
       destination: null,
-      reason: `A browser tab can only hand over one download at a time, so ${frames} frames `
+      reason: `This browser can only hand over one download at a time, so ${frames} frames `
         + `is more than it will reliably deliver (the limit here is ${MAX_BROWSER_FRAMES}). `
-        + 'Shorten the range, record a video instead, or use the desktop app, which writes '
-        + 'a whole sequence into one folder.',
+        + 'Shorten the range, record a video instead, or use Chrome, Edge or the desktop app, '
+        + 'which write a whole sequence into one folder.',
     };
   }
   const dest = downloadDestination();
