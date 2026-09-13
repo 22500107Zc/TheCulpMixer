@@ -34,16 +34,31 @@ async function freshVisit() {
 const cacheNames = (page) => page.evaluate(() => caches.keys());
 
 /** Poll until `check` accepts the cache list, or give up and report what it saw. */
-async function waitForCaches(page, what, check, timeout = 30000) {
+async function waitForCaches(page, what, check, timeout = 30000, between = null) {
   const until = Date.now() + timeout;
   let seen = [];
   for (;;) {
     seen = await cacheNames(page);
     if (check(seen)) return seen;
     if (Date.now() > until) throw new Error(`${what} — caches were: ${seen.join(', ')}`);
-    await new Promise((r) => setTimeout(r, 200));
+    if (between) await between();
+    await new Promise((r) => setTimeout(r, 250));
   }
 }
+
+/**
+ * Ask the browser to look for a new worker.
+ *
+ * Asked repeatedly rather than once: a rebuild writes `dist` in place while
+ * the test server is reading from it, so an update check that lands in the
+ * middle of that can fetch a half-written script, fail to install, and leave
+ * nothing waiting. One retry a quarter second later is enough, and a check
+ * that finds nothing new costs a conditional request.
+ */
+const askForUpdate = (page) => page.evaluate(() => navigator.serviceWorker
+  .getRegistration()
+  .then((reg) => (reg ? reg.update() : undefined))
+  .catch(() => undefined));
 
 async function bootsOffline(context, page) {
   await context.setOffline(true);
@@ -110,18 +125,22 @@ test('an update clears Kline’s old caches and nothing else', { skip: app.skip 
     rebuild(`update ${Date.now()}`);
     // An update only takes effect for a page that asks for it, so that a
     // running tab is never swapped out from under itself.
-    await page.evaluate(async () => {
+    const release = () => page.evaluate(async () => {
       const reg = await navigator.serviceWorker.getRegistration();
-      await reg.update();
+      if (!reg) return;
+      await reg.update().catch(() => undefined);
       const waiting = reg.waiting ?? reg.installing;
       if (waiting) waiting.postMessage({ type: 'kline:activate-update' });
     });
+    await release();
     const after = await waitForCaches(
       page,
       'the new build never took over',
       (names) => names.some((n) => n.startsWith('kline-shell-') && n !== before
         && n !== 'kline-shell-0000000000000000')
         && !names.includes(before),
+      30000,
+      release,
     );
     assert.ok(after.includes('someone-elses-app-v3'), 'the update deleted an unrelated cache');
     assert.ok(after.includes('kline-large-v1'),
@@ -149,8 +168,12 @@ test('a waiting update is offered to the creator, not forced on them', { skip: a
       'the update bar was showing before there was an update');
 
     rebuild(`offered ${Date.now()}`);
-    await page.evaluate(() => navigator.serviceWorker.getRegistration().then((r) => r.update()));
-    await page.locator('.update-bar:not(.hidden)').waitFor({ timeout: 20000 });
+    const bar = page.locator('.update-bar:not(.hidden)');
+    for (let tries = 0; tries < 12 && await bar.count() === 0; tries++) {
+      await askForUpdate(page);
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    await bar.waitFor({ timeout: 20000 });
     assert.match(await page.locator('.update-bar').innerText(), /new version/i);
 
     // Nothing has changed yet: the old build is still the one in charge.
