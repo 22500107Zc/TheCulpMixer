@@ -1,9 +1,10 @@
 # Third-party components
 
-Kline itself is MIT licensed (see `LICENSE`). Two third-party components are
+Kline itself is proprietary — see `LICENSE`. Two third-party components are
 redistributed inside the application, both under permissive licences that allow
-commercial use. Their terms are reproduced or linked below, and this file
-travels with every build.
+commercial redistribution inside a proprietary product. Those components keep
+their own terms, which are reproduced or linked below, and this file travels
+with every build because those licences require it to.
 
 ## Depth Anything V2 Small — Apache License 2.0
 

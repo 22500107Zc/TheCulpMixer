@@ -963,8 +963,13 @@ cost money rather than code.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Small, focused pull requests with a test
-for anything touching `src/mesh` are the easiest to merge.
+Kline is proprietary, so a contribution is not simply a pull request: accepting
+outside code without a written assignment would leave someone else holding
+copyright in a product being sold. Contributions are welcome, and are accepted
+only under a signed contributor agreement — ask first at zachculprit@gmail.com.
+
+For the house style and the test expectations, see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Selling it
 
@@ -996,8 +1001,14 @@ Three things the licensing deliberately cannot do, each covered by a test:
 
 ## Licence
 
-**Proprietary — see [LICENSE](LICENSE).** Kline is not open source and is not
-free to use, copy, modify or redistribute; a commercial licence is required.
+**Proprietary — see [LICENSE](LICENSE).** Kline is not open source. A
+fourteen-day evaluation is free and needs no permission; beyond that a
+commercial licence is required. You may not copy, modify or redistribute the
+Software itself.
+
+**What you make with it is yours.** The licence claims no ownership of and no
+rights over your models, scenes, renders or animations, and you may use them
+commercially without royalty — including after a licence ends.
 Kline contains no Blender code; the resemblance is in the keymap, which is
 deliberate. Third-party components Kline depends on keep their own licences,
 which are reproduced in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) and
