@@ -2479,3 +2479,38 @@ button:disabled {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* --------------------------------------------------------- unsaved changes */
+
+/* Modal rather than a corner panel: this is the one question that must be
+   answered before anything else happens, and a dismissible notice would be
+   read as advice. */
+.unsaved-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.unsaved-card {
+  width: min(420px, calc(100% - 32px));
+  background: var(--shell-raised);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+}
+
+.unsaved-body {
+  margin: 0;
+  padding: 12px 16px 4px;
+  color: var(--ink-dim);
+  line-height: 1.5;
+}
+
+.unsaved-actions {
+  padding: 12px 16px 16px;
+  justify-content: flex-end;
+}

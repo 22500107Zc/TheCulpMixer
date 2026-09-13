@@ -18,6 +18,8 @@ import { DiffPanel } from './DiffPanel';
 import { RevisionPanel } from './RevisionPanel';
 import { SetupGuide } from './SetupGuide';
 import { SculptPanel } from './SculptPanel';
+import { askUnsaved } from './UnsavedDialog';
+import { describeSave, saveText, saveWorked } from '../io/files';
 import { formatAge } from '../editor/recovery';
 import { altKeyName, ctrlKeyName, isMac, navigationHint, scrollPhrase } from './platform';
 
@@ -126,12 +128,60 @@ export class App {
     // again.
     this.setupGuide.showOnStart();
     this.editor.renderer.onTexturesReady = () => this.editor.requestRender();
-    window.addEventListener('beforeunload', () => void this.editor.autosaveNow(false));
+    // Closing the tab: write a recovery copy, and let the browser ask its own
+    // "leave site?" question when there is unsaved work. A page cannot put its
+    // own dialog here — browsers stopped allowing that years ago because it
+    // was abused — so the honest thing is to set the flag that triggers the
+    // native one and keep the recovery copy as the real safety net.
+    window.addEventListener('beforeunload', (e) => {
+      void this.editor.autosaveNow(false);
+      if (!this.editor.hasUnsavedChanges) return;
+      e.preventDefault();
+      e.returnValue = '';
+    });
+    // The desktop shell holds the close until this answers.
+    const bridge = desktop();
+    bridge?.onConfirmClose?.(() => { void this.confirmClose(); });
+
     this.editor.on('modal', () => this.syncModalChrome());
     this.editor.on('change', () => this.syncModalChrome());
     this.syncModalChrome();
     this.editor.start();
     this.editor.setStatus(`Ready — ${navigationHint()} · Ctrl+K finds everything else`);
+  }
+
+  /**
+   * Answer the shell's "may I close?".
+   *
+   * A recovery copy is written either way, because the window is going and a
+   * crash-safe copy costs nothing. Saving is offered first, and a save that is
+   * cancelled or fails keeps the window open — pressing Save and then losing
+   * the work anyway would be the worst outcome of the three.
+   */
+  private async confirmClose(): Promise<void> {
+    const bridge = desktop();
+    await this.editor.autosaveNow(false);
+    if (!this.editor.hasUnsavedChanges) {
+      bridge?.answerClose?.(true);
+      return;
+    }
+    const answer = await askUnsaved('Closing Kline will lose them.');
+    if (answer === 'cancel') {
+      bridge?.answerClose?.(false);
+      return;
+    }
+    if (answer === 'save') {
+      const outcome = await saveText(
+        'scene.kline', JSON.stringify(this.editor.scene.toJSON(), null, 1), 'application/json',
+      );
+      if (!saveWorked(outcome)) {
+        this.editor.setStatus(`${describeSave(outcome, 'scene.kline')} — Kline stayed open.`);
+        bridge?.answerClose?.(false);
+        return;
+      }
+      this.editor.markSaved();
+    }
+    bridge?.answerClose?.(true);
   }
 
   private syncModalChrome(): void {

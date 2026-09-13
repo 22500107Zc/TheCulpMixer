@@ -115,7 +115,32 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => mainWindow.show());
   // The page title is written for a browser tab; the window keeps the app name.
   mainWindow.on('page-title-updated', (event) => event.preventDefault());
-  mainWindow.on('close', () => saveWindowState(mainWindow));
+  // Closing with unsaved work asks first.
+  //
+  // The window used to go the moment the button was pressed, taking whatever
+  // was on screen with it. The renderer is the only side that knows whether
+  // there is anything to lose, so it is asked — and the close is held until it
+  // answers, or until a second of silence, because a renderer that has stopped
+  // responding must not be able to make the window unclosable.
+  let closeApproved = false;
+  mainWindow.on('close', (event) => {
+    saveWindowState(mainWindow);
+    if (closeApproved || !mainWindow || mainWindow.isDestroyed()) return;
+    event.preventDefault();
+    let answered = false;
+    const proceed = (ok) => {
+      if (answered) return;
+      answered = true;
+      ipcMain.removeListener('kline:close-answer', onAnswer);
+      if (!ok) return;
+      closeApproved = true;
+      mainWindow.close();
+    };
+    const onAnswer = (_e, ok) => proceed(!!ok);
+    ipcMain.once('kline:close-answer', onAnswer);
+    mainWindow.webContents.send('kline:confirm-close');
+    setTimeout(() => proceed(true), 10000);
+  });
   mainWindow.on('closed', () => { mainWindow = null; });
 
   // Anything that is not the app itself belongs in the user's browser.

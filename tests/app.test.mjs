@@ -1699,11 +1699,20 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       window.kline.run('material.checker');
       await new Promise((ok) => setTimeout(ok, 120));
       const loaded = { materials: ed.scene.materials.length, textures: ed.scene.textures.length };
+      // New Scene now asks before throwing away unsaved work, so this answers
+      // it the way somebody starting fresh would.
       window.kline.run('file.new');
+      await new Promise((ok) => setTimeout(ok, 60));
+      const asked = document.querySelector('.unsaved-dialog');
+      if (asked) {
+        [...asked.querySelectorAll('button')]
+          .find((b) => b.textContent.trim() === 'Discard').click();
+      }
       await new Promise((ok) => setTimeout(ok, 120));
       const doc = ed.scene.toJSON();
       return {
         loaded,
+        asked: !!asked,
         objects: ed.scene.objects.size,
         materials: ed.scene.materials.length,
         textures: ed.scene.textures.length,
@@ -1712,6 +1721,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       };
     });
 
+    assert.equal(after.asked, true, 'New Scene threw away unsaved work without asking');
     assert.ok(after.loaded.textures > 0, 'the scene under test had no image to leave behind');
     assert.equal(after.objects, 0);
     assert.equal(after.textures, 0, `New Scene kept ${after.textures} image(s) from the previous one`);
@@ -3551,6 +3561,133 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       assert.equal(verdict, 'blocked', `generated code reached the host through ${name}`);
     }
     assert.equal(out.built, true, 'the lockdown broke ordinary program building');
+  });
+
+  test('a cancelled save never says the work is safe', async () => {
+    await resetScene(page);
+    const out = await page.evaluate(async () => {
+      const k = window.kline, ed = k.editor;
+      k.run('add.cube');
+
+      // Stand in for the desktop shell, which is the only place a save can be
+      // cancelled or fail: a browser tab only ever starts a download.
+      const answers = [];
+      window.klineDesktop = {
+        platform: 'test',
+        registerCommands: () => {},
+        onCommand: () => {},
+        onShowShortcuts: () => {},
+        onOpenFile: () => {},
+        openScene: async () => null,
+        saveFile: async () => answers.shift(),
+      };
+
+      const results = {};
+      answers.push({ status: 'cancelled' });
+      k.run('file.save');
+      await new Promise((r) => setTimeout(r, 60));
+      results.cancelled = ed.statusMessage;
+      results.stillDirtyAfterCancel = ed.hasUnsavedChanges;
+
+      answers.push({ status: 'failed', reason: 'disk full' });
+      k.run('file.save');
+      await new Promise((r) => setTimeout(r, 60));
+      results.failed = ed.statusMessage;
+      results.stillDirtyAfterFailure = ed.hasUnsavedChanges;
+
+      answers.push({ status: 'saved', path: '/tmp/scene.kline' });
+      k.run('file.save');
+      await new Promise((r) => setTimeout(r, 60));
+      results.saved = ed.statusMessage;
+      results.cleanAfterSave = ed.hasUnsavedChanges === false;
+
+      delete window.klineDesktop;
+      return results;
+    });
+
+    assert.doesNotMatch(out.cancelled, /^Saved/, `a cancelled save reported "${out.cancelled}"`);
+    assert.match(out.cancelled, /cancelled/i);
+    assert.equal(out.stillDirtyAfterCancel, true, 'a cancelled save marked the document clean');
+
+    assert.doesNotMatch(out.failed, /^Saved/, `a failed save reported "${out.failed}"`);
+    assert.match(out.failed, /disk full/);
+    assert.equal(out.stillDirtyAfterFailure, true, 'a failed save marked the document clean');
+
+    assert.match(out.saved, /^Saved/, `a real save reported "${out.saved}"`);
+    assert.equal(out.cleanAfterSave, true, 'a completed save left the document dirty');
+  });
+
+  test('a recovery copy does not count as saving the project', async () => {
+    await resetScene(page);
+    const out = await page.evaluate(async () => {
+      const ed = window.kline.editor;
+      window.kline.run('add.cube');
+      const dirtyBefore = ed.hasUnsavedChanges;
+      const wrote = await ed.autosaveNow(false);
+      return { dirtyBefore, wrote, dirtyAfter: ed.hasUnsavedChanges };
+    });
+    assert.equal(out.dirtyBefore, true, 'adding a cube did not mark the document unsaved');
+    assert.equal(out.wrote, true, 'the recovery copy was not written');
+    assert.equal(out.dirtyAfter, true,
+      'an autosave marked the document saved — it has a name nobody chose and vanishes with the profile');
+  });
+
+  test('replacing the document asks first, and Cancel really cancels', async () => {
+    await resetScene(page);
+    const out = await page.evaluate(async () => {
+      const k = window.kline, ed = k.editor;
+      k.run('add.uvsphere');
+      const before = ed.scene.objects.size;
+
+      const press = (label) => new Promise((resolve) => {
+        const tick = () => {
+          const dialog = document.querySelector('.unsaved-dialog');
+          if (!dialog) { requestAnimationFrame(tick); return; }
+          const button = [...dialog.querySelectorAll('button')]
+            .find((b) => b.textContent.trim() === label);
+          button.click();
+          resolve(true);
+        };
+        requestAnimationFrame(tick);
+      });
+
+      // Cancel: the scene must be exactly as it was.
+      const cancelling = press('Cancel');
+      k.run('file.new');
+      await cancelling;
+      await new Promise((r) => setTimeout(r, 60));
+      const afterCancel = ed.scene.objects.size;
+
+      // Discard: now it goes.
+      const discarding = press('Discard');
+      k.run('file.new');
+      await discarding;
+      await new Promise((r) => setTimeout(r, 60));
+      const afterDiscard = ed.scene.objects.size;
+
+      return {
+        before, afterCancel, afterDiscard,
+        dialogGone: !document.querySelector('.unsaved-dialog'),
+      };
+    });
+
+    assert.equal(out.afterCancel, out.before, 'Cancel still replaced the document');
+    assert.ok(out.afterDiscard < out.before, 'Discard did not start a new scene');
+    assert.equal(out.dialogGone, true, 'the dialog was left on screen');
+  });
+
+  test('a clean document is replaced without being asked', async () => {
+    await resetScene(page);
+    const out = await page.evaluate(async () => {
+      const ed = window.kline.editor;
+      // resetScene leaves a freshly loaded document, which is not unsaved work.
+      const dirty = ed.hasUnsavedChanges;
+      window.kline.run('file.new');
+      await new Promise((r) => setTimeout(r, 60));
+      return { dirty, asked: !!document.querySelector('.unsaved-dialog') };
+    });
+    assert.equal(out.dirty, false, 'a freshly loaded document counted as unsaved work');
+    assert.equal(out.asked, false, 'a clean document was still challenged');
   });
 
   test('nothing logged an error to the console along the way', () => {

@@ -17,6 +17,9 @@ export interface DesktopBridge {
   onCommand: (fn: (id: string) => void) => void;
   onShowShortcuts: (fn: () => void) => void;
   onOpenFile: (fn: (file: OpenedFile | null) => void) => void;
+  /** The shell is about to close the window and wants an answer first. */
+  onConfirmClose?: (fn: () => void) => void;
+  answerClose?: (ok: boolean) => void;
   saveFile: (defaultName: string, data: string | Uint8Array, binary?: boolean) => Promise<unknown>;
   /** Ask once for a folder a whole render sequence can be written into. */
   chooseFolder?: (title: string) => Promise<{ status: string; path?: string }>;

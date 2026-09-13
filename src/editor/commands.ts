@@ -26,6 +26,7 @@ import { preserveUV, transferUV } from '../uv/transfer';
 import {
   describeExport, describeSave, openTextFile, saveAll, saveBinary, saveText, saveWorked,
 } from '../io/files';
+import { askUnsaved } from '../ui/UnsavedDialog';
 import { MTL_FILENAME, exportMTL, exportOBJ, importOBJ, texturesForMTL } from '../io/obj';
 import { exportSTL } from '../io/stl';
 import { exportGLTF } from '../io/gltf';
@@ -143,11 +144,39 @@ function objectOp(ed: Editor, label: string, fn: (scene: Scene) => void): void {
   ed.setStatus(label);
 }
 
+/**
+ * Ask before an action that loses the current document.
+ *
+ * Returns false when the person backed out, so the caller does nothing at all.
+ * A save that is itself cancelled or fails also counts as backing out: the
+ * whole point of pressing Save here was to keep the work, and carrying on
+ * regardless would throw away exactly what they asked to protect.
+ */
+async function okToReplaceDocument(ed: Editor, action: string): Promise<boolean> {
+  if (!ed.hasUnsavedChanges) return true;
+  const answer = await askUnsaved(action);
+  if (answer === 'cancel') {
+    ed.setStatus('Cancelled — nothing was changed.');
+    return false;
+  }
+  if (answer === 'discard') return true;
+  const outcome = await saveText(
+    'scene.kline', JSON.stringify(ed.scene.toJSON(), null, 1), 'application/json',
+  );
+  if (!saveWorked(outcome)) {
+    ed.setStatus(`${describeSave(outcome, 'scene.kline')} — your project is untouched.`);
+    return false;
+  }
+  ed.markSaved();
+  return true;
+}
+
 export const COMMANDS: Command[] = [
   // ------------------------------------------------------------------- File
   {
     id: 'file.new', label: 'New Scene', category: 'File',
-    run: (ed) => {
+    run: async (ed) => {
+      if (!await okToReplaceDocument(ed, 'Starting a new scene will replace them.')) return;
       if (!ed.beginUndo('New scene')) return;
       ed.newScene();
       ed.setStatus('New scene');
@@ -178,6 +207,7 @@ export const COMMANDS: Command[] = [
   {
     id: 'file.open', label: 'Open Scene (.kline)', category: 'File', shortcut: 'Ctrl+O',
     run: async (ed) => {
+      if (!await okToReplaceDocument(ed, 'Opening another project will replace them.')) return;
       const file = await openTextFile('.kline,.kiln,application/json');
       if (!file) return;
       try {

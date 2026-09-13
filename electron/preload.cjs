@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld('klineDesktop', {
   onCommand: (fn) => ipcRenderer.on('kline:command', (_e, id) => fn(id)),
   onShowShortcuts: (fn) => ipcRenderer.on('kline:shortcuts', () => fn()),
   onOpenFile: (fn) => ipcRenderer.on('kline:open-file', (_e, file) => fn(file)),
+  // The shell asks before closing; the answer comes back the other way.
+  onConfirmClose: (fn) => ipcRenderer.on('kline:confirm-close', () => fn()),
+  answerClose: (ok) => ipcRenderer.send('kline:close-answer', !!ok),
   saveFile: (defaultName, data, binary) =>
     ipcRenderer.invoke('kline:save-file', { defaultName, data, binary: !!binary }),
   // A sequence is asked for a folder once rather than a dialog per frame.

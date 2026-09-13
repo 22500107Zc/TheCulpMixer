@@ -227,7 +227,15 @@ export async function resetScene(page) {
   });
   // A genuinely empty document, materials and embedded images included —
   // otherwise each test starts wearing whatever the last one left behind.
-  await page.evaluate(() => window.kline.editor.newScene());
+  //
+  // The unsaved-changes dialog is dismissed too. It is modal and it swallows
+  // keys, so one left behind by a test that did not answer it makes every
+  // later test fail somewhere unrelated — which is exactly how it presented
+  // the first time.
+  await page.evaluate(() => {
+    document.querySelector('.unsaved-dialog')?.remove();
+    window.kline.editor.newScene();
+  });
 }
 
 /**
