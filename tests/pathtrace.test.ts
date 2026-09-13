@@ -8,6 +8,10 @@ import { buildBvh, renderBand, tonemapToImage } from '../src/render/pathtrace/tr
 import { denoise } from '../src/render/pathtrace/denoise';
 import { defaultRenderSettings, LIGHT_STRIDE, MATERIAL_STRIDE, MAT_TEXTURE } from '../src/render/pathtrace/types';
 import { EMPTY_TEXTURES, PackedTextures } from '../src/render/pathtrace/textures';
+import {
+  FrameImage, SequenceRender, frameFilename, framesFor,
+} from '../src/render/pathtrace/sequence';
+import type { RenderSettings } from '../src/render/pathtrace/types';
 import { Vec3 } from '../src/core/math';
 import type { TraceCamera } from '../src/render/pathtrace/types';
 
@@ -590,4 +594,151 @@ test('painted vertex colour still renders, with and without a texture', () => {
   const painted = meanColour(scene, camera, EMPTY_TEXTURES);
   assert.ok(painted[1] > painted[0] * 3,
     `vertex colour stopped rendering: ${painted.map((n) => n.toFixed(3))}`);
+});
+
+// --------------------------------------------- rendering an animation, not a still
+
+/** A ball keyed to move, so consecutive frames must differ. */
+function movingScene(): Scene {
+  const scene = new Scene();
+  scene.timeline.start = 1;
+  scene.timeline.end = 5;
+  scene.timeline.fps = 24;
+  scene.materials.push(createMaterial({ name: 'Grey', color: [0.6, 0.6, 0.6], roughness: 0.8 }));
+  const floor = scene.add('mesh', 'Floor', buildPrimitive('plane'));
+  floor.scale = new Vec3(10, 10, 1);
+  floor.materialSlots = [0];
+  const ball = scene.add('mesh', 'Ball', buildPrimitive('uvsphere'));
+  ball.position = new Vec3(0, 0, 1);
+  ball.materialSlots = [0];
+  ball.animation = [{
+    path: 'position', index: 0,
+    keys: [
+      { frame: 1, value: -2, interp: 'linear' },
+      { frame: 5, value: 2, interp: 'linear' },
+    ],
+  }];
+  const light = scene.add('light', 'Key');
+  light.position = new Vec3(0, -2, 6);
+  if (light.light) light.light.energy = 2000;
+  const cam = scene.add('camera', 'Shot');
+  cam.position = new Vec3(0, -6, 3);
+  cam.rotation = new Vec3(Math.PI / 2.6, 0, 0);
+  return scene;
+}
+
+const tinySettings = (): RenderSettings => ({
+  ...defaultRenderSettings(), width: 8, height: 6, samples: 1, samplesPerPass: 1, denoise: false,
+});
+
+test('a frame range resolves against the timeline and honours a step', () => {
+  const scene = movingScene();
+  assert.deepEqual(framesFor(scene, tinySettings()), [1, 2, 3, 4, 5]);
+  assert.deepEqual(framesFor(scene, { ...tinySettings(), frameStart: 2, frameEnd: 4 }), [2, 3, 4]);
+  assert.deepEqual(framesFor(scene, { ...tinySettings(), frameStep: 2 }), [1, 3, 5]);
+  // A backwards range is a typo, and producing nothing after a long wait is
+  // the least useful way to report one.
+  assert.deepEqual(framesFor(scene, { ...tinySettings(), frameStart: 9, frameEnd: 2 }), [9]);
+});
+
+test('an animation render produces one image per frame, in order', async () => {
+  const scene = movingScene();
+  const seen: number[] = [];
+  const progress: number[] = [];
+  const run = new SequenceRender(scene, {
+    settings: { ...tinySettings(), frameStart: 1, frameEnd: 3 },
+    onFrame: (img) => { seen.push(img.frame); },
+    onProgress: (p) => { progress.push(p.done); },
+  });
+  const result = await run.run();
+
+  assert.equal(result.cancelled, false);
+  assert.equal(result.frames, 3);
+  assert.deepEqual(seen, [1, 2, 3], 'frames did not arrive in order');
+  assert.deepEqual(progress, [1, 2, 3], 'progress was not reported per frame');
+});
+
+test('consecutive frames actually differ, so the animation is being evaluated', async () => {
+  const scene = movingScene();
+  const images: FrameImage[] = [];
+  await new SequenceRender(scene, {
+    settings: { ...tinySettings(), frameStart: 1, frameEnd: 5, frameStep: 4 },
+    onFrame: (img) => { images.push(img); },
+  }).run();
+
+  assert.equal(images.length, 2);
+  let different = 0;
+  for (let i = 0; i < images[0].pixels.length; i++) {
+    if (images[0].pixels[i] !== images[1].pixels[i]) different++;
+  }
+  assert.ok(different > 0, 'every frame came out identical — the timeline was not applied');
+});
+
+test('rendering an animation is deterministic', async () => {
+  const scene = movingScene();
+  const grab = async (): Promise<Uint8ClampedArray> => {
+    let first: Uint8ClampedArray | null = null;
+    await new SequenceRender(scene, {
+      settings: { ...tinySettings(), frameStart: 2, frameEnd: 2 },
+      onFrame: (img) => { first = img.pixels; },
+    }).run();
+    return first!;
+  };
+  const a = await grab();
+  const b = await grab();
+  assert.deepEqual([...a], [...b], 'the same frame rendered twice gave two different images');
+});
+
+test('an animation render can be cancelled part way and says so', async () => {
+  const scene = movingScene();
+  const seen: number[] = [];
+  const run = new SequenceRender(scene, {
+    settings: { ...tinySettings(), frameStart: 1, frameEnd: 5 },
+    onFrame: (img) => {
+      seen.push(img.frame);
+      if (seen.length === 2) run.cancel();
+    },
+  });
+  const result = await run.run();
+  assert.equal(result.cancelled, true, 'a cancelled render did not report itself as cancelled');
+  assert.ok(result.frames < 5, `cancelling did not stop the run: ${result.frames} frames`);
+  assert.deepEqual(seen, [1, 2]);
+});
+
+test('rendering an animation leaves the playhead where it found it', async () => {
+  const scene = movingScene();
+  scene.setFrame(3);
+  await new SequenceRender(scene, {
+    settings: { ...tinySettings(), frameStart: 1, frameEnd: 4 },
+  }).run();
+  assert.equal(scene.timeline.current, 3, 'the render moved the user timeline');
+});
+
+test('the sequence poses the scene exactly as scrubbing does', async () => {
+  // The consistency claim, checked rather than asserted: the trace scene built
+  // during an animation render has to match the one built after scrubbing to
+  // the same frame by hand.
+  const scene = movingScene();
+  const captured: string[] = [];
+  await new SequenceRender(scene, {
+    settings: { ...tinySettings(), frameStart: 4, frameEnd: 4 },
+    onFrame: () => {
+      // Inside the callback the scene is still posed at the frame.
+      captured.push(JSON.stringify([...buildTraceScene(scene, lookAt(new Vec3(0, -6, 3), new Vec3(0, 0, 1)), 0.3).positions]));
+    },
+  }).run();
+
+  scene.setFrame(4);
+  const byHand = JSON.stringify([...buildTraceScene(
+    scene, lookAt(new Vec3(0, -6, 3), new Vec3(0, 0, 1)), 0.3,
+  ).positions]);
+  assert.equal(captured[0], byHand, 'the render posed the scene differently from scrubbing');
+});
+
+test('frame files are named so they sort correctly', () => {
+  assert.equal(frameFilename(7, 120), 'frame_0007.png');
+  assert.equal(frameFilename(1200, 5000), 'frame_1200.png');
+  // Padded to at least four even for a short range, which is what every
+  // sequence reader expects.
+  assert.equal(frameFilename(3, 5), 'frame_0003.png');
 });

@@ -103,17 +103,37 @@ function buildParts(code, maxParts) {
   // is a TypeError rather than a request. "eval" and "Function" are absent on
   // purpose: they are illegal as strict-mode parameter names, and the harness
   // needs Function itself. They are handled below instead.
-  var blocked = ['self', 'globalThis', 'fetch', 'XMLHttpRequest', 'WebSocket', 'importScripts',
-    'postMessage', 'Worker', 'SharedWorker', 'indexedDB', 'caches', 'localStorage',
-    'sessionStorage', 'require', 'process', 'window', 'document', 'navigator',
-    // Everything else in a worker that can reach the network, persist, or talk
-    // to another context. Shadowing a name as a parameter only stops the plain
-    // spelling of it; these are removed from the global for real below, and
-    // the removal is checked rather than assumed.
-    'Request', 'Response', 'Headers', 'EventSource', 'BroadcastChannel',
-    'MessageChannel', 'MessagePort', 'FileReader', 'FileReaderSync',
-    'createImageBitmap', 'OffscreenCanvas', 'WebAssembly', 'SharedArrayBuffer',
-    'Atomics', 'reportError', 'crossOriginIsolated', 'origin', 'location'];
+  // Capabilities: everything in a worker that can reach the network, persist
+  // data, or start another context. These are removed for real and the removal
+  // is *verified* — a sandbox that reports itself as one while a hole is open
+  // is worse than no sandbox, because it is the version people trust.
+  //
+  // Several of them (indexedDB, caches, navigator) are not own properties of
+  // the worker global at all: they are configurable accessors on
+  // WorkerGlobalScope.prototype, so deleting them off self silently does
+  // nothing and leaves storage wide open to anything that walks the prototype
+  // chain. The strip helper below walks it.
+  var capabilities = ['fetch', 'XMLHttpRequest', 'WebSocket', 'importScripts',
+    'Worker', 'SharedWorker', 'indexedDB', 'caches', 'localStorage', 'sessionStorage',
+    'Request', 'Response', 'EventSource', 'BroadcastChannel', 'MessageChannel',
+    'FileReader', 'FileReaderSync', 'createImageBitmap', 'WebAssembly',
+    'SharedArrayBuffer', 'Atomics', 'navigator'];
+  // Names shadowed as parameters and removed where possible, but not fatal if
+  // they survive: they describe the context rather than granting anything.
+  //
+  // Names shadowed as parameters and removed where possible, but not fatal if
+  // they survive: they describe the context rather than granting anything.
+  var shadowed = ['postMessage', 'require', 'process',
+    'window', 'document', 'location', 'origin', 'crossOriginIsolated',
+    'Headers', 'MessagePort', 'OffscreenCanvas', 'reportError'];
+  // Everything the program sees as undefined. self and globalThis are in here
+  // and *not* in the removal list below: taking the accessor off the global
+  // does not hide the global object, since Function('return this')() still
+  // hands it over, and it breaks the lockdown half way through because the
+  // loop doing the removing needs somewhere to look names up.
+  var blocked = capabilities.concat(shadowed).concat(['self', 'globalThis']);
+  // What the lockdown actually deletes.
+  var removable = capabilities.concat(shadowed);
   var args = names.concat(blocked);
   var vals = values.concat(blocked.map(function () { return undefined; }));
 
@@ -127,19 +147,32 @@ function buildParts(code, maxParts) {
   // Worker — never to a page or Node global.
   var inWorker = typeof importScripts !== 'undefined' && typeof self !== 'undefined';
   if (inWorker) {
-    var survivors = [];
-    for (var bi = 0; bi < blocked.length; bi++) {
-      var name = blocked[bi];
-      try { delete self[name]; } catch (e) { /* not configurable; try assignment */ }
-      if (self[name] !== undefined) {
-        try { self[name] = undefined; } catch (e2) { /* read-only */ }
+    // Held before anything is removed, because the removal needs somewhere to
+    // look names up and self is one of the things that can go.
+    var g = self;
+    // Remove a name wherever it actually lives — on the global itself or on
+    // anything in its prototype chain.
+    var strip = function (name) {
+      try { delete g[name]; } catch (e) { /* not configurable here */ }
+      var proto = Object.getPrototypeOf(g);
+      var guard = 0;
+      while (proto && guard++ < 16) {
+        if (Object.getOwnPropertyDescriptor(proto, name)) {
+          try { delete proto[name]; } catch (e2) { /* not configurable there */ }
+        }
+        proto = Object.getPrototypeOf(proto);
       }
-      // Shadowing is defeated by Function('return this')(), so the parameter
-      // list is not the isolation — this removal is. If a name is still
-      // reachable afterwards the program does not run at all: a sandbox that
-      // reports itself as one while a hole is open is worse than no sandbox,
-      // because it is the version people trust.
-      if (self[name] !== undefined) survivors.push(name);
+      if (g[name] !== undefined) {
+        try { g[name] = undefined; } catch (e3) { /* read-only */ }
+      }
+    };
+    for (var bi = 0; bi < removable.length; bi++) strip(removable[bi]);
+    // Shadowing is defeated by Function('return this')(), so the parameter
+    // list is not the isolation — this removal is. Only the capabilities are
+    // held to it: if one of those is still reachable the program does not run.
+    var survivors = [];
+    for (var ci = 0; ci < capabilities.length; ci++) {
+      if (g[capabilities[ci]] !== undefined) survivors.push(capabilities[ci]);
     }
     if (survivors.length) {
       throw new Error('The isolated worker could not be locked down (' + survivors.join(', ')

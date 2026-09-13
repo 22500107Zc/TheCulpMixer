@@ -2629,8 +2629,16 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       // a file containing a version nobody agreed to is the whole problem.
       window.kline.run('file.new');
       blocked.newDocument = ed.revision.active && shape() === before;
+      // Recovery is *not* held any more, and that is the repair: refusing it
+      // for as long as a review was open meant the work underneath had no
+      // recovery copy for exactly as long as somebody deliberated. What it
+      // writes is the committed document, with the proposal taken back out.
       const saved = await ed.autosaveNow(false);
-      blocked.autosave = saved === false;
+      const recovered = await ed.recovery.latest();
+      const proposalEscaped = recovered
+        ? JSON.stringify(recovered.scene).includes('"partKey"')
+          && recovered.scene.objects.filter((o) => o.partKey).length !== 8
+        : true;
 
       // Another revision request must not silently replace this one.
       bar.focus('make it 20 steps');
@@ -2639,7 +2647,10 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
 
       const untouched = shape() === before;
       ed.revision.reject();
-      return { ok: true, blocked, untouched, afterReject: ed.scene.get(root.id).children.length };
+      return {
+        ok: true, blocked, untouched, saved, proposalEscaped,
+        afterReject: ed.scene.get(root.id).children.length,
+      };
     });
 
     assert.equal(out.ok, true, out.why);
@@ -2647,6 +2658,9 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       assert.equal(held, true, `${what} was not held while a revision was waiting`);
     }
     assert.equal(out.untouched, true, 'something changed the document during a review');
+    assert.equal(out.saved, true, 'recovery was refused while a revision was waiting');
+    assert.equal(out.proposalEscaped, false,
+      'the recovery copy contains the proposal rather than the committed document');
     assert.equal(out.afterReject, 8, 'reject did not put the staircase back');
   });
 
@@ -2934,7 +2948,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
         worked,
         copies,
         assetHeld,
-        saveHeld: savedDuring === false,
+        saveHeld: savedDuring === true,
         survived: !!survivor,
         keptPosition: survivor ? survivor.position.x : null,
         copiesAfter: [...ed.scene.objects.values()].filter((o) => o.name.startsWith('Cube')).length,
@@ -2947,7 +2961,8 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     assert.equal(out.worked, true, 'adding an unrelated object during a review was blocked');
     assert.ok(out.copies >= 2, 'duplicating an unrelated object during a review was blocked');
     assert.equal(out.assetHeld, true, 'the asset under review was editable');
-    assert.equal(out.saveHeld, true, 'a proposal could be written to a recovery copy');
+    assert.equal(out.saveHeld, true,
+      'recovery should keep working during a review, writing the committed document');
     assert.equal(out.survived, true, 'Reject deleted work made during the review');
     assert.equal(out.keptPosition, 5, 'Reject undid unrelated work');
     assert.equal(out.copiesAfter, out.copies, 'Reject removed copies made during the review');
@@ -3408,6 +3423,134 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       assert.deepEqual(result.outcome.warnings, [],
         'an exact placement was reported as an approximation');
     }
+  });
+
+  test('an animation renders a frame sequence, reports progress, and can be stopped', async () => {
+    await resetScene(page);
+    const out = await page.evaluate(async () => {
+      const k = window.kline, ed = k.editor;
+      k.run('add.uvsphere');
+      const ball = ed.scene.get(ed.scene.active);
+      ball.animation = [{
+        path: 'position', index: 0,
+        keys: [
+          { frame: 1, value: -2, interp: 'linear' },
+          { frame: 4, value: 2, interp: 'linear' },
+        ],
+      }];
+      k.run('add.light.sun');
+      ed.scene.timeline.start = 1;
+      ed.scene.timeline.end = 4;
+      ed.scene.setFrame(2);
+      Object.assign(ed.renderSettings, {
+        width: 24, height: 18, samples: 1, samplesPerPass: 1, denoise: false,
+        frameStart: 1, frameEnd: 3, frameStep: 1,
+      });
+
+      // Drive the real engine with the delivery replaced, so the test does
+      // not depend on a download folder. Everything above the write is the
+      // code the buttons run.
+      const frames = [];
+      const progress = [];
+      const originalStatus = ed.setStatus.bind(ed);
+      ed.setStatus = (m) => { progress.push(m); originalStatus(m); };
+      const ok = await ed.renderAnimationTo({
+        describe: () => 'test sink',
+        write: async (image) => { frames.push(image.frame); return true; },
+        finish: async (written, cancelled) => `wrote ${written}${cancelled ? ' (cancelled)' : ''}`,
+      });
+      ed.setStatus = originalStatus;
+      return {
+        ok, frames,
+        sawProgress: progress.some((m) => /Rendering frame/.test(m)),
+        closing: ed.statusMessage,
+        playhead: ed.scene.timeline.current,
+      };
+    });
+
+    assert.deepEqual(out.frames, [1, 2, 3], `frames rendered: ${JSON.stringify(out.frames)}`);
+    assert.equal(out.ok, true, 'the animation render did not report success');
+    assert.equal(out.sawProgress, true, 'no per-frame progress was reported');
+    assert.match(out.closing, /wrote 3/, `closing message was "${out.closing}"`);
+    assert.equal(out.playhead, 2, 'the render moved the user timeline');
+  });
+
+  test('an animation render stops when asked and says how far it got', async () => {
+    await resetScene(page);
+    const out = await page.evaluate(async () => {
+      const k = window.kline, ed = k.editor;
+      k.run('add.cube');
+      k.run('add.light.sun');
+      ed.scene.timeline.start = 1;
+      ed.scene.timeline.end = 8;
+      Object.assign(ed.renderSettings, {
+        width: 16, height: 12, samples: 1, samplesPerPass: 1, denoise: false,
+        frameStart: 1, frameEnd: 8, frameStep: 1,
+      });
+      const frames = [];
+      const ok = await ed.renderAnimationTo({
+        describe: () => 'test sink',
+        write: async (image) => {
+          frames.push(image.frame);
+          if (frames.length === 2) ed.cancelAnimation();
+          return true;
+        },
+        finish: async (written, cancelled) => `wrote ${written}${cancelled ? ' (cancelled)' : ''}`,
+      });
+      return { ok, frames, closing: ed.statusMessage, running: !!ed.activeSequence };
+    });
+
+    assert.equal(out.ok, false, 'a cancelled render reported success');
+    assert.ok(out.frames.length < 8, `stopping did not stop it: ${out.frames.length} frames`);
+    assert.match(out.closing, /cancelled/i, `closing message was "${out.closing}"`);
+    assert.equal(out.running, false, 'the render was left marked as running');
+  });
+
+  test('generated code cannot reach the network or storage, even through a fresh realm', async () => {
+    await resetScene(page);
+    const out = await page.evaluate(async () => {
+      const k = window.kline, ed = k.editor, bar = k.app.buildBar;
+      // Function('return this')() hands back the real global whatever the
+      // parameter list says, so it is the route that matters: shadowing a name
+      // only hides one spelling of it. Several of these live on
+      // WorkerGlobalScope.prototype rather than on the global itself, which is
+      // why deleting them off `self` was not enough.
+      const probes = {
+        fetch: 'fetch("/x");',
+        fetchViaRealm: 'Function("return this")().fetch("/x");',
+        indexedDbViaRealm: 'Function("return this")().indexedDB.open("x");',
+        cachesViaRealm: 'Function("return this")().caches.open("x");',
+        beaconViaRealm: 'Function("return this")().navigator.sendBeacon("/x");',
+        importScriptsViaRealm: 'Function("return this")().importScripts("/x");',
+        webSocketViaRealm: 'new (Function("return this")().WebSocket)("ws://x");',
+      };
+      const results = {};
+      for (const [name, src] of Object.entries(probes)) {
+        k.run('file.new');
+        const full = `${src} box(0,0,0.5,1,1,1);`;
+        bar.codeArea.value = full;
+        try {
+          await bar.runCode(full, 'probe');
+          // Reaching here without an error message means it ran.
+          results[name] = /did not run/.test(ed.statusMessage) ? 'blocked' : 'RAN';
+        } catch {
+          results[name] = 'blocked';
+        }
+      }
+      // The control: an ordinary program still builds, so the lockdown has not
+      // simply broken the feature.
+      k.run('file.new');
+      const ok = 'box(0,0,0.5,1,1,1,"#ff0000");';
+      bar.codeArea.value = ok;
+      await bar.runCode(ok, 'probe');
+      const built = [...ed.scene.objects.values()].some((o) => o.provenance);
+      return { results, built };
+    });
+
+    for (const [name, verdict] of Object.entries(out.results)) {
+      assert.equal(verdict, 'blocked', `generated code reached the host through ${name}`);
+    }
+    assert.equal(out.built, true, 'the lockdown broke ordinary program building');
   });
 
   test('nothing logged an error to the console along the way', () => {

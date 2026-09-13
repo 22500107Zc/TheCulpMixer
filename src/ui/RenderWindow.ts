@@ -1,5 +1,6 @@
 import { Editor } from '../editor/Editor';
 import { clear, h } from './dom';
+import { framesFor } from '../render/pathtrace/sequence';
 
 /**
  * The render window: a progressive preview of the path-traced image with the
@@ -85,6 +86,14 @@ export class RenderWindow {
       h('label', { class: 'tl-range exposure' }, [h('span', { text: 'Exposure' }), stops, stopsLabel]),
       h('label', { class: 'tl-range', title: 'Edge-aware filter over the accumulated samples' },
         [h('span', { text: 'Denoise' }), dn]),
+      // The frame range an animation render covers. Shown next to the image
+      // settings rather than hidden behind the animation button, so what is
+      // about to be rendered is visible before it starts — a range is the one
+      // setting where getting it wrong costs the whole wait.
+      num('From', s.frameStart ?? this.editor.scene.timeline.start,
+        (v) => { s.frameStart = v; }),
+      num('To', s.frameEnd ?? this.editor.scene.timeline.end, (v) => { s.frameEnd = v; }),
+      num('Every', s.frameStep ?? 1, (v) => { s.frameStep = Math.max(1, v); }),
     );
   }
 
@@ -110,15 +119,41 @@ export class RenderWindow {
 
   private refresh(): void {
     const job = this.editor.activeRender;
-    if (job && !this.visible) this.root.classList.remove('hidden');
+    const sequence = this.editor.activeSequence;
+    if ((job || sequence) && !this.visible) this.root.classList.remove('hidden');
     clear(this.actions);
+
+    // An animation render owns the panel while it runs: its progress is
+    // counted in frames, not in samples, and the still-image controls would be
+    // describing a job that is only one step of it.
+    if (sequence) {
+      const frames = framesFor(this.editor.scene, this.editor.renderSettings).length;
+      this.status.textContent = this.editor.statusMessage || `Rendering ${frames} frame(s)…`;
+      this.actions.appendChild(h('button', {
+        class: 'btn', text: 'Stop', on: { click: () => this.editor.cancelAnimation() },
+      }));
+      return;
+    }
+
     if (!job) {
       this.status.textContent = 'No render yet — press F12.';
       this.bar.style.width = '0%';
-      this.actions.appendChild(h('button', {
-        class: 'btn primary', text: 'Render',
-        on: { click: () => void this.editor.renderWithTextures(true) },
-      }));
+      this.actions.append(
+        h('button', {
+          class: 'btn primary', text: 'Render',
+          on: { click: () => void this.editor.renderWithTextures(true) },
+        }),
+        h('button', {
+          class: 'btn', text: 'Render animation',
+          title: 'Render the frame range below and write it out as a sequence.',
+          on: { click: () => void this.editor.renderAnimation('frames') },
+        }),
+        h('button', {
+          class: 'btn', text: 'Record video',
+          title: 'Record the frame range as a video, where this runtime supports it.',
+          on: { click: () => void this.editor.renderAnimation('video') },
+        }),
+      );
       return;
     }
 

@@ -17,7 +17,12 @@ export interface DesktopBridge {
   onCommand: (fn: (id: string) => void) => void;
   onShowShortcuts: (fn: () => void) => void;
   onOpenFile: (fn: (file: OpenedFile | null) => void) => void;
-  saveFile: (defaultName: string, data: string | Uint8Array, binary?: boolean) => Promise<string | null>;
+  saveFile: (defaultName: string, data: string | Uint8Array, binary?: boolean) => Promise<unknown>;
+  /** Ask once for a folder a whole render sequence can be written into. */
+  chooseFolder?: (title: string) => Promise<{ status: string; path?: string }>;
+  writeInFolder?: (
+    folder: string, name: string, data: Uint8Array,
+  ) => Promise<{ status: string; path?: string; reason?: string }>;
   openScene: () => Promise<OpenedFile | null>;
 }
 

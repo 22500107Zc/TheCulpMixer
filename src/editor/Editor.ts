@@ -31,6 +31,8 @@ import { RenderJob } from '../render/pathtrace/RenderJob';
 import { RenderSettings, defaultRenderSettings } from '../render/pathtrace/types';
 import { buildTraceScene, cameraFromObject, cameraFromViewport } from '../render/pathtrace/build';
 import { EMPTY_TEXTURES, PackedTextures, packTextures } from '../render/pathtrace/textures';
+import { SequenceRender, framesFor } from '../render/pathtrace/sequence';
+import { Destination, chooseDestination } from '../render/pathtrace/deliver';
 import { Preferences, defaultPreferences, loadPreferences, savePreferences } from './persistence';
 import { RecoveryStore } from './recovery';
 import { RevisionSession } from './revision';
@@ -1671,6 +1673,81 @@ export class Editor {
   }
 
   // ----------------------------------------------------------------- render
+
+  /** The animation render in progress, so it can be cancelled and reported on. */
+  activeSequence: SequenceRender | null = null;
+
+  /**
+   * Render the frame range and deliver it.
+   *
+   * Deliberately one call rather than a render that leaves a pile of images in
+   * memory for somebody else to deal with: the destination is chosen *before*
+   * the first frame, so a person who cancels the folder picker has not waited
+   * through a render first, and a browser that cannot deliver the range says
+   * so up front instead of after twenty minutes.
+   */
+  async renderAnimation(prefer: 'frames' | 'video' = 'frames'): Promise<boolean> {
+    if (this.activeSequence) {
+      this.setStatus('An animation render is already running.');
+      return false;
+    }
+    const total = framesFor(this.scene, this.renderSettings).length;
+    const { destination, reason } = await chooseDestination(
+      prefer, this.scene.timeline.fps, total,
+    );
+    if (!destination) {
+      this.setStatus(reason);
+      return false;
+    }
+    this.setStatus(`${reason} — rendering ${total} frame(s)…`);
+    return this.renderAnimationTo(destination);
+  }
+
+  /**
+   * Render the frame range into a destination that has already been chosen.
+   *
+   * Split out from `renderAnimation` so the engine can be exercised against a
+   * destination that counts instead of writing. Everything above the write is
+   * the code the buttons run, which is the part worth testing; a test that had
+   * to accept real downloads would either not run or not mean anything.
+   */
+  async renderAnimationTo(destination: Destination): Promise<boolean> {
+    if (this.activeSequence) {
+      this.setStatus('An animation render is already running.');
+      return false;
+    }
+    const total = framesFor(this.scene, this.renderSettings).length;
+    const packed = await packTextures(this.scene);
+    let written = 0;
+    const run = new SequenceRender(this.scene, {
+      settings: { ...this.renderSettings },
+      viewport: this.camera,
+      textures: packed,
+      onFrame: async (image) => {
+        if (await destination.write(image, total)) written++;
+        else run.cancel();
+      },
+      onProgress: (p) => {
+        this.setStatus(`Rendering frame ${p.frame} — ${p.done} of ${p.total}`);
+        this.emit('render');
+      },
+    });
+    this.activeSequence = run;
+    this.emit('render');
+    try {
+      const result = await run.run();
+      this.setStatus(await destination.finish(written, result.cancelled));
+      return !result.cancelled && written === total;
+    } finally {
+      this.activeSequence = null;
+      this.emit('render');
+    }
+  }
+
+  /** Stop an animation render between frames. */
+  cancelAnimation(): void {
+    this.activeSequence?.cancel();
+  }
 
   /**
    * Decode the scene's textures, then render.

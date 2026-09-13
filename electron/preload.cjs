@@ -13,5 +13,9 @@ contextBridge.exposeInMainWorld('klineDesktop', {
   onOpenFile: (fn) => ipcRenderer.on('kline:open-file', (_e, file) => fn(file)),
   saveFile: (defaultName, data, binary) =>
     ipcRenderer.invoke('kline:save-file', { defaultName, data, binary: !!binary }),
+  // A sequence is asked for a folder once rather than a dialog per frame.
+  chooseFolder: (title) => ipcRenderer.invoke('kline:choose-folder', { title }),
+  writeInFolder: (folder, name, data) =>
+    ipcRenderer.invoke('kline:write-in-folder', { folder, name, data }),
   openScene: () => ipcRenderer.invoke('kline:open-scene'),
 });

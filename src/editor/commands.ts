@@ -1271,6 +1271,18 @@ export const COMMANDS: Command[] = [
     run: (ed) => { void ed.renderWithTextures(false); },
   },
   {
+    id: 'render.animation', label: 'Render Animation (frame sequence)', category: 'View',
+    run: (ed) => { void ed.renderAnimation('frames'); },
+  },
+  {
+    id: 'render.video', label: 'Render Animation (video)', category: 'View',
+    run: (ed) => { void ed.renderAnimation('video'); },
+  },
+  {
+    id: 'render.cancelAnimation', label: 'Stop Animation Render', category: 'View',
+    run: (ed) => ed.cancelAnimation(),
+  },
+  {
     id: 'render.cancel', label: 'Cancel Render', category: 'View',
     run: (ed) => ed.cancelRender(),
     enabled: (ed) => ed.activeRender !== null && !ed.activeRender.finished,

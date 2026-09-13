@@ -104,6 +104,17 @@ export interface RenderSettings {
    * samples, where the noise floor is what you notice rather than the light.
    */
   denoise: boolean;
+  /**
+   * The frames an animation render covers.
+   *
+   * Absent until now: the renderer only ever produced one image, so "render
+   * the animation" was not a thing the application could do at all. A still is
+   * this range collapsed to a single frame.
+   */
+  frameStart?: number;
+  frameEnd?: number;
+  /** Render every Nth frame. 1 is every frame; 2 halves the work for a test. */
+  frameStep?: number;
 }
 
 export function defaultRenderSettings(): RenderSettings {

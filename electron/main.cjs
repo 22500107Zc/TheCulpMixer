@@ -335,6 +335,35 @@ ipcMain.handle('kline:save-file', async (_event, { defaultName, data, binary }) 
   }
 });
 
+/**
+ * Pick a folder once, for a render that will write hundreds of files.
+ *
+ * A save dialog per frame is not a workflow; it is a way of making somebody
+ * press Enter four hundred times.
+ */
+ipcMain.handle('kline:choose-folder', async (_event, { title }) => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: title || 'Choose a folder',
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (canceled || !filePaths?.length) return { status: 'cancelled' };
+  return { status: 'saved', path: filePaths[0] };
+});
+
+ipcMain.handle('kline:write-in-folder', async (_event, { folder, name, data }) => {
+  // The name is built by the application, never typed, but it still gets
+  // flattened: a path separator arriving here would write outside the folder
+  // the person chose.
+  const safe = String(name ?? '').replace(/[\\/]/g, '_').replace(/^\.+/, '');
+  if (!safe) return { status: 'failed', reason: 'empty filename' };
+  try {
+    writeAtomic(path.join(folder, safe), data, true);
+    return { status: 'saved', path: path.join(folder, safe) };
+  } catch (err) {
+    return { status: 'failed', reason: err.message };
+  }
+});
+
 ipcMain.handle('kline:open-scene', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
     title: 'Open Scene',
