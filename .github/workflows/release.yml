@@ -228,13 +228,31 @@ jobs:
                  Select-Object -First 1
           if (-not $exe) { Write-Error 'no unpacked Kline.exe to launch'; exit 1 }
           Write-Host "launching $($exe.FullName)"
+
           $shot = Join-Path $env:RUNNER_TEMP 'windows-launch.png'
+          $out  = Join-Path $env:RUNNER_TEMP 'windows-launch.out'
+          $err  = Join-Path $env:RUNNER_TEMP 'windows-launch.err'
           $env:KLINE_SMOKE = $shot
-          # A GPU-less runner: the same software renderer the other platforms use.
-          & $exe.FullName --enable-unsafe-swiftshader --use-angle=swiftshader 2>&1 |
-            ForEach-Object { Write-Host "    $_" }
-          $code = $LASTEXITCODE
-          if ($code -ne 0) { Write-Error "the app exited $code — its own checks failed"; exit 1 }
+
+          # Chromium writes GPU and D-Bus warnings to stderr on every start.
+          # Merging that into the success stream while ErrorActionPreference is
+          # Stop would abort this step on the first harmless one, so the two
+          # streams go to files and are printed afterwards. Start-Process with
+          # -Wait -PassThru is also the reliable way to get an exit code out of
+          # a windowed application.
+          $p = Start-Process -FilePath $exe.FullName `
+                 -ArgumentList '--enable-unsafe-swiftshader','--use-angle=swiftshader' `
+                 -Wait -PassThru -NoNewWindow `
+                 -RedirectStandardOutput $out -RedirectStandardError $err
+          if (Test-Path $out) { Get-Content $out | ForEach-Object { Write-Host "    $_" } }
+          if (Test-Path $err) {
+            Get-Content $err | Select-Object -First 40 | ForEach-Object { Write-Host "    [stderr] $_" }
+          }
+
+          if ($p.ExitCode -ne 0) {
+            Write-Error "the packaged app exited $($p.ExitCode) — its own checks failed"
+            exit 1
+          }
           if (-not (Test-Path $shot)) { Write-Error 'it started but never rendered'; exit 1 }
           Write-Host "LAUNCHED — rendered $((Get-Item $shot).Length) bytes"
 
@@ -255,15 +273,19 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           set -euo pipefail
+          # xvfb only. --appimage-extract unpacks without mounting, so FUSE is
+          # not needed — and libfuse2 is not installable by that name on every
+          # runner image, which would fail the step for the wrong reason.
           sudo apt-get update -qq
-          sudo apt-get install -y -qq xvfb libfuse2 >/dev/null
+          sudo apt-get install -y -qq xvfb >/dev/null
           shopt -s nullglob
           fail=0
           for image in release/*.AppImage; do
             echo "===================================================== $image"
             chmod +x "$image"
+            full="$(readlink -f "$image")"
             work="$(mktemp -d)"
-            (cd "$work" && "$OLDPWD/$image" --appimage-extract >/dev/null)
+            (cd "$work" && "$full" --appimage-extract >/dev/null)
             binary="$work/squashfs-root/kline"
             [ -x "$binary" ] || { echo "    NO EXECUTABLE INSIDE"; fail=1; continue; }
             shot="$RUNNER_TEMP/linux-launch.png"
