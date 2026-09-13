@@ -619,12 +619,28 @@ the UI are all in this repository, and each piece is readable on its own.
   retime or revalue them, and see the easing rather than guessing at it
 - A timeline with a scrubbable playhead, keyframe markers, frame range, fps
   and looping playback
+- **Actions and strips.** Keep a take as a named action, lay it on the timeline
+  as a strip, and give it a start, an end, a speed, an offset into the action,
+  a loop, fades at each end, and a weight. Several strips blend: `replace`
+  crosses from one take to the next, `add` rides on top — which is how a wave
+  happens while the walk keeps walking, something a single channel list cannot
+  express at all
 - Exported into glTF as real animation samplers. Location, rotation and scale
   travel; light, camera and material curves stay in the `.kline` file, because
   glTF animates node transforms only — and the exporter says so rather than
   letting you find out in the other application
 
 **Rigging**
+- **Inverse kinematics** — a chain of bones that reaches a target bone, with a
+  chain length, a pole to decide which way the joint bends, and an influence
+  that blends the solve rather than switching it on. Cyclic coordinate descent,
+  so a target out of reach extends the limb towards it instead of snapping, and
+  a chain folded back on itself still solves
+- **Bone constraints**: copy rotation, copy location, track to, and rotation
+  limits — applied in the order you put them in, so a limit after an IK solve
+  holds against the solver rather than only against what you typed
+- **Control bones** in one step: an unparented bone that deforms nothing, which
+  is what a rig is actually grabbed by
 - Armatures with bones you extrude into a chain, drawn as octahedra so their
   roll is visible
 - **Bind with automatic weights** in one step — weights, modifier and link
@@ -919,10 +935,8 @@ Honest list of what Blender has that Kline does not:
 - **Geometry nodes** and **Python scripting.** The Build box writes JavaScript
   against a sandboxed geometry API instead, and `kline.editor` in the browser
   console reaches the live scene.
-- **Inverse kinematics and constraints.** Bones are posed directly; there is no
-  IK chain, no copy-rotation, no drivers.
-- **Shape keys** and **non-linear animation.** One action per object, no NLA
-  strips, no blending between takes.
+- **Drivers and shape keys.** A value cannot yet be wired to another value, and
+  there is no per-vertex blend-shape channel.
 - **Cloth, fluid, smoke and particles.** Physics here is rigid bodies only.
 - **Dynamic topology while sculpting.** Voxel remesh rebuilds the whole mesh at
   an even density; the brushes themselves move the vertices that are there.

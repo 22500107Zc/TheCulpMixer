@@ -1,4 +1,5 @@
 import { Mat4, Vec3 } from '../core/math';
+import { BoneConstraint, cloneConstraints, hasConstraints, solveArmature } from './constraints';
 
 /**
  * Armatures.
@@ -37,6 +38,15 @@ export interface Bone {
    * the bone's own length", which is right far more often than not.
    */
   envelope: number;
+  /**
+   * Rules the pose has to satisfy — IK, copy rotation, limits.
+   *
+   * Applied in order at evaluation time and never written back, so the
+   * authored pose stays the authored pose and a constraint can be switched off
+   * to get it back exactly. Absent on almost every bone, so it is optional
+   * rather than an empty array everywhere.
+   */
+  constraints?: BoneConstraint[];
 }
 
 export interface ArmatureData {
@@ -54,6 +64,7 @@ export function createBone(partial: Partial<Bone> = {}): Bone {
     rotation: partial.rotation ?? [0, 0, 0],
     scale: partial.scale ?? [1, 1, 1],
     envelope: partial.envelope ?? 0,
+    ...(partial.constraints?.length ? { constraints: cloneConstraints(partial.constraints) } : {}),
   };
 }
 
@@ -70,6 +81,7 @@ export function cloneArmature(a: ArmatureData): ArmatureData {
       position: [...b.position] as [number, number, number],
       rotation: [...b.rotation] as [number, number, number],
       scale: [...b.scale] as [number, number, number],
+      ...(b.constraints?.length ? { constraints: cloneConstraints(b.constraints) } : {}),
     })),
   };
 }
@@ -124,6 +136,11 @@ export function restMatrix(b: Bone): Mat4 {
  * the armature's origin.
  */
 export function poseMatrices(armature: ArmatureData): { rest: Mat4[]; pose: Mat4[] } {
+  // A constrained rig goes through the solver, which is the same evaluation
+  // with the rules applied on top. Kept behind a check so an unconstrained
+  // armature — which is most of them, and every one made before constraints
+  // existed — costs exactly what it did before.
+  if (hasConstraints(armature)) return solveArmature(armature);
   const n = armature.bones.length;
   const rest: Mat4[] = new Array(n);
   const pose: Mat4[] = new Array(n);

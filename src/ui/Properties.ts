@@ -8,6 +8,8 @@ import { button, checkbox, clear, h, numberField, row, select } from './dom';
 import { CreatePanel } from './CreatePanel';
 import { icon } from './icons';
 import { assetRootFor } from '../editor/revision';
+import { Bone } from '../anim/armature';
+import { constraintLabel } from '../anim/constraints';
 
 type Tab = 'create' | 'object' | 'modifiers' | 'material' | 'world';
 
@@ -72,6 +74,199 @@ export class Properties {
       case 'material': this.buildMaterialTab(obj); break;
       case 'world': this.buildWorldTab(); break;
     }
+  }
+
+  /**
+   * The rules on one bone.
+   *
+   * Every constraint gets its target as a dropdown of bone names rather than a
+   * typed string: a mistyped target is inert and looks exactly like a broken
+   * rig, and there is no reason to make that possible.
+   */
+  private constraintSection(
+    ed: Editor, obj: SceneObject, bone: Bone, boneIndex: number,
+  ): HTMLElement {
+    const bones = obj.armature?.bones ?? [];
+    const names = [{ value: '', label: '— none —' },
+      ...bones.filter((b) => b !== bone).map((b) => ({ value: b.name, label: b.name }))];
+    const list = bone.constraints ?? [];
+
+    const edit = (label: string, apply: () => void): void => {
+      if (!ed.beginUndo(label)) return;
+      apply();
+      this.repose(ed, obj.id);
+    };
+
+    const rows: HTMLElement[] = [];
+    list.forEach((c, i) => {
+      const fields: (HTMLElement | null)[] = [
+        h('div', { class: 'constraint-head' }, [
+          h('span', { class: 'constraint-name', text: constraintLabel(c.type) }),
+          h('button', {
+            class: 'icon-btn', text: '✕', title: 'Remove this constraint',
+            on: { click: () => ed.removeBoneConstraint(boneIndex, i) },
+          }),
+        ]),
+        checkbox('Enabled', c.enabled !== false, (v) => edit('Constraint enabled', () => { c.enabled = v; })),
+        row('Influence', numberField({
+          label: '', value: c.influence ?? 1, step: 0.05, min: 0, max: 1, precision: 2,
+          onChange: (v) => edit('Constraint influence', () => { c.influence = v; }),
+        })),
+      ];
+
+      if ('target' in c) {
+        fields.push(row('Target', select(names, c.target,
+          (v) => edit('Constraint target', () => { (c as { target: string }).target = v; }))));
+      }
+      if (c.type === 'ik') {
+        fields.push(row('Chain length', numberField({
+          label: 'bones', value: c.chain, step: 1, min: 1, max: 64, precision: 0,
+          onChange: (v) => edit('IK chain', () => { c.chain = Math.round(v); }),
+        })));
+        fields.push(row('Pole', select(names, c.pole ?? '',
+          (v) => edit('IK pole', () => { if (v) c.pole = v; else delete c.pole; }))));
+        fields.push(h('p', {
+          class: 'dim small',
+          text: 'Chain counts bones upwards from this one. A pole decides which way the joint bends.',
+        }));
+      }
+      if (c.type === 'copyRotation' || c.type === 'copyLocation') {
+        fields.push(row('Axes', h('div', { class: 'btn-row' }, (['X', 'Y', 'Z'] as const).map((axis, a) =>
+          h('button', {
+            class: `btn${(c.axes ?? [true, true, true])[a] ? ' primary' : ''}`, text: axis,
+            on: {
+              click: () => edit('Constraint axes', () => {
+                const axes = [...(c.axes ?? [true, true, true])] as [boolean, boolean, boolean];
+                axes[a] = !axes[a];
+                c.axes = axes;
+              }),
+            },
+          })))));
+      }
+      if (c.type === 'limitRotation') {
+        const limit = (label: string, key: 'min' | 'max', fallback: number): HTMLElement =>
+          row(label, h('div', { class: 'nf-group' }, [0, 1, 2].map((a) => numberField({
+            label: ['x', 'y', 'z'][a], step: 5, precision: 1,
+            value: ((c[key] ?? [fallback, fallback, fallback])[a]) * RAD2DEG,
+            onChange: (v) => edit('Rotation limit', () => {
+              const next = [...(c[key] ?? [fallback, fallback, fallback])] as [number, number, number];
+              next[a] = v * DEG2RAD;
+              c[key] = next;
+            }),
+          }))));
+        fields.push(limit('Minimum', 'min', -Math.PI));
+        fields.push(limit('Maximum', 'max', Math.PI));
+      }
+      rows.push(h('div', { class: 'constraint' }, fields.filter((f): f is HTMLElement => f !== null)));
+    });
+
+    return this.section(`Constraints — ${bone.name}`, [
+      ...rows,
+      list.length === 0
+        ? h('p', { class: 'dim small', text: 'None. IK makes a chain reach a target bone; the rest copy, track or limit one.' })
+        : null,
+      h('div', { class: 'btn-row' }, [
+        h('button', { class: 'btn primary', text: 'IK', title: 'Reach a target with a chain of bones', on: { click: () => runCommand(ed, 'rig.addIK') } }),
+        h('button', { class: 'btn', text: 'Copy rot', on: { click: () => runCommand(ed, 'rig.addCopyRotation') } }),
+        h('button', { class: 'btn', text: 'Track to', on: { click: () => runCommand(ed, 'rig.addTrackTo') } }),
+        h('button', { class: 'btn', text: 'Limit', on: { click: () => runCommand(ed, 'rig.addLimitRotation') } }),
+      ]),
+      h('div', { class: 'btn-row' }, [
+        h('button', {
+          class: 'btn', text: 'Add control bone',
+          title: 'An unparented bone that deforms nothing, for a constraint to aim at',
+          on: { click: () => runCommand(ed, 'rig.addControlBone') },
+        }),
+      ]),
+    ]);
+  }
+
+  /**
+   * Actions laid onto the timeline.
+   *
+   * Order is the blend order, which is why the rows can be moved: a wave added
+   * on top of a walk is not the same as a walk added on top of a wave.
+   */
+  private stripSection(ed: Editor, obj: SceneObject): HTMLElement {
+    const options = obj.actions.map((a) => ({ value: a.id, label: a.name }));
+    const edit = (label: string, apply: () => void): void => {
+      if (!ed.beginUndo(label)) return;
+      apply();
+      ed.scene.setFrame(ed.scene.timeline.current);
+      ed.requestRender();
+      ed.emit('change');
+    };
+
+    const rows = obj.strips.map((strip, i) => h('div', { class: 'constraint' }, [
+      h('div', { class: 'constraint-head' }, [
+        h('span', {
+          class: 'constraint-name',
+          text: obj.actions.find((a) => a.id === strip.action)?.name ?? 'Missing action',
+        }),
+        h('button', {
+          class: 'icon-btn', text: '✕', title: 'Remove this strip',
+          on: { click: () => ed.removeStrip(i) },
+        }),
+      ]),
+      row('Action', select(options, strip.action, (v) => edit('Strip action', () => { strip.action = v; }))),
+      row('Frames', h('div', { class: 'nf-group' }, [
+        numberField({
+          label: 'from', value: strip.start, step: 1, precision: 0,
+          onChange: (v) => edit('Strip start', () => { strip.start = Math.round(v); }),
+        }),
+        numberField({
+          label: 'to', value: strip.end, step: 1, precision: 0,
+          onChange: (v) => edit('Strip end', () => { strip.end = Math.round(v); }),
+        }),
+      ])),
+      row('Blend', select(
+        [{ value: 'replace', label: 'Replace' }, { value: 'add', label: 'Add on top' }],
+        strip.blend,
+        (v) => edit('Strip blend', () => { strip.blend = v === 'add' ? 'add' : 'replace'; }),
+      )),
+      row('Weight', numberField({
+        label: '', value: strip.weight, step: 0.05, min: 0, max: 1, precision: 2,
+        onChange: (v) => edit('Strip weight', () => { strip.weight = v; }),
+      })),
+      row('Fade', h('div', { class: 'nf-group' }, [
+        numberField({
+          label: 'in', value: strip.fadeIn, step: 1, min: 0, precision: 0,
+          onChange: (v) => edit('Strip fade in', () => { strip.fadeIn = Math.max(0, v); }),
+        }),
+        numberField({
+          label: 'out', value: strip.fadeOut, step: 1, min: 0, precision: 0,
+          onChange: (v) => edit('Strip fade out', () => { strip.fadeOut = Math.max(0, v); }),
+        }),
+      ])),
+      row('Speed', numberField({
+        label: '×', value: strip.scale, step: 0.1, precision: 2,
+        onChange: (v) => edit('Strip speed', () => { strip.scale = v || 1; }),
+      })),
+      checkbox('Loop the action', !!strip.loop, (v) => edit('Strip loop', () => { strip.loop = v; })),
+      checkbox('Enabled', strip.enabled !== false, (v) => edit('Strip enabled', () => { strip.enabled = v; })),
+    ]));
+
+    return this.section('Actions', [
+      ...obj.actions.map((a) => h('div', { class: 'outliner-row' }, [
+        h('span', { class: 'outliner-name', text: a.name }),
+        h('span', { class: 'outliner-badge', text: `${a.channels.length} ch` }),
+      ])),
+      ...rows,
+      obj.strips.length === 0
+        ? h('p', {
+          class: 'dim small',
+          text: 'This object plays its own keys. Add a strip to play a stashed action instead, '
+            + 'or several to blend them.',
+        })
+        : null,
+      h('div', { class: 'btn-row' }, [
+        h('button', { class: 'btn', text: 'Stash keys', title: 'Keep the current keys as a named action', on: { click: () => runCommand(ed, 'anim.stashAction') } }),
+        h('button', { class: 'btn primary', text: 'Add strip', on: { click: () => runCommand(ed, 'anim.addStrip') } }),
+        obj.strips.length
+          ? h('button', { class: 'btn', text: 'Clear', on: { click: () => runCommand(ed, 'anim.clearStrips') } })
+          : null,
+      ].filter((b) => b !== null) as HTMLElement[]),
+    ]);
   }
 
   private section(title: string, children: (HTMLElement | null)[]): HTMLElement {
@@ -346,7 +541,13 @@ export class Properties {
           })),
           h('p', { class: 'dim small', text: 'Envelope 0 works it out from the bone length.' }),
         ]));
+
+        this.body.appendChild(this.constraintSection(ed, obj, bone, arm.bones.indexOf(bone)));
       }
+    }
+
+    if (obj.actions.length || obj.strips.length) {
+      this.body.appendChild(this.stripSection(ed, obj));
     }
 
     if (obj.type === 'camera' && obj.camera) {

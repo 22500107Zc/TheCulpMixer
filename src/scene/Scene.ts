@@ -6,10 +6,13 @@ import {
 import { Material, cloneMaterial, createMaterial } from './Material';
 import { SceneTexture, reserveTextureId } from './Texture';
 import {
-  Channel, TimelineSettings, cloneChannels, completeTransform, defaultTimeline,
+  Channel, ChannelPath, TimelineSettings, cloneChannels, completeTransform, defaultTimeline,
   samplePropertyChannels, sampleChannels,
 } from '../anim/animation';
 import { ArmatureData, cloneArmature, createArmature } from '../anim/armature';
+import {
+  Action, Strip, blendStrips, cloneAction, cloneActions, cloneStrip, cloneStrips, splitBlend,
+} from '../anim/actions';
 import { BodyShape } from '../physics/rigidbody';
 import { Provenance, cloneProvenance, newAssetId, normaliseProvenance } from '../build/provenance';
 
@@ -99,6 +102,22 @@ export class SceneObject {
   camera: CameraData | null = null;
   /** Bones, when this object is an armature. */
   armature: ArmatureData | null = null;
+  /**
+   * Named takes this object can play.
+   *
+   * `animation` above is the one being edited; these are the ones being kept.
+   * Empty on almost everything, which is why they are separate rather than one
+   * list with a "current" index — an object with a single set of keys should
+   * cost exactly what it did before actions existed.
+   */
+  actions: Action[] = [];
+  /**
+   * When each action plays, and how it mixes with the others.
+   *
+   * Non-empty is what switches this object over to blended evaluation; empty
+   * means `animation` drives it directly, exactly as it always has.
+   */
+  strips: Strip[] = [];
   /**
    * Rigid body settings, when this object takes part in a simulation. Kept on
    * the object rather than in a separate world so it survives a save and
@@ -413,6 +432,8 @@ export class Scene {
     copy.light = src.light ? { ...src.light, color: [...src.light.color] as [number, number, number] } : null;
     copy.camera = src.camera ? { ...src.camera } : null;
     copy.armature = src.armature ? cloneArmature(src.armature) : null;
+    copy.actions = src.actions.map(cloneAction);
+    copy.strips = src.strips.map(cloneStrip);
     copy.physics = src.physics ? { ...src.physics } : null;
     copy.animation = cloneChannels(src.animation);
     copy.partKey = src.partKey;
@@ -517,6 +538,13 @@ export class Scene {
     this.timeline.current = frame;
     let changed = false;
     for (const obj of this.objects.values()) {
+      // Strips win where there are any: they are the explicit statement of
+      // what plays when, and an object that has been given one has stopped
+      // being driven by the keys in the editor.
+      if (obj.strips.length && obj.actions.length) {
+        if (this.applyStrips(obj, frame)) changed = true;
+        continue;
+      }
       if (obj.animation.length === 0) continue;
       const sampled = sampleChannels(obj.animation, frame);
       const next = completeTransform(sampled, obj, obj.animation);
@@ -527,6 +555,31 @@ export class Scene {
       changed = true;
     }
     return changed;
+  }
+
+  /**
+   * Evaluate an object through its strips.
+   *
+   * The blend produces a value per component, with NaN where no strip had
+   * anything to say — so an axis nothing drives keeps what the person set,
+   * exactly as an unkeyed axis does on the direct path.
+   */
+  private applyStrips(obj: SceneObject, frame: number): boolean {
+    const { transform, properties } = splitBlend(blendStrips(obj.strips, obj.actions, frame));
+    const put = (target: Vec3, values: number[] | undefined): void => {
+      if (!values) return;
+      if (!Number.isNaN(values[0])) target.x = values[0];
+      if (!Number.isNaN(values[1])) target.y = values[1];
+      if (!Number.isNaN(values[2])) target.z = values[2];
+    };
+    put(obj.position, transform.get('position'));
+    put(obj.rotation, transform.get('rotation'));
+    put(obj.scale, transform.get('scale'));
+    if (properties.size) {
+      this.writeProperties(obj, properties);
+      obj.invalidate();
+    }
+    return transform.size > 0 || properties.size > 0;
   }
 
   /**
@@ -541,6 +594,17 @@ export class Scene {
   private applyProperties(obj: SceneObject, frame: number): boolean {
     const sampled = samplePropertyChannels(obj.animation, frame);
     if (sampled.size === 0) return false;
+    this.writeProperties(obj, sampled);
+    return true;
+  }
+
+  /**
+   * Put sampled property values where they live.
+   *
+   * Shared between the direct path and the blended one, because a light's
+   * power is written the same way whether one action drove it or three did.
+   */
+  private writeProperties(obj: SceneObject, sampled: Map<ChannelPath, number[]>): void {
     const put = (target: number[] | undefined, values: number[]): void => {
       if (!target) return;
       for (let i = 0; i < values.length && i < target.length; i++) {
@@ -579,7 +643,6 @@ export class Scene {
           break;
       }
     }
-    return true;
   }
 
   /**
@@ -616,6 +679,8 @@ export class Scene {
         light: o.light ? { ...o.light, color: [...o.light.color] as [number, number, number] } : null,
         camera: o.camera ? { ...o.camera } : null,
         armature: o.armature ? cloneArmature(o.armature) : null,
+        ...(o.actions.length ? { actions: o.actions.map(cloneAction) } : {}),
+        ...(o.strips.length ? { strips: o.strips.map(cloneStrip) } : {}),
         physics: o.physics ? { ...o.physics } : null,
         animation: cloneChannels(o.animation),
         provenance: o.provenance ? cloneProvenance(o.provenance) : null,
@@ -701,6 +766,12 @@ export class Scene {
       o.light = od.light && typeof od.light === 'object' ? od.light : null;
       o.camera = od.camera && typeof od.camera === 'object' ? od.camera : null;
       o.armature = od.armature && typeof od.armature === 'object' ? cloneArmature(od.armature) : null;
+      o.actions = cloneActions(od.actions);
+      // A strip pointing at an action that is not in the file would evaluate
+      // to nothing for ever, so it is dropped on the way in rather than kept
+      // as a row in the panel that does nothing.
+      const known = new Set(o.actions.map((a) => a.id));
+      o.strips = cloneStrips(od.strips).filter((st) => known.has(st.action));
       o.physics = od.physics && typeof od.physics === 'object' ? { ...od.physics } : null;
       o.animation = sanitiseChannels(od.animation);
       // Absent in every file written before revisions existed, and absent on
@@ -812,6 +883,8 @@ export interface SerializedObject {
   light: LightData | null;
   camera: CameraData | null;
   armature?: ArmatureData | null;
+  actions?: Action[];
+  strips?: Strip[];
   physics?: PhysicsBody | null;
   animation?: Channel[];
   /** How a generated asset was made; absent on everything else. */

@@ -331,6 +331,53 @@ export const COMMANDS: Command[] = [
     },
     enabled: (ed) => !!ed.activeArmature,
   },
+  {
+    id: 'rig.addIK', label: 'Add IK Constraint to Active Bone', category: 'Rig', mode: 'object',
+    run: (ed) => ed.addBoneConstraint('ik'),
+    enabled: (ed) => !!ed.activeArmature,
+  },
+  {
+    id: 'rig.addCopyRotation', label: 'Add Copy Rotation Constraint', category: 'Rig', mode: 'object',
+    run: (ed) => ed.addBoneConstraint('copyRotation'),
+    enabled: (ed) => !!ed.activeArmature,
+  },
+  {
+    id: 'rig.addCopyLocation', label: 'Add Copy Location Constraint', category: 'Rig', mode: 'object',
+    run: (ed) => ed.addBoneConstraint('copyLocation'),
+    enabled: (ed) => !!ed.activeArmature,
+  },
+  {
+    id: 'rig.addTrackTo', label: 'Add Track To Constraint', category: 'Rig', mode: 'object',
+    run: (ed) => ed.addBoneConstraint('trackTo'),
+    enabled: (ed) => !!ed.activeArmature,
+  },
+  {
+    id: 'rig.addLimitRotation', label: 'Add Rotation Limit', category: 'Rig', mode: 'object',
+    run: (ed) => ed.addBoneConstraint('limitRotation'),
+    enabled: (ed) => !!ed.activeArmature,
+  },
+  {
+    id: 'rig.addControlBone', label: 'Add Control Bone (unparented target)', category: 'Rig', mode: 'object',
+    run: (ed) => ed.addControlBone(),
+    enabled: (ed) => !!ed.activeArmature,
+  },
+
+  // ------------------------------------------------------------------ Anim
+  {
+    id: 'anim.stashAction', label: 'Stash Keys as an Action', category: 'Object', mode: 'object',
+    run: (ed) => ed.stashAction(),
+    enabled: (ed) => (ed.scene.activeObject?.animation.length ?? 0) > 0,
+  },
+  {
+    id: 'anim.addStrip', label: 'Add Strip for an Action', category: 'Object', mode: 'object',
+    run: (ed) => ed.addStrip(),
+    enabled: (ed) => (ed.scene.activeObject?.actions.length ?? 0) > 0,
+  },
+  {
+    id: 'anim.clearStrips', label: 'Remove All Strips', category: 'Object', mode: 'object',
+    run: (ed) => ed.clearStrips(),
+    enabled: (ed) => (ed.scene.activeObject?.strips.length ?? 0) > 0,
+  },
 
   // ----------------------------------------------------------------- Select
   { id: 'select.all', label: 'Select All', category: 'Select', shortcut: 'A', run: (ed) => ed.selectAll() },

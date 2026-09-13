@@ -826,7 +826,163 @@ if (app.skip) {
     assert.equal(back.animated, true, 'the animation did not come back');
   });
 
-  test('17 · nothing logged an error along the whole journey', () => {
+  test('17 · IK, constraints and blended actions, through the panels', async () => {
+    await resetScene(page);
+
+    // Build a two-bone arm with a control bone, in the interface.
+    const built = await page.evaluate(() => {
+      const k = window.kline, ed = k.editor;
+      k.run('add.armature');
+      const rigId = ed.scene.active;
+      const rig = ed.scene.get(rigId);
+      rig.armature.bones[0].head = [0, 0, 0];
+      rig.armature.bones[0].tail = [0, 1, 0];
+      rig.armature.bones[0].name = 'upper';
+      k.run('rig.extrudeBone');
+      rig.armature.bones[1].name = 'lower';
+      k.run('rig.addControlBone');
+      const control = rig.armature.bones[ed.activeBone];
+      control.head = [1.2, 1.2, 0];
+      control.tail = [1.2, 1.4, 0];
+      // Put the IK on the lower bone, which is the tip of the chain.
+      ed.activeBone = rig.armature.bones.findIndex((b) => b.name === 'lower');
+      return { rigId, controlName: control.name, bones: rig.armature.bones.map((b) => b.name) };
+    });
+    assert.equal(built.bones.length, 3, `the rig has ${built.bones.join(', ')}`);
+    assert.match(built.controlName, /^CTRL/, 'the control bone was not named as one');
+
+    // Add the constraint through the Properties panel's own button, so the
+    // control is proved connected rather than the command being called directly.
+    const ikButton = page.locator('.prop-section', { hasText: 'Constraints' })
+      .locator('button', { hasText: 'IK' }).first();
+    assert.ok(await ikButton.count() > 0, 'the Constraints section has no IK button');
+    await ikButton.click();
+
+    // Bind a mesh to the rig, so what is measured is the geometry a person
+    // would see move — not an internal matrix that might not reach it.
+    const reach = await page.evaluate(({ rigId, controlName }) => {
+      const k = window.kline, ed = k.editor;
+      const rig = ed.scene.get(rigId);
+      const lower = rig.armature.bones.find((b) => b.name === 'lower');
+      const ik = (lower.constraints ?? [])[0];
+      if (!ik) return { added: false };
+
+      k.run('add.cube');
+      const meshId = ed.scene.active;
+      const mesh = ed.scene.get(meshId);
+      mesh.scale.x = 0.2;
+      mesh.scale.y = 1;
+      mesh.scale.z = 0.2;
+      mesh.position.y = 1;
+      ed.scene.selection.clear();
+      ed.scene.selection.add(meshId);
+      ed.scene.selection.add(rigId);
+      ed.scene.active = rigId;
+      k.run('rig.bind');
+
+      const spanOf = () => {
+        const evaluated = ed.scene.get(meshId).evaluated();
+        let maxX = -Infinity;
+        for (const p of evaluated.positions) if (p.x > maxX) maxX = p.x;
+        return maxX;
+      };
+
+      ik.enabled = false;
+      ed.scene.get(meshId).invalidate();
+      ed.scene.get(rigId).invalidate();
+      const resting = spanOf();
+
+      ik.enabled = true;
+      ik.target = controlName;
+      ik.chain = 2;
+      ed.scene.get(meshId).invalidate();
+      ed.scene.get(rigId).invalidate();
+      const reaching = spanOf();
+
+      return { added: true, kind: ik.type, resting, reaching, bound: !!ed.scene.get(meshId).mesh.skin };
+    }, built);
+
+    assert.equal(reach.added, true, 'the IK button did not add a constraint');
+    assert.equal(reach.kind, 'ik', `the button added a ${reach.kind} constraint`);
+    assert.equal(reach.bound, true, 'the mesh was not bound to the rig');
+    assert.ok(reach.reaching > reach.resting + 0.3,
+      `the skinned geometry did not follow the IK towards the control at x 1.2 `
+      + `(rest ${reach.resting.toFixed(3)}, solved ${reach.reaching.toFixed(3)})`);
+
+    // Blended actions, driven by the commands the buttons run.
+    const blended = await page.evaluate(() => {
+      const k = window.kline, ed = k.editor;
+      k.run('add.cube');
+      const id = ed.scene.active;
+      const obj = ed.scene.get(id);
+      ed.scene.timeline.start = 1;
+      ed.scene.timeline.end = 40;
+
+      ed.setFrame(1);
+      obj.position.x = 0;
+      k.run('anim.insertKey');
+      ed.setFrame(11);
+      ed.scene.get(id).position.x = 10;
+      k.run('anim.insertKey');
+      k.run('anim.stashAction');
+      const walkActions = ed.scene.get(id).actions.length;
+
+      // A second take, stashed the same way. Inserting a key records every
+      // transform axis, not only the one that moved — so X is put back to zero
+      // for this take, or the additive strip would carry the walk's ten units
+      // of travel on top of the walk itself.
+      ed.scene.get(id).animation = [];
+      ed.setFrame(1);
+      ed.scene.get(id).position.x = 0;
+      ed.scene.get(id).position.z = 0;
+      k.run('anim.insertKey');
+      ed.setFrame(11);
+      ed.scene.get(id).position.x = 0;
+      ed.scene.get(id).position.z = 4;
+      k.run('anim.insertKey');
+      k.run('anim.stashAction');
+
+      const [walk, wave] = ed.scene.get(id).actions;
+      ed.scene.get(id).animation = [];
+      ed.setFrame(1);
+      ed.addStrip(walk.id, 'replace');
+      ed.addStrip(wave.id, 'add');
+      const strips = ed.scene.get(id).strips.length;
+
+      const at = (f) => {
+        ed.setFrame(f);
+        const o = ed.scene.get(id);
+        return { x: o.position.x, z: o.position.z };
+      };
+      return { id, walkActions, actions: ed.scene.get(id).actions.length, strips,
+        first: at(1), middle: at(6), last: at(11) };
+    });
+    assert.equal(blended.walkActions, 1, 'stashing did not keep the first take');
+    assert.equal(blended.actions, 2, 'the second take was not kept');
+    assert.equal(blended.strips, 2, 'both strips were not laid down');
+    assert.ok(Math.abs(blended.middle.x - 5) < 0.2,
+      `the walk should be halfway at frame 6, got x ${blended.middle.x}`);
+    assert.ok(Math.abs(blended.middle.z - 2) < 0.2,
+      `the additive take should also be halfway, got z ${blended.middle.z}`);
+    assert.ok(Math.abs(blended.last.x - 10) < 0.2 && Math.abs(blended.last.z - 4) < 0.2,
+      'neither take reached its end — one blend cancelled the other');
+
+    // And the strips survive the document, which is what makes them worth having.
+    const round = await page.evaluate(({ id }) => {
+      const ed = window.kline.editor;
+      const json = JSON.stringify(ed.scene.toJSON());
+      ed.newScene();
+      ed.loadSceneJSON(JSON.parse(json));
+      const back = ed.scene.get(id) ?? [...ed.scene.objects.values()].find((o) => o.strips.length);
+      ed.setFrame(6);
+      return { strips: back?.strips.length ?? 0, x: back?.position.x ?? 0, z: back?.position.z ?? 0 };
+    }, blended);
+    assert.equal(round.strips, 2, 'the strips did not survive a save and reload');
+    assert.ok(Math.abs(round.x - 5) < 0.2 && Math.abs(round.z - 2) < 0.2,
+      'the reloaded strips evaluate differently from the ones that were saved');
+  });
+
+  test('18 · nothing logged an error along the whole journey', () => {
     const noise = app.consoleErrors.filter((m) => !/favicon|404/i.test(m));
     assert.deepEqual(noise, [], `the app logged: ${noise.join(' | ')}`);
   });

@@ -18,10 +18,12 @@ import { ProportionalSettings, defaultProportional, influenceCircle, proportiona
 import { SnapSettings, defaultSnap, snapPointUnderCursor } from './snapping';
 import { NavGesture, NavMode, modifiersOf, navModeForPress, pressGesture, wheelGesture } from './navigation';
 import { SculptSettings, SculptStroke, defaultSculpt } from '../sculpt/sculpt';
-import { ChannelPath, removeKey, setKey } from '../anim/animation';
+import { ChannelPath, cloneChannels, removeKey, setKey } from '../anim/animation';
 import { bevelEdges } from '../mesh/bevel';
 import { knifeCut } from '../mesh/knife';
 import { clearPose, createBone, sortBones } from '../anim/armature';
+import { BoneConstraint, constraintLabel, createConstraint } from '../anim/constraints';
+import { actionRange, createAction, createStrip } from '../anim/actions';
 import { envelopeWeights } from '../mesh/skin';
 import { createModifier } from '../modifiers';
 import { Brush, PaintSurface, defaultBrush, paintTargets, uvScaleAt } from '../paint/texture';
@@ -940,6 +942,152 @@ export class Editor {
     sortBones(obj.armature);
     this.activeBone = bones.length - 1;
     this.setStatus(`Added bone ${bones.length} of ${bones.length}`);
+    this.changed();
+    this.requestRender();
+  }
+
+  /**
+   * A bone that deforms nothing, for a constraint to aim at.
+   *
+   * A rig is grabbed by its controls, not by its deforming bones — you drag
+   * the foot, the knee works itself out — and a control is just an unparented
+   * bone nothing is weighted to. Making one is two steps done wrong often
+   * enough to be worth a command: it lands away from the chain so it is
+   * visible, and it is named so the constraint dropdown reads sensibly.
+   */
+  addControlBone(): void {
+    const obj = this.activeArmature;
+    if (!obj?.armature) {
+      this.setStatus('Select an armature first');
+      return;
+    }
+    const bones = obj.armature.bones;
+    const from = bones[Math.min(Math.max(0, this.activeBone), bones.length - 1)];
+    if (!this.beginUndo('Add control bone')) return;
+    const at = from ? from.tail : [0, 0, 0];
+    let n = 1;
+    while (bones.some((b) => b.name === `CTRL.${String(n).padStart(3, '0')}`)) n++;
+    bones.push(createBone({
+      name: `CTRL.${String(n).padStart(3, '0')}`,
+      parent: -1,
+      head: [at[0], at[1], at[2]] as [number, number, number],
+      tail: [at[0], at[1], at[2] + 0.25] as [number, number, number],
+    }));
+    sortBones(obj.armature);
+    this.activeBone = obj.armature.bones.findIndex((b) => b.name === `CTRL.${String(n).padStart(3, '0')}`);
+    this.setStatus(`Added control bone CTRL.${String(n).padStart(3, '0')} — move it, and point a constraint at it`);
+    this.changed();
+    this.requestRender();
+  }
+
+  /** Put a constraint on the active bone, aimed at a sensible default target. */
+  addBoneConstraint(kind: BoneConstraint['type']): void {
+    const obj = this.activeArmature;
+    if (!obj?.armature) {
+      this.setStatus('Select an armature first');
+      return;
+    }
+    const bones = obj.armature.bones;
+    const index = Math.min(Math.max(0, this.activeBone), bones.length - 1);
+    const bone = bones[index];
+    if (!bone) return;
+    if (!this.beginUndo(`Add ${constraintLabel(kind)}`)) return;
+    const constraint = createConstraint(kind);
+    // Aim it at a control bone if there is one, because that is what a control
+    // bone is for, and otherwise at nothing — which is inert and says so in
+    // the panel rather than quietly picking a bone the person did not mean.
+    if ('target' in constraint) {
+      const control = bones.find((b) => b !== bone && b.parent < 0 && b.name.startsWith('CTRL'));
+      constraint.target = control?.name ?? '';
+    }
+    bone.constraints = [...(bone.constraints ?? []), constraint];
+    obj.invalidate();
+    this.setStatus(
+      `${constraintLabel(kind)} added to ${bone.name}`
+      + ('target' in constraint && !constraint.target
+        ? ' — choose a target bone in Properties' : ''),
+    );
+    this.changed();
+    this.requestRender();
+  }
+
+  /** Drop a constraint off the active bone. */
+  removeBoneConstraint(boneIndex: number, at: number): void {
+    const obj = this.activeArmature;
+    const bone = obj?.armature?.bones[boneIndex];
+    if (!bone?.constraints) return;
+    if (!this.beginUndo('Remove constraint')) return;
+    bone.constraints = bone.constraints.filter((_, i) => i !== at);
+    if (bone.constraints.length === 0) delete bone.constraints;
+    obj?.invalidate();
+    this.changed();
+    this.requestRender();
+  }
+
+  // ----------------------------------------------------------- actions
+
+  /**
+   * Keep the keys being edited as a named take, and start fresh.
+   *
+   * The point of the copy is that the keys stay editable *and* stay kept: the
+   * action is a snapshot, so refining the take afterwards does not silently
+   * change every strip already playing it.
+   */
+  stashAction(): void {
+    const obj = this.scene.activeObject;
+    if (!obj || obj.animation.length === 0) {
+      this.setStatus('Nothing keyed on this object to stash');
+      return;
+    }
+    if (!this.beginUndo('Stash action')) return;
+    const name = `Action.${String(obj.actions.length + 1).padStart(3, '0')}`;
+    obj.actions.push(createAction(name, cloneChannels(obj.animation)));
+    this.setStatus(`Stashed ${obj.animation.length} channel(s) as "${name}" — the keys are still here to edit`);
+    this.changed();
+  }
+
+  /** Lay an action onto the timeline. */
+  addStrip(actionId?: string, blend: 'replace' | 'add' = 'replace'): void {
+    const obj = this.scene.activeObject;
+    if (!obj || obj.actions.length === 0) {
+      this.setStatus('Stash an action first — there is nothing to lay down');
+      return;
+    }
+    const action = obj.actions.find((a) => a.id === actionId) ?? obj.actions[obj.actions.length - 1];
+    if (!this.beginUndo('Add strip')) return;
+    const range = actionRange(action);
+    const start = this.scene.timeline.current;
+    const strip = createStrip(action.id, start, start + Math.max(1, range.end - range.start));
+    strip.blend = blend;
+    // The action's own first key is where a strip starts reading it, so a take
+    // that begins at frame 20 does not play twenty frames of nothing.
+    strip.offset = range.start;
+    obj.strips.push(strip);
+    this.setStatus(
+      `"${action.name}" laid down from frame ${strip.start} to ${strip.end}`
+      + (obj.strips.length > 1 ? ` — ${obj.strips.length} strips blending` : ''),
+    );
+    this.changed();
+    this.requestRender();
+  }
+
+  /** Take every strip off, so the object goes back to its own keys. */
+  clearStrips(): void {
+    const obj = this.scene.activeObject;
+    if (!obj || obj.strips.length === 0) return;
+    if (!this.beginUndo('Remove strips')) return;
+    const n = obj.strips.length;
+    obj.strips = [];
+    this.setStatus(`Removed ${n} strip(s) — this object plays its own keys again`);
+    this.changed();
+    this.requestRender();
+  }
+
+  removeStrip(at: number): void {
+    const obj = this.scene.activeObject;
+    if (!obj || !obj.strips[at]) return;
+    if (!this.beginUndo('Remove strip')) return;
+    obj.strips.splice(at, 1);
     this.changed();
     this.requestRender();
   }

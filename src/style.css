@@ -2590,3 +2590,41 @@ button:disabled {
     border-color: var(--ember);
   }
 }
+
+/*
+ * A constraint or a strip: a boxed group inside a properties section.
+ *
+ * Boxed rather than a flat run of rows because a bone can carry several and
+ * the order they are in is what they mean — a rotation limit after an IK solve
+ * is a different rig from one before it — and a flat list makes it impossible
+ * to see where one rule ends and the next begins.
+ */
+.constraint {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--shell-sunk);
+}
+
+.constraint + .constraint {
+  margin-top: 8px;
+}
+
+.constraint-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.constraint-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ember);
+}
