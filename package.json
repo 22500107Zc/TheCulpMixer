@@ -19,7 +19,7 @@
     "typecheck": "tsc --noEmit",
     "test": "npm run check:workflows && npm run test:unit && npm run test:app",
     "test:unit": "esbuild tests/*.test.ts --bundle --platform=node --format=esm --outdir=.test-build --log-level=warning && node --test '.test-build/*.test.js'",
-    "test:app": "node --test tests/app.test.mjs && node --test tests/offline.test.mjs",
+    "test:app": "node --test tests/app.test.mjs && node --test tests/journey.test.mjs && node --test tests/offline.test.mjs",
     "check:workflows": "node tools/check-workflows.mjs"
   },
   "devDependencies": {
