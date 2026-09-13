@@ -2514,3 +2514,77 @@ button:disabled {
   padding: 12px 16px 16px;
   justify-content: flex-end;
 }
+
+/* ---------------------------------------------- panels on a narrow window */
+
+/* Hidden until the window is narrow enough to need it: on a wide screen the
+   sidebar is simply there, and a button to reveal what is already visible is
+   noise. */
+.sidebar-toggle {
+  display: none;
+}
+
+.sidebar-scrim {
+  display: none;
+}
+
+@media (max-width: 820px) {
+  /* The sidebar becomes a drawer over the viewport rather than vanishing.
+     It used to be display:none here, which put the outliner and every
+     properties tab out of reach with no way to open them. */
+  .sidebar {
+    display: flex;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 44;
+    width: min(300px, 86vw);
+    transform: translateX(100%);
+    transition: transform 140ms ease;
+    border-left: 1px solid var(--edge);
+    background: var(--shell);
+    box-shadow: -12px 0 32px rgba(0, 0, 0, 0.45);
+  }
+
+  .sidebar.open {
+    transform: none;
+  }
+
+  .sidebar-scrim {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 43;
+    background: rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 140ms ease;
+  }
+
+  .sidebar-scrim.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .sidebar-toggle {
+    display: block;
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    z-index: 45;
+    padding: 8px 14px;
+    border: 1px solid var(--edge);
+    border-radius: var(--radius);
+    background: var(--shell-raised);
+    color: var(--ink);
+    font: inherit;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  }
+
+  .sidebar-toggle:hover {
+    background: var(--shell-hover);
+    border-color: var(--ember);
+  }
+}

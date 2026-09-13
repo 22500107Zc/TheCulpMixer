@@ -3690,6 +3690,79 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     assert.equal(out.asked, false, 'a clean document was still challenged');
   });
 
+  test('the outliner and properties are reachable on a narrow window', async () => {
+    // They used to be display:none below 820px with nothing to open them:
+    // a laptop with a palette open beside the browser is enough to hit that,
+    // and the application silently lost half its controls.
+    const wide = page.viewportSize();
+    await page.setViewportSize({ width: 720, height: 800 });
+    await resetScene(page);
+    await page.evaluate(() => window.kline.run('add.cube'));
+    // The drawer slides, so give the transition time to land before measuring
+    // where it is; reading mid-transition says nothing about either state.
+    await new Promise((r) => setTimeout(r, 400));
+
+    const closed = await page.evaluate(() => {
+      const sb = document.querySelector('.sidebar');
+      return {
+        display: getComputedStyle(sb).display,
+        // Asserted as state rather than as pixels: the drawer slides, so its
+        // position mid-transition says nothing about either end of it.
+        open: sb.classList.contains('open'),
+        shifted: getComputedStyle(sb).transform !== 'none',
+        toggleShown: getComputedStyle(document.querySelector('.sidebar-toggle')).display,
+      };
+    });
+    assert.notEqual(closed.display, 'none', 'the sidebar is hidden with no way to reach it');
+    assert.equal(closed.open, false, 'the drawer starts open and covers the viewport');
+    assert.equal(closed.shifted, true, 'the closed drawer is not moved off the viewport at all');
+    assert.equal(closed.toggleShown, 'block', 'no control to open the panels');
+
+    // A real click, and real use of what it reveals.
+    await page.click('.sidebar-toggle');
+    await new Promise((r) => setTimeout(r, 250));
+    const open = await page.evaluate(() => {
+      const r = document.querySelector('.sidebar').getBoundingClientRect();
+      const row = [...document.querySelectorAll('.outliner *')]
+        .find((e) => e.textContent.trim() === 'Cube');
+      if (row) row.click();
+      // The identity field, found by what it holds rather than by position:
+      // the sidebar carries several text inputs and which one comes first
+      // depends on the tab.
+      // The Object tab explicitly: a previous test may have left the panel on
+      // Create, and which tab is showing is not what this is about.
+      const objectTab = document.querySelectorAll('.sidebar .tab')[1];
+      if (objectTab) objectTab.click();
+      const named = [...document.querySelectorAll('.sidebar input')]
+        .some((i) => i.value === 'Cube');
+      return {
+        onScreen: r.left < window.innerWidth - 10 && r.width > 100,
+        sawRow: !!row,
+        active: window.kline.editor.scene.active,
+        named,
+      };
+    });
+    assert.equal(open.onScreen, true, 'the drawer did not open');
+    assert.equal(open.sawRow, true, 'the outliner is empty inside the drawer');
+    assert.ok(open.active !== null, 'clicking a row in the drawer selected nothing');
+    assert.equal(open.named, true, 'the properties panel is not usable inside the drawer');
+
+    await page.keyboard.press('Escape');
+    await new Promise((r) => setTimeout(r, 250));
+    const shut = await page.evaluate(() =>
+      !document.querySelector('.sidebar').classList.contains('open'));
+    assert.equal(shut, true, 'Escape did not close the drawer');
+
+    await page.setViewportSize(wide);
+    await new Promise((r) => setTimeout(r, 150));
+    const back = await page.evaluate(() => ({
+      position: getComputedStyle(document.querySelector('.sidebar')).position,
+      toggle: getComputedStyle(document.querySelector('.sidebar-toggle')).display,
+    }));
+    assert.equal(back.toggle, 'none', 'the drawer button is still there on a wide window');
+    assert.notEqual(back.position, 'absolute', 'the sidebar stayed a drawer on a wide window');
+  });
+
   test('nothing logged an error to the console along the way', () => {
     assert.deepEqual(app.consoleErrors, [], `the app logged: ${app.consoleErrors.join(' | ')}`);
   });

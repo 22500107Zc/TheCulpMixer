@@ -104,11 +104,40 @@ export class App {
     ]);
     const right = h('div', { class: 'sidebar' }, [outliner.root, properties.root]);
 
+    // On a narrow window the sidebar becomes a drawer rather than disappearing.
+    //
+    // It used to be `display: none` below 820px, which took the outliner and
+    // the whole properties panel — name, transform, materials, modifiers — out
+    // of reach with nothing to open them again. A laptop with a palette open
+    // beside the browser is enough to hit that width, and the application
+    // silently lost half its controls.
+    const drawerToggle = h('button', {
+      class: 'sidebar-toggle',
+      title: 'Show the outliner and properties (Esc closes)',
+      text: 'Panels',
+    });
+    const scrim = h('div', { class: 'sidebar-scrim' });
+    const setDrawer = (open: boolean): void => {
+      right.classList.toggle('open', open);
+      scrim.classList.toggle('open', open);
+      drawerToggle.setAttribute('aria-expanded', String(open));
+    };
+    drawerToggle.addEventListener('click', () => setDrawer(!right.classList.contains('open')));
+    scrim.addEventListener('click', () => setDrawer(false));
+    // Escape closes it, and is handled here rather than in the global keymap so
+    // it cannot shadow Escape's meaning in a modal transform.
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && right.classList.contains('open')) {
+        e.stopPropagation();
+        setDrawer(false);
+      }
+    }, true);
+
     mount.append(
       header.root,
       this.heatBar,
       this.recoveryBar,
-      h('div', { class: 'workspace' }, [toolbar.root, viewport, right]),
+      h('div', { class: 'workspace' }, [toolbar.root, viewport, scrim, right, drawerToggle]),
       timeline.root,
       status.root,
     );
