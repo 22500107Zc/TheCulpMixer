@@ -1,9 +1,14 @@
 import { Mesh } from '../mesh/Mesh';
 
 /**
- * CPU-side vertex buffer construction. Triangles are emitted unindexed so that
- * flat shading, per-face materials and per-face selection all work without
- * splitting draws.
+ * CPU-side vertex buffer construction.
+ *
+ * Triangles are emitted corner by corner, which is what lets flat shading,
+ * per-face materials and per-face selection work without splitting draws — a
+ * corner carries its own normal, material and selection flag. Identical
+ * corners are then merged into an index buffer, so a smooth-shaded mesh pays
+ * for one vertex rather than one per face that meets there. See
+ * `buildSurfaceBuffer` for what "identical" has to mean for that to be safe.
  */
 
 export const SURFACE_STRIDE = 14; // pos(3) normal(3) uv(2) flags(1) matId(1) colour(3) diff(1)

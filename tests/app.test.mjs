@@ -3763,6 +3763,43 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     assert.notEqual(back.position, 'absolute', 'the sidebar stayed a drawer on a wide window');
   });
 
+  test('a command scoped to a mode says so instead of pretending it worked', async () => {
+    // Every path in the interface filters on mode — the palette greys the row,
+    // the menu hides it, the keymap resolves per mode — so the check was never
+    // in the one place that catches the paths that do not filter. Unwrap in
+    // Object Mode answered "Unwrapped into 0 islands", which is the language of
+    // success for something that could not have done anything.
+    await resetScene(page);
+    const said = await page.evaluate(() => {
+      const k = window.kline, ed = k.editor;
+      k.run('add.cube');
+      const out = {};
+      for (const id of ['uv.unwrap', 'mesh.extrude', 'sculpt.cycleBrush']) {
+        ed.setStatus('');
+        k.run(id);
+        out[id] = ed.statusMessage;
+      }
+      out.mode = ed.mode;
+      // And the same command in its own mode still works.
+      k.run('edit.toggleMode');
+      k.run('select.all');
+      ed.setStatus('');
+      k.run('uv.unwrap');
+      out.inEditMode = ed.statusMessage;
+      k.run('edit.toggleMode');
+      return out;
+    });
+    assert.equal(said.mode, 'object');
+    assert.match(said['uv.unwrap'], /Edit Mode command/,
+      `Unwrap in Object Mode said: ${said['uv.unwrap']}`);
+    assert.doesNotMatch(said['uv.unwrap'], /0 islands/, 'it still reported a successful unwrap');
+    assert.match(said['mesh.extrude'], /Edit Mode command/);
+    assert.match(said['sculpt.cycleBrush'], /Sculpt Mode command/,
+      `Cycling the sculpt brush in Object Mode said: ${said['sculpt.cycleBrush']}`);
+    assert.match(said.inEditMode, /island/i,
+      `Unwrap in Edit Mode should still unwrap, but said: ${said.inEditMode}`);
+  });
+
   test('nothing logged an error to the console along the way', () => {
     assert.deepEqual(app.consoleErrors, [], `the app logged: ${app.consoleErrors.join(' | ')}`);
   });

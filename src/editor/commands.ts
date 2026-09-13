@@ -1526,6 +1526,10 @@ function heldDuringRevision(id: string): boolean {
     || id === 'file.autosave' || id.startsWith('file.export');
 }
 
+const MODE_NAMES: Record<string, string> = {
+  object: 'Object Mode', edit: 'Edit Mode', sculpt: 'Sculpt Mode',
+};
+
 export function runCommand(editor: Editor, id: string): void {
   const cmd = COMMANDS_BY_ID.get(id);
   if (!cmd) return;
@@ -1538,6 +1542,19 @@ export function runCommand(editor: Editor, id: string): void {
     editor.setStatus(
       `${cmd.label} would write a revision nobody has agreed to. Accept or reject it first — `
       + 'the rest of the scene is yours to edit.',
+    );
+    return;
+  }
+  // A command scoped to a mode must not run outside it. Every path into the
+  // application already filtered on this — the palette greys the row, the menu
+  // hides it, the keymap resolves per mode — which left the check out of the
+  // one place that would catch the paths that do not: the scripting handle,
+  // and any future caller. Unfiltered, "Unwrap" in Object Mode reported
+  // "Unwrapped into 0 islands", which is the language of success for something
+  // that could not have done anything.
+  if (cmd.mode && cmd.mode !== editor.mode) {
+    editor.setStatus(
+      `${cmd.label} is a ${MODE_NAMES[cmd.mode]} command — you are in ${MODE_NAMES[editor.mode]}`,
     );
     return;
   }

@@ -496,8 +496,8 @@ not bundle weights — those are gigabytes and want a GPU — but the other half
 in the box:
 
 ```bash
-python3 tools/kiln-ai-server.py                  # echo backend, verifies the wiring
-python3 tools/kiln-ai-server.py --backend triposr
+python3 tools/kline-ai-server.py                  # echo backend, verifies the wiring
+python3 tools/kline-ai-server.py --backend triposr
 ```
 
 Then in Kline: **Create ▸ Local AI model ▸ Check ▸ Generate 3D**. The server
@@ -619,7 +619,10 @@ the UI are all in this repository, and each piece is readable on its own.
   retime or revalue them, and see the easing rather than guessing at it
 - A timeline with a scrubbable playhead, keyframe markers, frame range, fps
   and looping playback
-- Exported into glTF as real animation samplers
+- Exported into glTF as real animation samplers. Location, rotation and scale
+  travel; light, camera and material curves stay in the `.kline` file, because
+  glTF animates node transforms only — and the exporter says so rather than
+  letting you find out in the other application
 
 **Rigging**
 - Armatures with bones you extrude into a chain, drawn as octahedra so their
@@ -651,7 +654,10 @@ the UI are all in this repository, and each piece is readable on its own.
 - Progressive — the image refines pass by pass, across every core the machine
   has, and you can re-grade the exposure or toggle the denoiser without
   restarting
-- Save the result as a PNG
+- Save a still as a PNG, or **render an animation**: a deterministic frame
+  sequence with progress, a cancel button and a stated frame range, written to
+  a folder you choose on the desktop and to a WebM recording or a capped run of
+  numbered PNGs in the browser, depending on what it can actually do
 
 **Scene**
 - Object hierarchy with parenting, per-object visibility and locking
@@ -673,9 +679,15 @@ the UI are all in this repository, and each piece is readable on its own.
 - Orbit/pan/zoom, orthographic toggle, numpad axis views, frame selected/all
 
 **Files**
-- Save and open scenes as `.kiln` (plain JSON — diffable, scriptable)
-- Import OBJ; export OBJ + MTL, binary STL, and glTF 2.0 with
-  `KHR_lights_punctual`
+- Save and open scenes as `.kline` (plain JSON — diffable, scriptable), and
+  open `.kiln` files saved before the rename
+- Import OBJ; export OBJ + MTL (written together, so the material file and the
+  textures it names arrive with the geometry), binary STL, and glTF 2.0 with
+  `KHR_lights_punctual`, `KHR_materials_transmission` and `KHR_materials_ior`
+- glTF carries vertex colours, skin weights with their bind matrices, and each
+  camera's own settings rather than one default. What it cannot carry — bone
+  curves, depth of field, emission above 1 — comes back as a written warning
+  rather than a silent omission
 - Snapshot undo/redo across every operation, including modifier edits. Snapshots
   share the meshes an edit did not touch, so editing one object in a scene of
   twenty no longer copies all twenty, and the history is bounded by memory as
@@ -904,7 +916,7 @@ build; without either it skips with a reason and the rest still runs.
 Honest list of what Blender has that Kline does not:
 
 - **Geometry nodes** and **Python scripting.** The Build box writes JavaScript
-  against a sandboxed geometry API instead, and `kiln.editor` in the browser
+  against a sandboxed geometry API instead, and `kline.editor` in the browser
   console reaches the live scene.
 - **Inverse kinematics and constraints.** Bones are posed directly; there is no
   IK chain, no copy-rotation, no drivers.
@@ -925,10 +937,7 @@ one light casts viewport shadows rather than all of them; box-box physics
 contacts ignore rotation, so a tumbling crate settles as an upright one;
 reference images cannot be pinned in the viewport to model against;
 photogrammetry from a video's many frames is not implemented; and meshes above
-roughly a million triangles make the viewport uncomfortable, because surfaces
-are uploaded unindexed — which is deliberate, since flat shading, per-face
-materials and per-face selection all need attributes that differ between the
-faces meeting at a vertex.
+roughly a million triangles make the viewport uncomfortable.
 
 The desktop builds are **unsigned**, and signing them needs certificates that
 cost money rather than code.
