@@ -611,6 +611,32 @@ if (app.skip) {
       }
     }
     assert.ok(usedMaterials.length > 0, 'the OBJ uses no material');
+    carried.gltf = text;
+  });
+
+  test('13 · the Khronos validator accepts the export', async () => {
+    // Structural checks of my own can only find what I thought to look for.
+    // The official validator found three things I had not: unused skin slots
+    // written as joint 65535, buffer views stamped ARRAY_BUFFER when they hold
+    // bind matrices or animation samplers, and a skinned mesh carrying its own
+    // transform that glTF would ignore. Five thousand six hundred and
+    // eighty-three errors, on a file that passed every check above.
+    const validator = (await import('gltf-validator')).default;
+    const report = await validator.validateString(carried.gltf, {
+      externalResourceFunction: () => Promise.reject(new Error('no external resources')),
+    });
+    const messages = report.issues.messages ?? [];
+    const errors = messages.filter((m) => m.severity === 0);
+    assert.equal(report.issues.numErrors, 0,
+      `the validator found ${report.issues.numErrors} errors, first: `
+      + errors.slice(0, 3).map((m) => `${m.code} at ${m.pointer}: ${m.message}`).join(' / '));
+
+    // Warnings are allowed, but only the ones that are true of the format
+    // rather than of the file. Anything else is a new problem.
+    const allowed = new Set(['ANIMATION_CHANNEL_TARGET_NODE_SKIN', 'NODE_SKINNED_MESH_NON_ROOT']);
+    const unexpected = messages.filter((m) => m.severity === 1 && !allowed.has(m.code));
+    assert.deepEqual(unexpected.map((m) => `${m.code} at ${m.pointer}`), [],
+      'the validator raised a warning this export did not expect');
   });
 
   test('13 · a save the person cancels leaves the work marked unsaved', async () => {

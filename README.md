@@ -685,9 +685,10 @@ the UI are all in this repository, and each piece is readable on its own.
   textures it names arrive with the geometry), binary STL, and glTF 2.0 with
   `KHR_lights_punctual`, `KHR_materials_transmission` and `KHR_materials_ior`
 - glTF carries vertex colours, skin weights with their bind matrices, and each
-  camera's own settings rather than one default. What it cannot carry — bone
-  curves, depth of field, emission above 1 — comes back as a written warning
-  rather than a silent omission
+  camera's own settings rather than one default, and the export passes the
+  Khronos glTF validator with no errors. What the format cannot carry — bone
+  curves, depth of field, emission above 1, a texture on geometry with no UVs —
+  comes back as a written warning rather than a silent omission
 - Snapshot undo/redo across every operation, including modifier edits. Snapshots
   share the meshes an edit did not touch, so editing one object in a scene of
   twenty no longer copies all twenty, and the history is bounded by memory as

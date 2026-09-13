@@ -407,6 +407,137 @@ test('a skinned mesh exports joints, weights and a skin instead of a frozen pose
     `no note about per-bone animation: ${out.warnings.join(' | ')}`);
 });
 
+/** Read an accessor's numbers back out of the embedded buffer. */
+function readAccessor(doc: any, index: number): number[] {
+  const a = doc.accessors[index];
+  const view = doc.bufferViews[a.bufferView];
+  const bytes = Buffer.from(doc.buffers[view.buffer].uri.split(',')[1], 'base64');
+  const base = (view.byteOffset ?? 0) + (a.byteOffset ?? 0);
+  const width = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 }[a.type as string]!;
+  const out: number[] = [];
+  for (let i = 0; i < a.count * width; i++) {
+    if (a.componentType === 5123) out.push(bytes.readUInt16LE(base + i * 2));
+    else if (a.componentType === 5125) out.push(bytes.readUInt32LE(base + i * 4));
+    else out.push(bytes.readFloatLE(base + i * 4));
+  }
+  return out;
+}
+
+test('unused skin slots do not become joint 65535', () => {
+  // Kline marks an empty influence slot with bone -1. Written as the unsigned
+  // short glTF asks for, that became 65535 — a joint index thousands past the
+  // end of the skin. The Khronos validator counted 5,664 of them in one
+  // ordinary rigged sphere; an importer reads whatever is at that index.
+  const scene = new Scene();
+  const rig = scene.add('armature', 'Rig');
+  rig.armature = { bones: [createBone({ name: 'root', head: [0, 0, 0], tail: [0, 0, 1] })] };
+
+  const mesh = buildPrimitive('cube');
+  mesh.skin = {
+    bones: new Int32Array(mesh.vertCount * 4).fill(-1),
+    weights: new Float32Array(mesh.vertCount * 4),
+  };
+  for (let v = 0; v < mesh.vertCount; v++) {
+    mesh.skin.bones[v * 4] = 0;
+    mesh.skin.weights[v * 4] = 1;
+    // The other three slots stay -1, which is the usual case: four influences
+    // are reserved per vertex and almost nothing uses all four.
+  }
+  mesh.markDirty();
+  const body = scene.add('mesh', 'Body', mesh);
+  body.modifiers = [createModifier('armature')];
+  (body.modifiers[0] as unknown as { objectId: number }).objectId = rig.id;
+
+  const doc = JSON.parse(exportGLTF(scene).json);
+  const prim = doc.meshes[0].primitives[0];
+  const joints = readAccessor(doc, prim.attributes.JOINTS_0);
+  const weights = readAccessor(doc, prim.attributes.WEIGHTS_0);
+  const jointCount = doc.skins[0].joints.length;
+  for (let i = 0; i < joints.length; i++) {
+    assert.ok(joints[i] < jointCount,
+      `joint index ${joints[i]} is past the ${jointCount} joints in the skin`);
+    // An empty slot is joint 0 with weight 0 — the only spelling glTF has.
+    if (i % 4 !== 0) assert.equal(weights[i], 0, 'an unused slot carries a weight');
+  }
+});
+
+test('buffer views only claim a GL target when they have one', () => {
+  // A view holding inverse bind matrices or animation sampler values is read
+  // by the importer, not bound as a vertex buffer. Stamping ARRAY_BUFFER on
+  // all of them made the validator reject the file outright: one view cannot
+  // be a vertex buffer and a bind-matrix store at once.
+  const scene = new Scene();
+  const rig = scene.add('armature', 'Rig');
+  rig.armature = { bones: [createBone({ name: 'root', head: [0, 0, 0], tail: [0, 0, 1] })] };
+  const mesh = buildPrimitive('cube');
+  mesh.skin = {
+    bones: new Int32Array(mesh.vertCount * 4).fill(0),
+    weights: new Float32Array(mesh.vertCount * 4).fill(0.25),
+  };
+  mesh.markDirty();
+  const body = scene.add('mesh', 'Body', mesh);
+  body.modifiers = [createModifier('armature')];
+  (body.modifiers[0] as unknown as { objectId: number }).objectId = rig.id;
+  rig.animation = [
+    { path: 'position', axis: 0, keys: [
+      { frame: 1, value: 0, interpolation: 'linear' },
+      { frame: 10, value: 3, interpolation: 'linear' },
+    ] },
+  ] as never;
+
+  const doc = JSON.parse(exportGLTF(scene).json);
+  const bound = new Set<number>();
+  for (const m of doc.meshes) {
+    for (const p of m.primitives) {
+      for (const a of Object.values(p.attributes) as number[]) bound.add(doc.accessors[a].bufferView);
+      if (p.indices !== undefined) bound.add(doc.accessors[p.indices].bufferView);
+    }
+  }
+  const ibmView = doc.accessors[doc.skins[0].inverseBindMatrices].bufferView;
+  assert.equal(doc.bufferViews[ibmView].target, undefined,
+    'the inverse bind matrices are in a view that claims to be a vertex buffer');
+  for (const anim of doc.animations ?? []) {
+    for (const sampler of anim.samplers) {
+      for (const which of [sampler.input, sampler.output]) {
+        assert.equal(doc.bufferViews[doc.accessors[which].bufferView].target, undefined,
+          'animation sampler data is in a view that claims a GL target');
+      }
+    }
+  }
+  for (const view of bound) {
+    assert.ok([34962, 34963].includes(doc.bufferViews[view].target),
+      'a vertex or index view lost its target');
+  }
+});
+
+test('geometry with no UVs is not given a material it cannot sample', () => {
+  // A material is shared, and only some of the objects using it need be
+  // unwrapped. glTF calls a primitive with a base colour texture and no
+  // TEXCOORD_0 an error, so the unwrapped half keeps the picture and the rest
+  // gets a plain twin — and is told.
+  const scene = new Scene();
+  scene.textures.push({ id: 1, name: 'paint', url: 'data:image/png;base64,AAAA', width: 2, height: 2 });
+  const plain = buildPrimitive('cube');
+  plain.faceUV = plain.faces.map(() => null);
+  plain.markDirty();
+  scene.add('mesh', 'Plain', plain);
+  scene.materials[0].baseColorTexture = 1;
+
+  const out = exportGLTF(scene);
+  const doc = JSON.parse(out.json);
+  for (const m of doc.meshes) {
+    for (const p of m.primitives) {
+      const mat = doc.materials[p.material];
+      if (p.attributes.TEXCOORD_0 === undefined) {
+        assert.equal(mat.pbrMetallicRoughness.baseColorTexture, undefined,
+          'a primitive with no UVs was handed a textured material');
+      }
+    }
+  }
+  assert.ok(out.warnings.some((w) => /no UVs|texture coordinates/i.test(w)),
+    `nothing was said about the dropped picture: ${out.warnings.join(' | ')}`);
+});
+
 test('an export states what it could not carry', () => {
   const scene = new Scene();
   const cube = scene.add('mesh', 'Cube', buildPrimitive('cube'));

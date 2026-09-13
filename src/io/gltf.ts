@@ -106,10 +106,22 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
   };
   const chunks: Uint8Array[] = [];
   let byteLength = 0;
-  const bufferViews: { buffer: number; byteOffset: number; byteLength: number; target: number }[] = [];
+  const bufferViews: {
+    buffer: number; byteOffset: number; byteLength: number; target?: number;
+  }[] = [];
   const accessors: GLTFAccessor[] = [];
 
-  const pushView = (data: ArrayBufferView, target: number): number => {
+  /**
+   * Add a buffer view.
+   *
+   * `target` says which GL binding the data is for, and it is only meaningful
+   * for vertex attributes and indices. Inverse bind matrices and animation
+   * sampler data are read by the importer rather than bound, and stamping them
+   * ARRAY_BUFFER as well made the Khronos validator reject the file: a view
+   * cannot be a vertex buffer and an IBM at once. So it is omitted for those,
+   * which is what the specification asks for.
+   */
+  const pushView = (data: ArrayBufferView, target?: number): number => {
     // glTF requires 4-byte aligned buffer views.
     const pad = (4 - (byteLength % 4)) % 4;
     if (pad) {
@@ -118,7 +130,10 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
     }
     const bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
     chunks.push(bytes);
-    bufferViews.push({ buffer: 0, byteOffset: byteLength, byteLength: bytes.byteLength, target });
+    bufferViews.push({
+      buffer: 0, byteOffset: byteLength, byteLength: bytes.byteLength,
+      ...(target === undefined ? {} : { target }),
+    });
     byteLength += bytes.byteLength;
     return bufferViews.length - 1;
   };
@@ -143,6 +158,19 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
   const usesTextures = textures.length > 0;
   const textureTransforms: string[] = [];
   const materialExtensions: string[] = [];
+  /**
+   * A copy of a textured material with the picture taken off, for geometry
+   * that has no UVs.
+   *
+   * glTF calls it an error for a primitive to use a material with a base
+   * colour texture and carry no TEXCOORD_0 — and rightly, since there is no
+   * way to sample the picture. Kline allows it: a material is shared between
+   * objects and only some of them need be unwrapped. Writing the file anyway
+   * produced something the Khronos validator rejects and importers show
+   * inconsistently, so the untextured half gets a plain twin instead, and is
+   * told about it.
+   */
+  const plainTwin = new Map<number, number>();
 
   const materials = scene.materials.map((m) => {
     const index = m.baseColorTexture == null ? undefined : imageOfTexture.get(m.baseColorTexture);
@@ -199,6 +227,27 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
     }
     return out;
   });
+
+  /**
+   * The material index a primitive should actually use.
+   *
+   * Unwrapped geometry gets the material as written. Geometry with no UVs
+   * gets a twin without the picture, made once and shared.
+   */
+  const materialFor = (slot: number, hasUV: boolean): number => {
+    const m = materials[slot] as { pbrMetallicRoughness?: Record<string, unknown> } | undefined;
+    if (hasUV || !m?.pbrMetallicRoughness?.baseColorTexture) return slot;
+    const existing = plainTwin.get(slot);
+    if (existing !== undefined) return existing;
+    const { baseColorTexture: _drop, ...pbr } = m.pbrMetallicRoughness as Record<string, unknown>;
+    materials.push({ ...m, name: `${(m as { name?: string }).name ?? 'Material'} (no UVs)`, pbrMetallicRoughness: pbr });
+    plainTwin.set(slot, materials.length - 1);
+    note(`"${(m as { name?: string }).name ?? 'A material'}" carries a texture, and some geometry `
+      + 'using it has no UVs. That geometry is exported with the colour but without the picture: '
+      + 'glTF has no way to sample a texture without texture coordinates. Unwrap it to carry the '
+      + 'picture too.');
+    return materials.length - 1;
+  };
 
   const meshes: unknown[] = [];
   const nodes: Record<string, unknown>[] = [];
@@ -277,14 +326,19 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
               }
               if (sk) {
                 const at = v * 4;
-                joints.push(
-                  sk.bones[at] ?? 0, sk.bones[at + 1] ?? 0,
-                  sk.bones[at + 2] ?? 0, sk.bones[at + 3] ?? 0,
-                );
-                weights.push(
-                  sk.weights[at] ?? 0, sk.weights[at + 1] ?? 0,
-                  sk.weights[at + 2] ?? 0, sk.weights[at + 3] ?? 0,
-                );
+                // Kline marks an unused influence slot with bone -1. Written
+                // as the unsigned short the format asks for, -1 becomes 65535
+                // — a joint index far past the end of the skin, which the
+                // Khronos validator rejects outright and an importer reads as
+                // whatever happens to be in memory there. glTF's own spelling
+                // for "no influence" is joint 0 with weight 0, so that is what
+                // an empty slot becomes.
+                for (let i = 0; i < 4; i++) {
+                  const bone = sk.bones[at + i] ?? -1;
+                  const used = bone >= 0;
+                  joints.push(used ? bone : 0);
+                  weights.push(used ? (sk.weights[at + i] ?? 0) : 0);
+                }
               }
               for (let k = 0; k < 3; k++) {
                 const c = [p.x, p.y, p.z][k];
@@ -361,7 +415,7 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
           primitives.push({
             attributes,
             indices: idxAccessor,
-            material: obj.materialSlots[slot] ?? 0,
+            material: materialFor(obj.materialSlots[slot] ?? 0, attributes.TEXCOORD_0 !== undefined),
             mode: 4,
           });
         }
@@ -476,7 +530,7 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
     // matrix in armature space.
     const ibm = new Float32Array(bones.length * 16);
     for (let i = 0; i < bones.length; i++) ibm.set(rest[i].inverse().m, i * 16);
-    const ibmView = pushView(ibm, TARGET_ARRAY_BUFFER);
+    const ibmView = pushView(ibm);
     accessors.push({
       bufferView: ibmView, componentType: COMPONENT_FLOAT,
       count: bones.length, type: 'MAT4',
@@ -497,7 +551,28 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
     const skin = rig ? skinForArmature.get(rig.id) : undefined;
     const nodeIndex = nodeIndexById.get(obj.id);
     if (skin === undefined || nodeIndex === undefined) continue;
-    if (nodes[nodeIndex].mesh !== undefined) nodes[nodeIndex].skin = skin;
+    if (nodes[nodeIndex].mesh === undefined) continue;
+    nodes[nodeIndex].skin = skin;
+
+    // glTF ignores a skinned mesh node's own transform, and everything it
+    // inherits: the joints carry the whole thing. That is fine for the axis
+    // conversion, which reaches the vertices through the joints, and not fine
+    // for anything the creator put on the mesh object itself. Rather than let
+    // it vanish in the other application, say so here.
+    const moved = obj.position.length() > 1e-6
+      || obj.rotation.length() > 1e-6
+      || Math.abs(obj.scale.x - 1) > 1e-6
+      || Math.abs(obj.scale.y - 1) > 1e-6
+      || Math.abs(obj.scale.z - 1) > 1e-6;
+    if (moved || obj.parent !== null) {
+      note(`"${obj.name}" is skinned, and glTF ignores a skinned mesh's own transform — `
+        + 'the armature is what moves it. Move or parent the armature instead if the '
+        + 'placement matters.');
+    }
+    if ((obj.animation ?? []).length) {
+      note(`"${obj.name}" is skinned, so the keyframes on the mesh itself are not carried: `
+        + 'glTF drives a skinned mesh from its joints. Keyframe the armature instead.');
+    }
   }
 
   const roots = nodes.map((_, i) => i).filter((i) => !parented.has(i));
@@ -524,7 +599,7 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
     for (let f = tl.start; f <= tl.end; f++) frames.push(f);
     if (frames.length < 2) continue;
     const times = new Float32Array(frames.map((f) => (f - tl.start) / Math.max(1, tl.fps)));
-    const timeView = pushView(times, TARGET_ARRAY_BUFFER);
+    const timeView = pushView(times);
     accessors.push({
       bufferView: timeView, componentType: COMPONENT_FLOAT, count: times.length,
       type: 'SCALAR', min: [times[0]], max: [times[times.length - 1]],
@@ -563,7 +638,7 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
         if (path === 'rotation') values.set(eulerToQuaternion(v), i * 4);
         else values.set([v.x, v.y, v.z], i * 3);
       });
-      const valueView = pushView(values, TARGET_ARRAY_BUFFER);
+      const valueView = pushView(values);
       accessors.push({
         bufferView: valueView, componentType: COMPONENT_FLOAT,
         count: frames.length, type: path === 'rotation' ? 'VEC4' : 'VEC3',
