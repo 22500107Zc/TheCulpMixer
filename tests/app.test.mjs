@@ -3727,8 +3727,20 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     assert.equal(closed.toggleShown, 'block', 'no control to open the panels');
 
     // A real click, and real use of what it reveals.
+    //
+    // Waited for rather than slept through. The drawer slides over 140ms and
+    // the first version of this gave it a flat 250 and then measured pixels —
+    // which is fine on a quiet machine and failed about one build in ten on a
+    // loaded runner, reporting "the drawer did not open" about a drawer that
+    // was opening. The condition is the thing being waited for.
     await page.click('.sidebar-toggle');
-    await new Promise((r) => setTimeout(r, 250));
+    await page.waitForFunction(() => {
+      const sb = document.querySelector('.sidebar');
+      if (!sb.classList.contains('open')) return false;
+      const r = sb.getBoundingClientRect();
+      return r.left < window.innerWidth - 10 && r.width > 100;
+    }, null, { timeout: 10000 }).catch(() => undefined);
+
     const open = await page.evaluate(() => {
       const r = document.querySelector('.sidebar').getBoundingClientRect();
       const row = [...document.querySelectorAll('.outliner *')]
@@ -3756,13 +3768,19 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     assert.equal(open.named, true, 'the properties panel is not usable inside the drawer');
 
     await page.keyboard.press('Escape');
-    await new Promise((r) => setTimeout(r, 250));
+    await page.waitForFunction(
+      () => !document.querySelector('.sidebar').classList.contains('open'),
+      null, { timeout: 10000 },
+    ).catch(() => undefined);
     const shut = await page.evaluate(() =>
       !document.querySelector('.sidebar').classList.contains('open'));
     assert.equal(shut, true, 'Escape did not close the drawer');
 
     await page.setViewportSize(wide);
-    await new Promise((r) => setTimeout(r, 150));
+    await page.waitForFunction(
+      () => getComputedStyle(document.querySelector('.sidebar-toggle')).display === 'none',
+      null, { timeout: 10000 },
+    ).catch(() => undefined);
     const back = await page.evaluate(() => ({
       position: getComputedStyle(document.querySelector('.sidebar')).position,
       toggle: getComputedStyle(document.querySelector('.sidebar-toggle')).display,
