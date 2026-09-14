@@ -34,6 +34,7 @@ import {
   LicenceState, canUse as licenceAllowsUse, clearLicence, describeLicence, licenceState,
   storeLicence, verifyKey, whyBlocked,
 } from '../licence/licence';
+import { checkoutUrl, syncLicence, takeCheckoutSession } from '../licence/activation';
 import { RenderJob } from '../render/pathtrace/RenderJob';
 import { RenderSettings, defaultRenderSettings } from '../render/pathtrace/types';
 import { buildTraceScene, cameraFromObject, cameraFromViewport } from '../render/pathtrace/build';
@@ -679,6 +680,38 @@ export class Editor {
     this.emit('licence');
     this.changed();
     return this.licence;
+  }
+
+  /**
+   * Check with the licence server, then re-read the answer locally.
+   *
+   * This is what makes a link the whole of the sale: somebody who has paid is
+   * recognised here, silently, without ever being handed a key. It cannot fail
+   * loudly — no network, no server, no Stripe account yet, all end the same
+   * way, with whatever is already on this machine still standing.
+   */
+  async syncLicence(options: { email?: string } = {}): Promise<LicenceState> {
+    await syncLicence({
+      ...(options.email ? { email: options.email } : {}),
+      session: takeCheckoutSession(),
+    });
+    return this.refreshLicence();
+  }
+
+  /**
+   * Send somebody to pay.
+   *
+   * Returns the page to open, or a sentence saying why there isn't one. The
+   * caller opens it rather than this doing it, so a popup blocker sees a click
+   * rather than a script.
+   */
+  async checkoutLink(email?: string): Promise<{ url: string } | { error: string }> {
+    const url = await checkoutUrl(email);
+    if (url) return { url };
+    return {
+      error: 'Could not reach the payment page just now. Check the connection and try again — '
+        + 'nothing has been charged.',
+    };
   }
 
   /** Whether Kline may be used at all. False once the trial has ended. */

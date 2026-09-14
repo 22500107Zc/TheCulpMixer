@@ -179,7 +179,14 @@ export class App {
     });
     // Asked once at startup. A build from source, or one shipped without a
     // signing key, answers "nothing to enforce" and nothing else happens.
-    void this.editor.refreshLicence();
+    //
+    // The local answer comes first, so the interface is never wrong even for a
+    // moment, and then the server is asked. That second call is what
+    // recognises somebody who has just paid, or who is opening Kline on their
+    // second machine, without anybody being handed a key to copy. It cannot
+    // fail loudly: offline, server down, or no Stripe account connected yet
+    // all leave the local answer standing.
+    void this.editor.refreshLicence().then(() => this.editor.syncLicence());
     this.editor.renderer.onTexturesReady = () => this.editor.requestRender();
     // Closing the tab: write a recovery copy, and let the browser ask its own
     // "leave site?" question when there is unsaved work. A page cannot put its

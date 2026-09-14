@@ -976,33 +976,37 @@ For the house style and the test expectations, see
 
 ## Selling it
 
-Kline verifies an offline signed licence key. You hold the private key and mint
-keys yourself; the application has no payment code in it and never calls home.
+**Send somebody the link. That is the whole of the sale.**
 
-```bash
-node tools/kline-licence.mjs keygen               # once — keep the .pem, never commit it
-node tools/kline-licence.mjs owner --name "You"   # your own key: free, never expires
-node tools/kline-licence.mjs issue --name "Acme Studio" \
-     --plan Studio --seats 5 --months 1           # one month; run it again when they renew
-```
+They get 33 hours. Then Kline locks, full screen, and offers them a Subscribe
+button at $199/month. They pay on Stripe's own page and land back in Kline,
+unlocked — on the web, in the desktop app, and on their next machine. Nobody
+ever sees a licence key, and you never do anything per customer.
 
-Paste the public key it prints into `PUBLIC_KEY_SPKI` in
-`src/licence/licence.ts` and build. A subscription is simply a key with an
-expiry, reissued each period — so a customer who stops paying keeps every file
-they ever made and just stops receiving new keys.
+The setup is four things, done once, and takes about fifteen minutes:
+**[SELLING.md](SELLING.md)**.
+
+How it works, briefly: `api/licence.ts` runs next to the web app and asks
+Stripe who is paying. There is no database to run and no admin panel, because
+Stripe already holds that. Its answer is a short-lived signed entitlement in
+the same format the application has always verified offline, so the key
+machinery is still there — it is just invisible, and mints itself.
 
 **The terms: 33-hour free trial, then $199/month to use Kline at all.** After
 33 hours a shipped build locks — not "export is disabled", locked. Every
 command except *Help ▸ Licence* and saving what is already open is refused, and
-a full-screen wall says what it costs. A key unlocks it again immediately.
+a full-screen wall says what it costs.
 
-Three things the licensing deliberately cannot do, each covered by a test:
+Four things the licensing deliberately cannot do, each covered by a test:
 
 - **Lock you out of your own application.** A build made from source is never
   gated at all, and the owner key is perpetual by construction — an expiry
   accidentally set on one is ignored.
 - **Brick every copy.** A build shipped without a public key enforces nothing,
   rather than refusing everything.
+- **Lock a paying customer out over an outage.** No network, a server that is
+  down, Stripe having a bad day: all of them leave the last good answer
+  standing, and a paid licence keeps working offline for a week.
 - **Destroy anyone's work.** The lock stops the application; it never touches a
   file. Everything already saved stays on disk, untouched, licensed or not, and
   what a customer made with Kline stays theirs for ever.

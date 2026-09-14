@@ -123,4 +123,14 @@ test('the page carries a script-src policy, because import() is syntax', async (
   assert.ok(!/script-src[^;]*\*/.test(policy), 'script-src allows any host');
   assert.match(policy, /img-src[^;]*data:/, 'img-src does not allow embedded images');
   assert.ok(!/img-src[^;]*https?:/.test(policy), 'img-src allows remote images');
+
+  // connect-src is deliberately absent, and this records why so it is not
+  // "tightened" by somebody who has not read index.html. Pinning it was tried
+  // and reverted: the Build feature fetches whatever model endpoint the person
+  // configures — localhost, another machine on their network, or a hosted
+  // OpenAI-compatible one — and a host list breaks all of that. It buys
+  // nothing either way, because the sandbox's own reach is removed at the
+  // worker global rather than by policy.
+  assert.ok(!/connect-src/.test(policy),
+    'connect-src was added to the policy; it breaks user-configured model endpoints');
 });

@@ -2756,3 +2756,70 @@ button:disabled {
   background: var(--ember);
   color: var(--shell-sunk);
 }
+
+/*
+ * Paying.
+ *
+ * The Subscribe button is the most important control in the application from
+ * a business point of view and the least important from a modelling one, so
+ * it is unmissable on the wall and quiet everywhere else.
+ */
+.licence-buy {
+  margin: 2px 0 4px;
+}
+
+.licence-buy .btn {
+  flex: 1;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.licence-restore {
+  gap: 6px;
+}
+
+.licence-email {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 7px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--shell-sunk);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+
+.licence-email:focus {
+  outline: none;
+  border-color: var(--ember-deep);
+}
+
+.licence-restore-label {
+  margin: 6px 0 0;
+}
+
+/*
+ * The key box, folded away. No customer ever opens this — it is how the owner
+ * applies their own perpetual key — so it is present and out of the way.
+ */
+.licence-advanced {
+  margin-top: 4px;
+  border-top: 1px solid var(--edge-soft);
+  padding-top: 8px;
+}
+
+.licence-advanced summary {
+  cursor: pointer;
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.licence-advanced summary:hover {
+  color: var(--ink-dim);
+}
+
+.licence-advanced .licence-input {
+  margin-top: 6px;
+}

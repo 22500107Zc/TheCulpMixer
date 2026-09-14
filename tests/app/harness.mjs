@@ -101,9 +101,30 @@ function ensureBuild() {
   execFileSync('npx', ['vite', 'build'], { cwd: ROOT, stdio: 'ignore' });
 }
 
+/**
+ * Thirty-three hours, matching src/licence/licence.ts. Duplicated rather than
+ * imported because this file is plain ESM and that one is TypeScript.
+ */
+const TRIAL_MS = 33 * 60 * 60 * 1000;
+
 function serveDist() {
   const server = createServer((req, res) => {
     const url = (req.url ?? '/').split('?')[0];
+
+    // The licence endpoint, as Vercel serves it in production.
+    //
+    // Stubbed rather than omitted: without it the application asks on startup
+    // and gets a 404, which is both console noise and a test running against
+    // an environment that does not exist anywhere. The answer here is the
+    // plain one — a fresh trial — so the suite exercises the same path a new
+    // visitor takes. Tests that care about other answers drive the licence
+    // state directly.
+    if (url === '/api/licence') {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(JSON.stringify({ status: 'trial', endsAt: Date.now() + TRIAL_MS }));
+      return;
+    }
+
     const path = join(DIST, url === '/' ? 'index.html' : decodeURIComponent(url).replace(/^\/+/, ''));
     if (!path.startsWith(DIST) || !existsSync(path) || statSync(path).isDirectory()) {
       res.writeHead(404).end('not found');

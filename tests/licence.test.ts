@@ -240,7 +240,7 @@ test('every surface a person can read states the price and the trial', async () 
   // file a customer can read does not say what Kline costs, it fails here.
   const { readFileSync } = await import('node:fs');
   const files = [
-    'README.md', 'LICENSE', 'index.html',
+    'README.md', 'LICENSE', 'index.html', 'SELLING.md',
     'package.json', 'public/manifest.webmanifest',
   ];
   for (const file of files) {
@@ -263,7 +263,7 @@ test('nothing Kline ships describes Kline as open source or MIT', async () => {
   // rather than by anything failing.
   const { readFileSync } = await import('node:fs');
   const files = [
-    'package.json', 'README.md', 'index.html',
+    'package.json', 'README.md', 'index.html', 'SELLING.md', 'CONTRIBUTING.md',
     'public/manifest.webmanifest', 'THIRD-PARTY-NOTICES.md', 'LICENSE',
   ];
   for (const file of files) {
