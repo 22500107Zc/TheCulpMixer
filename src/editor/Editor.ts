@@ -802,6 +802,19 @@ export class Editor {
     this.frameAll();
     this.unsavedChanges = false;
     this.changed();
+    // An image the document wanted from somewhere else was not loaded. Said
+    // out loud rather than silently: the person is owed an explanation for the
+    // missing texture, and "this file tried to fetch something" is worth
+    // knowing about a file somebody sent you.
+    if (restored.rejectedTextures.length) {
+      this.notify('This project asked to load images from the internet', [
+        'Kline only loads images stored inside the file itself, so nothing was fetched and '
+          + 'nothing about you was sent anywhere.',
+        ...restored.rejectedTextures.map((t) => `Not loaded: ${t}`),
+        'Those surfaces will show their base colour instead. If you trust the file and want '
+          + 'the images, ask whoever made it to embed them.',
+      ]);
+    }
   }
 
   undo(): void {

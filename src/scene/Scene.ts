@@ -4,7 +4,7 @@ import {
   ArmatureResolver, Modifier, ObjectResolver, evaluateStack, normaliseModifier, stackKey,
 } from '../modifiers';
 import { Material, cloneMaterial, createMaterial } from './Material';
-import { SceneTexture, reserveTextureId } from './Texture';
+import { SceneTexture, acceptTextures, reserveTextureId } from './Texture';
 import {
   Channel, ChannelPath, TimelineSettings, cloneChannels, completeTransform, defaultTimeline,
   samplePropertyChannels, sampleChannels,
@@ -298,6 +298,11 @@ export class Scene {
   materials: Material[] = [];
   /** Images referenced by materials, embedded so a saved scene is portable. */
   textures: SceneTexture[] = [];
+  /**
+   * Images a loaded document asked for that were refused, for the caller to
+   * report. Not an error: the rest of the document is still worth having.
+   */
+  rejectedTextures: string[] = [];
   world: WorldSettings = {
     background: [0.05, 0.05, 0.06],
     ambient: 0.12,
@@ -723,9 +728,13 @@ export class Scene {
     s.materials = (Array.isArray(doc.materials) ? doc.materials : [])
       .filter((m) => m && typeof m === 'object')
       .map(cloneMaterial);
-    s.textures = (Array.isArray(doc.textures) ? doc.textures : [])
-      .filter((t) => t && typeof t === 'object')
-      .map((t) => ({ ...t }));
+    // A document is untrusted input. Only self-contained images are loaded;
+    // anything pointing off the machine is dropped and reported, because an
+    // <img> src is a network request and a project file is a thing people
+    // share.
+    const accepted = acceptTextures(doc.textures);
+    s.textures = accepted.textures;
+    s.rejectedTextures = accepted.rejected;
     s.timeline = {
       ...defaultTimeline(),
       ...(doc.timeline && typeof doc.timeline === 'object' ? doc.timeline : {}),

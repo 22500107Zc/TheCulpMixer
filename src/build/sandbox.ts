@@ -113,27 +113,69 @@ function buildParts(code, maxParts) {
   // WorkerGlobalScope.prototype, so deleting them off self silently does
   // nothing and leaves storage wide open to anything that walks the prototype
   // chain. The strip helper below walks it.
-  var capabilities = ['fetch', 'XMLHttpRequest', 'WebSocket', 'importScripts',
-    'Worker', 'SharedWorker', 'indexedDB', 'caches', 'localStorage', 'sessionStorage',
-    'Request', 'Response', 'EventSource', 'BroadcastChannel', 'MessageChannel',
-    'FileReader', 'FileReaderSync', 'createImageBitmap', 'WebAssembly',
-    'SharedArrayBuffer', 'Atomics', 'navigator'];
-  // Names shadowed as parameters and removed where possible, but not fatal if
-  // they survive: they describe the context rather than granting anything.
+  // ------------------------------------------------------------ the allowlist
   //
-  // Names shadowed as parameters and removed where possible, but not fatal if
-  // they survive: they describe the context rather than granting anything.
-  var shadowed = ['postMessage', 'require', 'process',
-    'window', 'document', 'location', 'origin', 'crossOriginIsolated',
-    'Headers', 'MessagePort', 'OffscreenCanvas', 'reportError'];
-  // Everything the program sees as undefined. self and globalThis are in here
-  // and *not* in the removal list below: taking the accessor off the global
-  // does not hide the global object, since Function('return this')() still
-  // hands it over, and it breaks the lockdown half way through because the
-  // loop doing the removing needs somewhere to look names up.
-  var blocked = capabilities.concat(shadowed).concat(['self', 'globalThis']);
-  // What the lockdown actually deletes.
-  var removable = capabilities.concat(shadowed);
+  // This used to be a list of dangerous names to delete. That is the wrong way
+  // round and it failed exactly as a denylist always does: WebSocket was on
+  // it, WebSocketStream was not, and a program could open a socket to any host
+  // it liked. The platform adds APIs faster than any list is maintained, and
+  // every one of them arrives switched on.
+  //
+  // So the rule is inverted. Everything reachable from the worker global is
+  // removed *except* a small set of pure-computation names a geometry program
+  // legitimately needs. A capability shipped in Chrome next year is blocked
+  // the day it ships, because nobody has to remember to add it.
+  var allowed = {
+    // Values and language intrinsics.
+    Infinity: 1, NaN: 1, undefined: 1, globalThis: 1, self: 1,
+    Object: 1, Function: 1, Boolean: 1, Symbol: 1, BigInt: 1,
+    Number: 1, String: 1, Array: 1, Math: 1, JSON: 1, Date: 1, RegExp: 1,
+    Map: 1, Set: 1, WeakMap: 1, WeakSet: 1, WeakRef: 1, Promise: 1,
+    Proxy: 1, Reflect: 1, Intl: 1, escape: 1, unescape: 1,
+    Error: 1, TypeError: 1, RangeError: 1, SyntaxError: 1, ReferenceError: 1,
+    EvalError: 1, URIError: 1, AggregateError: 1,
+    isNaN: 1, isFinite: 1, parseInt: 1, parseFloat: 1,
+    decodeURI: 1, decodeURIComponent: 1, encodeURI: 1, encodeURIComponent: 1,
+    eval: 1, console: 1,
+    // Typed arrays: plain number storage, no reach of their own. Note that
+    // SharedArrayBuffer and Atomics are deliberately absent — those are shared
+    // memory between contexts, not arithmetic.
+    ArrayBuffer: 1, DataView: 1,
+    Int8Array: 1, Uint8Array: 1, Uint8ClampedArray: 1,
+    Int16Array: 1, Uint16Array: 1, Int32Array: 1, Uint32Array: 1,
+    Float32Array: 1, Float64Array: 1, BigInt64Array: 1, BigUint64Array: 1,
+    // Iteration and structure, used by ordinary code.
+    Iterator: 1, AsyncIterator: 1, ArrayIteratorPrototype: 1,
+    structuredClone: 1,
+    // Timers stay: the harness runs the program synchronously under a wall
+    // clock the main thread enforces by terminating the worker, so a timer
+    // cannot outlive the run, and removing them breaks ordinary library code.
+    setTimeout: 1, clearTimeout: 1, setInterval: 1, clearInterval: 1,
+    queueMicrotask: 1,
+    // Needed by the harness itself before it hands over. Captured and rebound
+    // by the worker wrapper, then removed here along with everything else.
+    onmessage: 1, onerror: 1, onunhandledrejection: 1, onrejectionhandled: 1,
+    addEventListener: 1, removeEventListener: 1, dispatchEvent: 1,
+    Event: 1, EventTarget: 1, MessageEvent: 1, ErrorEvent: 1,
+    PromiseRejectionEvent: 1, WorkerGlobalScope: 1, DedicatedWorkerGlobalScope: 1,
+    constructor: 1
+  };
+  // Names still shadowed as parameters, so the common mistakes read as
+  // undefined rather than as something half-removed.
+  var shadowed = ['fetch', 'XMLHttpRequest', 'WebSocket', 'WebSocketStream',
+    'importScripts', 'Worker', 'SharedWorker', 'indexedDB', 'caches',
+    'localStorage', 'sessionStorage', 'Request', 'Response', 'EventSource',
+    'BroadcastChannel', 'MessageChannel', 'navigator', 'postMessage',
+    'require', 'process', 'window', 'document', 'location', 'origin'];
+  // Spot checks: if any of these is still reachable after the sweep, the sweep
+  // did not work and the program must not run. Not the mechanism — the sweep
+  // is — but the alarm on it.
+  var mustBeGone = ['fetch', 'XMLHttpRequest', 'WebSocket', 'WebSocketStream',
+    'importScripts', 'Worker', 'SharedWorker', 'indexedDB', 'caches',
+    'localStorage', 'sessionStorage', 'Request', 'Response', 'EventSource',
+    'BroadcastChannel', 'navigator', 'BackgroundFetchManager', 'SharedArrayBuffer',
+    'Atomics', 'WebAssembly', 'createImageBitmap', 'FileReader', 'FileReaderSync'];
+  var blocked = shadowed.concat(['self', 'globalThis']);
   var args = names.concat(blocked);
   var vals = values.concat(blocked.map(function () { return undefined; }));
 
@@ -151,7 +193,10 @@ function buildParts(code, maxParts) {
     // look names up and self is one of the things that can go.
     var g = self;
     // Remove a name wherever it actually lives — on the global itself or on
-    // anything in its prototype chain.
+    // anything in its prototype chain. Several capabilities (indexedDB,
+    // caches, navigator) are not own properties of the worker global at all:
+    // they are configurable accessors on WorkerGlobalScope.prototype, so
+    // deleting them off self alone silently does nothing.
     var strip = function (name) {
       try { delete g[name]; } catch (e) { /* not configurable here */ }
       var proto = Object.getPrototypeOf(g);
@@ -166,13 +211,27 @@ function buildParts(code, maxParts) {
         try { g[name] = undefined; } catch (e3) { /* read-only */ }
       }
     };
-    for (var bi = 0; bi < removable.length; bi++) strip(removable[bi]);
-    // Shadowing is defeated by Function('return this')(), so the parameter
-    // list is not the isolation — this removal is. Only the capabilities are
-    // held to it: if one of those is still reachable the program does not run.
+
+    // Sweep the whole surface, not a list of things somebody thought of.
+    var seen = {};
+    var scope = g;
+    var depth = 0;
+    while (scope && depth++ < 16) {
+      var own = Object.getOwnPropertyNames(scope);
+      for (var oi = 0; oi < own.length; oi++) {
+        var name = own[oi];
+        if (seen[name] || allowed[name] === 1) continue;
+        seen[name] = 1;
+        strip(name);
+      }
+      scope = Object.getPrototypeOf(scope);
+    }
+
+    // The alarm. Parameter shadowing is defeated by Function('return this')(),
+    // so the sweep above is the isolation and this only checks it worked.
     var survivors = [];
-    for (var ci = 0; ci < capabilities.length; ci++) {
-      if (g[capabilities[ci]] !== undefined) survivors.push(capabilities[ci]);
+    for (var ci = 0; ci < mustBeGone.length; ci++) {
+      if (g[mustBeGone[ci]] !== undefined) survivors.push(mustBeGone[ci]);
     }
     if (survivors.length) {
       throw new Error('The isolated worker could not be locked down (' + survivors.join(', ')
@@ -251,7 +310,14 @@ export function runProgramHere(code: string, limits: RunLimits = DEFAULT_LIMITS)
 }
 
 function workerSource(): string {
-  return `${HARNESS_SOURCE}
+  // Everything is wrapped in a closure so the harness's own names — buildParts,
+  // reply — are not properties of the worker global. The lockdown sweeps the
+  // global by allowlist, and a top-level `var` in a classic worker *is* a
+  // global property: the first version of the sweep dutifully deleted the
+  // harness's own reply channel along with everything else, and every run came
+  // back "reply is not a function".
+  return `(function () {
+${HARNESS_SOURCE}
 // Captured before the harness empties the globals, which includes this one.
 var reply = self.postMessage.bind(self);
 self.onmessage = function (e) {
@@ -269,7 +335,8 @@ self.onmessage = function (e) {
   } catch (err) {
     reply({ ok: false, error: String((err && err.message) || err) });
   }
-};`;
+};
+})();`;
 }
 
 /**

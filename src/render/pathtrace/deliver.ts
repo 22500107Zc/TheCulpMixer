@@ -171,9 +171,19 @@ export function videoDestination(fps: number): Destination | null {
   const canvas = document.createElement('canvas');
   let ctx: CanvasRenderingContext2D | null = null;
   let recorder: MediaRecorder | null = null;
+  // The stream the recorder is actually consuming, and its track.
+  //
+  // These are held rather than re-derived, and that is the whole bug that was
+  // here: `captureStream()` returns a *new* stream every call, so asking the
+  // canvas for one again inside write() produced a second stream whose track
+  // nobody was recording. requestFrame() then fired into nothing, the recorder
+  // received no frames, and the result was a 110-byte WebM header that the
+  // application cheerfully reported as "Recorded 4 frames".
+  let track: (MediaStreamTrack & { requestFrame?: () => void }) | null = null;
   const parts: Blob[] = [];
   const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
     ? 'video/webm;codecs=vp9' : 'video/webm';
+  let failed: string | null = null;
 
   return {
     describe: () => `Recording ${mime.split(';')[0]} at ${fps}fps`,
@@ -182,34 +192,77 @@ export function videoDestination(fps: number): Destination | null {
         canvas.width = image.width;
         canvas.height = image.height;
         ctx = canvas.getContext('2d');
-        if (!ctx) return false;
+        if (!ctx) {
+          failed = 'this browser would not give the recorder a canvas to draw on';
+          return false;
+        }
+        // Frame rate 0 means "only the frames I ask for", which is what makes
+        // the video run at the timeline's rate rather than at whatever speed
+        // the render happened to go.
         const stream = canvas.captureStream(0);
+        track = stream.getVideoTracks()[0] as MediaStreamTrack & { requestFrame?: () => void };
+        if (!track) {
+          failed = 'this browser produced no video track to record';
+          return false;
+        }
         recorder = new MediaRecorder(stream, { mimeType: mime });
         recorder.ondataavailable = (e) => { if (e.data.size) parts.push(e.data); };
-        recorder.start();
+        recorder.onerror = () => { failed = 'the recorder stopped with an error'; };
+        // A timeslice keeps data arriving during the render instead of only at
+        // stop, so a long sequence does not sit in one buffer.
+        recorder.start(200);
       }
-      if (!ctx) return false;
+      if (!ctx || !track) return false;
       ctx.putImageData(imageDataFor(image), 0, 0);
-      // One explicit frame per rendered frame, so the result runs at the
-      // timeline's rate rather than at whatever speed the render happened to go.
-      const track = canvas.captureStream(0).getVideoTracks()[0] as unknown as
-        { requestFrame?: () => void };
-      track?.requestFrame?.();
+      if (typeof track.requestFrame === 'function') track.requestFrame();
+      else {
+        failed = 'this browser cannot be asked for one frame at a time, '
+          + 'so the video would not match the timeline';
+        return false;
+      }
       await new Promise((r) => setTimeout(r, 1000 / Math.max(1, fps)));
       return true;
     },
     async finish(written, cancelled) {
-      if (!recorder) return 'Nothing was recorded.';
+      if (!recorder) return failed ? `Nothing was recorded: ${failed}` : 'Nothing was recorded.';
+
+      // The encoder runs behind the frames it is given, so stopping the
+      // instant the last one is drawn throws the whole recording away. That is
+      // what produced an empty container that the application then reported as
+      // a successful render. Wait for the encoder to actually emit something,
+      // with a ceiling so a runtime that never will does not hang the app.
+      const waitedFrom = Date.now();
+      while (parts.length === 0 && Date.now() - waitedFrom < 3000) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
       await new Promise<void>((resolve) => {
         recorder!.onstop = () => resolve();
         recorder!.stop();
       });
       const blob = new Blob(parts, { type: mime });
-      const outcome = await saveBinary('render.webm', await blob.arrayBuffer(), mime);
+
+      // A recording that produced no frames is a failure, not a success with a
+      // small file. Reporting "Recorded 4 frames" over an empty container is
+      // how somebody delivers nothing to a client and finds out later. The
+      // test is whether the encoder emitted anything at all — a legitimate
+      // short clip is only a few hundred bytes, so a size threshold would
+      // reject real videos.
+      if (failed || parts.length === 0 || blob.size === 0) {
+        const why = failed ?? 'the recorder emitted no video data at all';
+        return `The video could not be recorded: ${why}. `
+          + 'Render a frame sequence instead — that path writes real files.';
+      }
+
+      // The codec suffix belongs to the recorder, not to the file picker: a
+      // save dialog asked to accept "video/webm;codecs=vp9" refuses it as an
+      // invalid type, which failed the save on a recording that had worked.
+      const fileType = mime.split(';')[0];
+      const outcome = await saveBinary('render.webm', await blob.arrayBuffer(), fileType);
       const head = cancelled ? `Cancelled after ${written} frame(s)` : `Recorded ${written} frame(s)`;
       if (outcome.status === 'failed') return `${head}, but the video could not be saved: ${outcome.reason}`;
       if (outcome.status === 'cancelled') return `${head}; saving the video was cancelled`;
-      return `${head} to render.webm`;
+      const size = blob.size < 1024 ? `${blob.size} bytes` : `${Math.round(blob.size / 1024)} KB`;
+      return `${head} to render.webm (${size})`;
     },
   };
 }

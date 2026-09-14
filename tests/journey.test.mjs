@@ -1079,7 +1079,75 @@ if (app.skip) {
     assert.ok(result.objects >= 1, 'the scene was disturbed by a licence check');
   });
 
-  test('20 · nothing logged an error along the whole journey', () => {
+  test('20 · a recorded video contains actual video', async () => {
+    // It reported "Recorded 4 frame(s) to render.webm" and handed over a
+    // 110-byte header with no frames in it. Two causes, both found by
+    // measuring the file rather than trusting the message: captureStream() was
+    // called a second time inside write(), so requestFrame() fired on a track
+    // nobody was recording; and stop() came the instant the last frame was
+    // drawn, before the encoder had emitted anything.
+    const result = await page.evaluate(async () => {
+      const deliver = window.__klineDeliver;
+      const dest = deliver.videoDestination(24);
+      if (!dest) return { supported: false };
+
+      let saved = null;
+      window.showSaveFilePicker = async ({ suggestedName }) => ({
+        name: suggestedName,
+        createWritable: async () => {
+          const parts = [];
+          return {
+            async write(d) { parts.push(d); },
+            async close() { const b = new Blob(parts); saved = { name: suggestedName, bytes: b.size }; },
+            async abort() {},
+          };
+        },
+      });
+
+      const frame = (n) => {
+        const px = new Uint8ClampedArray(48 * 32 * 4);
+        for (let i = 0; i < px.length; i += 4) {
+          px[i] = (n * 60) % 255; px[i + 1] = 90; px[i + 2] = 200; px[i + 3] = 255;
+        }
+        return { frame: n, width: 48, height: 32, pixels: px };
+      };
+      const wrote = [];
+      for (let n = 1; n <= 4; n++) wrote.push(await dest.write(frame(n), 4));
+      const message = await dest.finish(4, false);
+      return { supported: true, wrote, message, saved };
+    });
+
+    if (!result.supported) return; // A runtime with no MediaRecorder says so elsewhere.
+    assert.deepEqual(result.wrote, [true, true, true, true], 'a frame was refused');
+    assert.ok(result.saved, `nothing was written: ${result.message}`);
+    assert.match(result.saved.name, /\.webm$/);
+    // The number that matters. An empty WebM container is about a hundred
+    // bytes; anything that actually encoded four frames is meaningfully more.
+    assert.ok(result.saved.bytes > 200,
+      `the video is ${result.saved.bytes} bytes — an empty container, not a video`);
+    assert.match(result.message, /^Recorded 4 frame/,
+      `it did not report a completed recording: ${result.message}`);
+    assert.doesNotMatch(result.message, /could not be recorded|could not be saved/,
+      `it reported a failure: ${result.message}`);
+  });
+
+  test('21 · a recording that produces nothing says so instead of claiming success', async () => {
+    // The half that matters more: when the encoder genuinely yields nothing,
+    // the application must not hand somebody an empty file and call it done.
+    const message = await page.evaluate(async () => {
+      const deliver = window.__klineDeliver;
+      const dest = deliver.videoDestination(24);
+      if (!dest) return null;
+      // finish() without a single write(): the recorder was never started.
+      return dest.finish(0, false);
+    });
+    if (message === null) return;
+    assert.match(message, /Nothing was recorded|could not be recorded/i,
+      `an empty recording reported: ${message}`);
+    assert.doesNotMatch(message, /^Recorded/, 'it claimed to have recorded something');
+  });
+
+  test('22 · nothing logged an error along the whole journey', () => {
     const noise = app.consoleErrors.filter((m) => !/favicon|404/i.test(m));
     assert.deepEqual(noise, [], `the app logged: ${noise.join(' | ')}`);
   });

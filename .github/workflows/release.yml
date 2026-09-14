@@ -107,6 +107,34 @@ jobs:
           test -f THIRD-PARTY-NOTICES.md
           test -f licences/Apache-2.0.txt
           echo "model $(du -h dist/models/*.onnx | cut -f1), runtime $(du -h dist/ort/*.wasm | cut -f1)"
+      # A release whose builds enforce nothing, beside a README and a LICENCE
+      # promising a fourteen-day trial, is the two halves of the product
+      # contradicting each other in public. v0.10.0 went out exactly that way:
+      # the installers were cut five commits before the signing key was
+      # installed, so every copy was ungated for ever while the licence said
+      # otherwise. A tagged release now refuses to build without the key.
+      - name: A tagged release must carry a signing key
+        if: inputs.tag != '' || startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="$(node -e "
+            const s = require('fs').readFileSync('src/licence/licence.ts', 'utf8');
+            const m = s.match(/PUBLIC_KEY_SPKI = '([^']*)'/);
+            process.stdout.write(m ? m[1] : '');
+          ")"
+          if [ -z "$key" ]; then
+            echo "::error::PUBLIC_KEY_SPKI is empty, so these installers would enforce no licence at all while the LICENCE promises a trial. Run tools/kline-licence.mjs keygen and install the public key before tagging."
+            exit 1
+          fi
+          echo "signing key present (${#key} chars)"
+          # And it has to survive into the bundle, not merely into the source.
+          grep -qF "$key" dist/assets/*.js || {
+            echo "::error::the signing key is in the source but not in the built bundle"
+            exit 1
+          }
+          echo "signing key is present in the built bundle"
+
       - name: Build installers
         run: npx electron-builder ${{ matrix.target }} --publish never
         env:
