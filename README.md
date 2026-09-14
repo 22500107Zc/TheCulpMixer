@@ -984,10 +984,11 @@ unlocked — on the web, in the desktop app, and on their next machine. Nobody
 ever sees a licence key, and you never do anything per customer.
 
 There is also a **founder console** at `/founder.html` — one login, yours — for
-setting up Stripe and for giving somebody an account directly, without them
+setting up Stripe and for making somebody an account directly, without them
 paying: a partner, a reviewer, anyone who paid you another way. You type their
-email; they type the same email into *Help ▸ Licence* and they are in. The
-33-hour trial is not adjustable from it, on purpose.
+email and press Create; it hands you their email and password to send on, once.
+They sign in under *Help ▸ Licence* and they are working. The 33-hour trial is
+not adjustable from it, on purpose.
 
 The setup is four things, done once, and takes about fifteen minutes:
 **[SELLING.md](SELLING.md)**.

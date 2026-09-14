@@ -331,6 +331,155 @@ test('the thirty-three hours cannot be changed from the console', async () => {
   assert.ok(hours > 32.5 && hours <= 33, `the trial was ${hours} hours`);
 });
 
+// ------------------------------------------------- customers signing in
+
+test('an account made in the console can sign in with its password', async () => {
+  // The thing the founder login exists to produce: a customer with an email
+  // and a password who opens Kline and is in.
+  const kv = store();
+  const session = await signIn({ kv });
+
+  const made = await run(admin, {
+    action: 'accounts.create', session, email: 'Customer@Example.com', months: 1, plan: 'Studio',
+  }, { kv });
+  const password = String(made.body.password);
+  assert.ok(password.length >= 12, `the generated password was "${password}"`);
+
+  const in1 = await run(licence, {
+    action: 'signin', install: 'their-laptop', email: 'customer@example.com', password,
+  }, { kv });
+  assert.equal(in1.code, 200, JSON.stringify(in1.body));
+  assert.equal(in1.body.status, 'active');
+  const parsed = await verifyKey(String(in1.body.key), SPKI);
+  assert.equal(parsed?.name, 'customer@example.com');
+  assert.equal(parsed?.plan, 'Studio');
+
+  // And on a second machine, with the same details.
+  const in2 = await run(licence, {
+    action: 'signin', install: 'their-desktop', email: 'customer@example.com', password,
+  }, { kv });
+  assert.equal(in2.body.status, 'active', 'the same account could not be used twice');
+});
+
+test('a password the founder chose is the one that works', async () => {
+  const kv = store();
+  const session = await signIn({ kv });
+  await run(admin, {
+    action: 'accounts.create', session, email: 'chosen@example.com', password: 'let-me-in-please',
+  }, { kv });
+
+  const right = await run(licence, {
+    action: 'signin', install: 'i', email: 'chosen@example.com', password: 'let-me-in-please',
+  }, { kv });
+  assert.equal(right.body.status, 'active');
+});
+
+test('a wrong password does not sign in, and neither does no password', async () => {
+  const kv = store();
+  const session = await signIn({ kv });
+  const made = await run(admin, {
+    action: 'accounts.create', session, email: 'real@example.com',
+  }, { kv });
+  const password = String(made.body.password);
+
+  const attempts: [string, string][] = [
+    ['real@example.com', 'wrong'],
+    ['real@example.com', ''],
+    ['real@example.com', password.toUpperCase()],
+    ['real@example.com', `${password} `],
+    ['nobody@example.com', password],
+    ['', password],
+  ];
+  for (const [email, attempt] of attempts) {
+    const result = await run(licence, { action: 'signin', install: 'i', email, password: attempt }, { kv });
+    assert.equal(result.code, 401, `"${email}" / "${attempt}" got in`);
+    // One answer for every kind of wrong, so this cannot be used to find out
+    // which email addresses have accounts.
+    assert.equal(result.body.error, 'wrong-details');
+  }
+});
+
+test('an account that ran out cannot sign in', async () => {
+  const kv = store();
+  const session = await signIn({ kv });
+  const made = await run(admin, {
+    action: 'accounts.create', session, email: 'lapsing@example.com', months: 1,
+  }, { kv });
+  const password = String(made.body.password);
+
+  // Wind it back so it has already ended.
+  const raw = JSON.parse(kv.data.get('kline:account:lapsing@example.com') as string);
+  kv.data.set('kline:account:lapsing@example.com', JSON.stringify({ ...raw, expires: Date.now() - 1 }));
+
+  const result = await run(licence, {
+    action: 'signin', install: 'i', email: 'lapsing@example.com', password,
+  }, { kv });
+  assert.equal(result.code, 401, 'an expired account still signed in');
+});
+
+test('a removed account cannot sign in', async () => {
+  const kv = store();
+  const session = await signIn({ kv });
+  const made = await run(admin, { action: 'accounts.create', session, email: 'bye@example.com' }, { kv });
+  const password = String(made.body.password);
+  await run(admin, { action: 'accounts.delete', session, email: 'bye@example.com' }, { kv });
+
+  const result = await run(licence, {
+    action: 'signin', install: 'i', email: 'bye@example.com', password,
+  }, { kv });
+  assert.equal(result.code, 401, 'a removed account still signed in');
+});
+
+test('a new password replaces the old one', async () => {
+  const kv = store();
+  const session = await signIn({ kv });
+  const made = await run(admin, { action: 'accounts.create', session, email: 'reset@example.com' }, { kv });
+  const first = String(made.body.password);
+
+  const reset = await run(admin, {
+    action: 'accounts.resetPassword', session, email: 'reset@example.com',
+  }, { kv });
+  const second = String(reset.body.password);
+  assert.notEqual(first, second);
+
+  const old = await run(licence, {
+    action: 'signin', install: 'i', email: 'reset@example.com', password: first,
+  }, { kv });
+  assert.equal(old.code, 401, 'the old password still worked');
+
+  const fresh = await run(licence, {
+    action: 'signin', install: 'i', email: 'reset@example.com', password: second,
+  }, { kv });
+  assert.equal(fresh.body.status, 'active');
+});
+
+test('a password hash never leaves the server', async () => {
+  // Not to the console, not in a list, not in the response that creates the
+  // account. A hash on the wire is a hash somebody can work on offline.
+  const kv = store();
+  const session = await signIn({ kv });
+  const made = await run(admin, { action: 'accounts.create', session, email: 'hash@example.com' }, { kv });
+  assert.ok(!JSON.stringify(made.body).includes('scrypt$'), 'the create response carried a hash');
+
+  const state = await run(admin, { action: 'state', session }, { kv });
+  assert.ok(!JSON.stringify(state.body).includes('scrypt$'), 'the account list carried a hash');
+
+  // It is genuinely stored, though — only a hash, never the password.
+  const stored = kv.data.get('kline:account:hash@example.com') as string;
+  assert.match(stored, /scrypt\$/, 'no password was stored at all');
+  assert.ok(!stored.includes(String(made.body.password)), 'the password was stored in the clear');
+});
+
+test('a short password is refused rather than quietly accepted', async () => {
+  const kv = store();
+  const session = await signIn({ kv });
+  const result = await run(admin, {
+    action: 'accounts.create', session, email: 'short@example.com', password: 'abc',
+  }, { kv });
+  assert.equal(result.code, 400);
+  assert.match(String(result.body.error), /8 characters/);
+});
+
 test('no password or password hash is ever committed to this repository', async () => {
   // The guard on the rule that matters most here. The founder login can issue
   // licences and read every customer, and this repository has been public, so

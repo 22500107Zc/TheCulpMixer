@@ -20,8 +20,8 @@
  */
 
 import {
-  Account, checkPassword, deleteAccount, kvConfigured, listAccounts, mintSession, readJson,
-  saveAccount, settings, validSession, writeJson, KEYS, env,
+  Account, checkPassword, deleteAccount, generatePassword, hashPassword, kvConfigured,
+  listAccounts, mintSession, readJson, saveAccount, settings, validSession, writeJson, KEYS, env,
 } from './_store';
 
 interface Req {
@@ -38,6 +38,16 @@ interface Res {
 
 /** A month, for the default account length. */
 const MONTH_MS = 30 * 24 * 3600000;
+
+/**
+ * Accounts as the console sees them: never the password hash.
+ *
+ * The console has no use for it, and a hash on the wire is a hash somebody
+ * can work on offline at their leisure.
+ */
+async function visibleAccounts(): Promise<Account[]> {
+  return (await listAccounts()).map((one) => ({ ...one, password: undefined }));
+}
 
 function clean(value: unknown, max: number): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -123,7 +133,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
             priceId: current.priceId,
             priceFromEnvironment: !!env('KLINE_PRICE_ID'),
           },
-          accounts: kvConfigured() ? await listAccounts() : [],
+          accounts: kvConfigured() ? await visibleAccounts() : [],
         });
         return;
       }
@@ -136,6 +146,15 @@ export default async function handler(req: Req, res: Res): Promise<void> {
         }
         const months = Number(body?.months);
         const forever = body?.forever === true;
+        // Their password: whatever was typed, or one made here. Either way it
+        // is returned exactly once, in this response, for the founder to send
+        // on — and stored only as a hash, so it can never be read back.
+        const chosen = clean(body?.password, 200);
+        if (chosen && chosen.length < 8) {
+          res.status(400).json({ error: 'A password needs at least 8 characters.' });
+          return;
+        }
+        const password = chosen || generatePassword();
         const account: Account = {
           email,
           plan: clean(body?.plan, 60) || 'Subscription',
@@ -143,17 +162,40 @@ export default async function handler(req: Req, res: Res): Promise<void> {
             ? null
             : Date.now() + (Number.isFinite(months) && months > 0 ? months : 1) * MONTH_MS,
           created: Date.now(),
+          password: hashPassword(password),
           ...(clean(body?.note, 300) ? { note: clean(body?.note, 300) } : {}),
         };
         await saveAccount(account);
-        res.status(200).json({ account, accounts: await listAccounts() });
+        res.status(200).json({
+          account: { ...account, password: undefined },
+          // Shown once. Nothing can retrieve it afterwards.
+          password,
+          accounts: await visibleAccounts(),
+        });
+        return;
+      }
+
+      case 'accounts.resetPassword': {
+        const email = clean(body?.email, 200).toLowerCase();
+        const existing = await readJson<Account>(KEYS.account(email));
+        if (!existing) {
+          res.status(404).json({ error: 'No account with that email.' });
+          return;
+        }
+        const password = clean(body?.password, 200) || generatePassword();
+        if (password.length < 8) {
+          res.status(400).json({ error: 'A password needs at least 8 characters.' });
+          return;
+        }
+        await saveAccount({ ...existing, password: hashPassword(password) });
+        res.status(200).json({ password, accounts: await visibleAccounts() });
         return;
       }
 
       case 'accounts.delete': {
         const email = clean(body?.email, 200).toLowerCase();
         await deleteAccount(email);
-        res.status(200).json({ accounts: await listAccounts() });
+        res.status(200).json({ accounts: await visibleAccounts() });
         return;
       }
 

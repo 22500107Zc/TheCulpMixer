@@ -158,6 +158,28 @@ export async function syncLicence(options: { email?: string; session?: string } 
 }
 
 /**
+ * Sign in with an account the founder made.
+ *
+ * Email and password, one request, and what comes back is the same signed
+ * entitlement everything else here deals in — so from this point the
+ * application cannot tell the difference between somebody who signed in and
+ * somebody who paid Stripe, and neither can anything else.
+ */
+export async function signIn(
+  email: string, password: string,
+): Promise<{ ok: true } | { ok: false; reason: 'wrong' | 'offline' }> {
+  const answer = await post({
+    action: 'signin', install: installId(), email, password,
+  });
+  if (!answer) return { ok: false, reason: 'offline' };
+  if (answer.status === 'active' && typeof answer.key === 'string') {
+    storeLicence(answer.key);
+    return { ok: true };
+  }
+  return { ok: false, reason: 'wrong' };
+}
+
+/**
  * Start paying.
  *
  * Returns the Stripe page to send them to, or null when this build has not

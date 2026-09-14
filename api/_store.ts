@@ -29,6 +29,14 @@ export interface Account {
   expires: number | null;
   created: number;
   note?: string;
+  /**
+   * Their password, hashed the same way the founder's is.
+   *
+   * Never the password itself. The founder sees it once, when the account is
+   * made, to send it on; after that nobody can read it back — not the
+   * console, not the server, not whoever gets into the store.
+   */
+  password?: string;
 }
 
 /** Stripe details, when they are set from the console rather than the env. */
@@ -135,6 +143,30 @@ export async function settings(): Promise<Required<Settings>> {
 
 // ------------------------------------------------------------ the founder
 
+/** Somebody signing in with the password on their account. */
+export async function signInAccount(email: string, password: string): Promise<Account | null> {
+  const account = await liveAccount(email);
+  if (!account || !account.password || !password) return null;
+  return verifyHash(password, account.password) ? account : null;
+}
+
+/**
+ * A password somebody can actually type, for an account the founder makes.
+ *
+ * No l, I, 1, O or 0: this gets read off a screen and typed into another
+ * machine, and a password that turns into a support email is not a feature.
+ */
+export function generatePassword(): string {
+  const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const bytes = randomBytes(16);
+  let out = '';
+  for (let i = 0; i < 16; i++) {
+    out += alphabet[bytes[i] % alphabet.length];
+    if (i === 3 || i === 7 || i === 11) out += '-';
+  }
+  return out;
+}
+
 /**
  * The founder password, as a hash.
  *
@@ -146,7 +178,11 @@ export async function settings(): Promise<Required<Settings>> {
  * Format: scrypt$<salt hex>$<hash hex>
  */
 export function checkPassword(password: string): boolean {
-  const stored = env('KLINE_FOUNDER_HASH');
+  return verifyHash(password, env('KLINE_FOUNDER_HASH'));
+}
+
+/** Compare a password against a stored scrypt hash, in constant time. */
+export function verifyHash(password: string, stored: string): boolean {
   if (!stored || !password) return false;
   const [scheme, salt, expected] = stored.split('$');
   if (scheme !== 'scrypt' || !salt || !expected) return false;

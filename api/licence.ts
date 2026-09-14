@@ -32,7 +32,7 @@
  */
 
 import { createPrivateKey, sign } from 'node:crypto';
-import { KEYS, env, kvGet, kvSet, liveAccount, settings } from './_store';
+import { KEYS, env, kvGet, kvSet, liveAccount, settings, signInAccount } from './_store';
 
 /** Thirty-three hours. The same number the application and the LICENCE state. */
 const TRIAL_MS = 33 * 60 * 60 * 1000;
@@ -248,6 +248,34 @@ export default async function handler(req: Req, res: Res): Promise<void> {
         return;
       }
       res.status(200).json({ url });
+      return;
+    }
+
+    if (action === 'signin') {
+      // An account the founder made, with the password they were given. This
+      // is the whole of "log in": one request, and what comes back is the
+      // same signed entitlement everything else returns.
+      const password = typeof body?.password === 'string' ? body.password : '';
+      const account = await signInAccount(email, password);
+      if (!account) {
+        // One answer for every kind of wrong, at the same cost, so this
+        // cannot be used to find out which emails have accounts.
+        await new Promise((done) => setTimeout(done, 400));
+        res.status(401).json({ error: 'wrong-details' });
+        return;
+      }
+      const expires = Math.min(account.expires ?? now + LEASE_MS, now + LEASE_MS);
+      res.status(200).json({
+        status: 'active',
+        key: mint({
+          name: account.email,
+          plan: account.plan || 'Subscription',
+          seats: 1,
+          issued: now,
+          expires,
+        }),
+        expires,
+      });
       return;
     }
 

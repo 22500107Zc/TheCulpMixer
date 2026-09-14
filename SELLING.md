@@ -84,11 +84,19 @@ From there you can:
 Save, and the Subscribe button starts working. The key is stored in your KV and
 never shown again, not even back to you.
 
-**Give somebody an account** — type their email, pick a length (1 month, 12
-months, never expires), press Create. That unlocks Kline for them **without
-them paying Stripe**: a partner, a reviewer, somebody who paid you by bank
-transfer, a friend. They open Kline, go to **Help ▸ Licence**, type that email,
-and they are in. Nothing to send them, nothing to copy.
+**Make somebody an account** — type their email, pick a length (1 month, 12
+months, never expires), and press Create. Leave the password box empty and one
+is made for them.
+
+The console then shows you a block of text with their email and password in it
+and a **Copy** button. Send them that. They open Kline, go to **Help ▸
+Licence**, type the email and password, press Sign in, and they are working.
+
+That unlocks Kline **without them paying Stripe** — a partner, a reviewer,
+somebody who paid you by bank transfer, a friend, yourself. It is shown once:
+the server stores only a hash of the password and genuinely cannot tell anybody
+what it was afterwards. If it gets lost, press **New password** on their row
+and send them the new block.
 
 **Take an account away** — press Remove. They lose access within a week (the
 offline lease has to run out first).

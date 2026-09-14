@@ -34,7 +34,9 @@ import {
   LicenceState, canUse as licenceAllowsUse, clearLicence, describeLicence, licenceState,
   storeLicence, verifyKey, whyBlocked,
 } from '../licence/licence';
-import { checkoutUrl, syncLicence, takeCheckoutSession } from '../licence/activation';
+import {
+  checkoutUrl, signIn as signInToAccount, syncLicence, takeCheckoutSession,
+} from '../licence/activation';
 import { RenderJob } from '../render/pathtrace/RenderJob';
 import { RenderSettings, defaultRenderSettings } from '../render/pathtrace/types';
 import { buildTraceScene, cameraFromObject, cameraFromViewport } from '../render/pathtrace/build';
@@ -696,6 +698,29 @@ export class Editor {
       session: takeCheckoutSession(),
     });
     return this.refreshLicence();
+  }
+
+  /**
+   * Sign in with an account, and re-read where that leaves this copy.
+   *
+   * Returns what to tell them. A wrong email and a wrong password give the
+   * same answer, because anything else is a way to find out which emails have
+   * accounts.
+   */
+  async signInToKline(email: string, password: string): Promise<{ ok: boolean; message: string }> {
+    if (!email || !password) {
+      return { ok: false, message: 'Both the email and the password, please.' };
+    }
+    const result = await signInToAccount(email, password);
+    await this.refreshLicence();
+    if (result.ok) return { ok: true, message: describeLicence(this.licence) };
+    return {
+      ok: false,
+      message: result.reason === 'offline'
+        ? 'Could not reach the server to check. Try again in a moment — nothing is wrong '
+          + 'with your account.'
+        : 'That email and password do not match an account.',
+    };
   }
 
   /**

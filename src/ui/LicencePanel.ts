@@ -26,6 +26,11 @@ export class LicencePanel {
     type: 'email',
     placeholder: 'you@example.com',
   }) as HTMLInputElement;
+  private password = h('input', {
+    class: 'licence-email',
+    type: 'password',
+    placeholder: 'Password',
+  }) as HTMLInputElement;
   private keyInput = h('textarea', {
     class: 'code-area licence-input',
     placeholder: 'Paste a licence key',
@@ -34,6 +39,14 @@ export class LicencePanel {
 
   constructor(private editor: Editor) {
     this.email.autocomplete = 'email';
+    this.password.autocomplete = 'current-password';
+    // Enter in either field signs in, because that is what Enter means in a
+    // pair of boxes with a Sign in button under them.
+    for (const field of [this.email, this.password]) {
+      field.addEventListener('keydown', (e) => {
+        if ((e as KeyboardEvent).key === 'Enter') void this.signIn();
+      });
+    }
     this.root.append(this.head, this.body);
     this.editor.on('licence', () => {
       if (this.visible) this.render();
@@ -120,10 +133,10 @@ export class LicencePanel {
         h('p', { class: 'dim small', text: `Subscribed at ${PRICE}. It renews on its own.` }),
         h('p', {
           class: 'dim small',
-          text: 'Using Kline on another machine: open this panel there and enter the email you '
-            + 'paid with.',
+          text: 'Using Kline on another machine: open this panel there and sign in with the '
+            + 'same details.',
         }),
-        this.restoreRow(),
+        this.signInBlock(),
         this.note,
       );
       return;
@@ -139,7 +152,8 @@ export class LicencePanel {
           class: 'dim small',
           text: 'Subscribing now does not cut the trial short and does not charge you twice.',
         }),
-        this.restoreRow(),
+        h('p', { class: 'dim small licence-restore-label', text: 'Already have an account?' }),
+        this.signInBlock(),
         this.note,
       );
       return;
@@ -161,18 +175,31 @@ export class LicencePanel {
     ]));
 
     this.body.append(
-      h('p', { class: 'dim small licence-restore-label', text: 'Already paid? Enter that email.' }),
-      this.restoreRow(),
+      h('p', {
+        class: 'dim small licence-restore-label',
+        text: 'Already have an account, or already paid? Sign in.',
+      }),
+      this.signInBlock(),
       this.note,
       this.advanced(),
     );
   }
 
-  /** Unlocking a machine that is not the one the payment was made on. */
-  private restoreRow(): HTMLElement {
-    return h('div', { class: 'btn-row licence-restore' }, [
-      this.email,
-      button('Restore', () => void this.restore()),
+  /**
+   * Signing in.
+   *
+   * Two boxes and a button, which is what everybody already knows how to do.
+   * It covers both kinds of customer: an account made for them in the founder
+   * console, and somebody who paid Stripe and is now on a second machine —
+   * the second only needs the email, so the password is optional and the
+   * button does the right thing either way.
+   */
+  private signInBlock(): HTMLElement {
+    return h('div', { class: 'licence-signin' }, [
+      h('div', { class: 'btn-row licence-restore' }, [this.email, this.password]),
+      h('div', { class: 'btn-row' }, [
+        button('Sign in', () => void this.signIn(), { class: 'primary' }),
+      ]),
     ]);
   }
 
@@ -222,30 +249,42 @@ export class LicencePanel {
     }
   }
 
-  private async restore(): Promise<void> {
+  private async signIn(): Promise<void> {
     const email = this.email.value.trim();
+    const password = this.password.value;
     if (!email) {
-      this.say('Put in the email you paid with.', true);
+      this.say('Put your email in.', true);
       return;
     }
     if (this.busy) return;
     this.busy = true;
-    this.say('Checking…');
+    this.say('Signing in…');
     try {
-      await this.editor.syncLicence({ email });
-      if (this.editor.canUse) {
-        this.say('Found it. You are unlocked.');
+      // With a password, it is an account. Without one, it is somebody who
+      // paid Stripe and is unlocking another machine — the same button,
+      // because a customer should not have to know which kind they are.
+      const result = password
+        ? await this.editor.signInToKline(email, password)
+        : await this.restoreByEmail(email);
+      this.say(result.message, !result.ok);
+      if (result.ok) {
+        this.password.value = '';
         this.render();
-      } else {
-        this.say(
-          `No live subscription for ${email}. If you paid with a different address, try that `
-          + 'one — nothing has been charged twice.',
-          true,
-        );
       }
     } finally {
       this.busy = false;
     }
+  }
+
+  /** The no-password path: a Stripe customer on a machine they have not used. */
+  private async restoreByEmail(email: string): Promise<{ ok: boolean; message: string }> {
+    await this.editor.syncLicence({ email });
+    if (this.editor.canUse) return { ok: true, message: 'Found it. You are unlocked.' };
+    return {
+      ok: false,
+      message: `Nothing found for ${email}. If you have an account, put the password in too. `
+        + 'If you paid with a different address, try that one — nothing has been charged twice.',
+    };
   }
 
   private async applyKey(value?: string): Promise<void> {
