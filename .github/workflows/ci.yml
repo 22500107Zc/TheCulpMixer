@@ -8,6 +8,11 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # The suite takes about five minutes. Twice this run hung on the test step
+    # and sat there — a job with no timeout runs for six hours before GitHub
+    # kills it, which reads as "still running" rather than "broken" for most of
+    # a working day. Twenty-five minutes is generous and still fails loudly.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,6 +34,7 @@ jobs:
 
   desktop:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
