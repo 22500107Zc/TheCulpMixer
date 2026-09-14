@@ -982,11 +982,11 @@ if (app.skip) {
       'the reloaded strips evaluate differently from the ones that were saved');
   });
 
-  test('18 · the shipped build does not gate anything without a signing key', async () => {
-    // The release that just went out has no public key in it, and that must
-    // mean "nothing to enforce" rather than "nobody can export". Checked in the
-    // actual production bundle, because this is the failure that would brick
-    // every copy at once.
+  test('18 · a fresh install is in trial and can do everything', async () => {
+    // The first thing a new customer meets. A signing key is now baked into
+    // the build, so this is the real gated path — and on day one it must gate
+    // nothing at all. Checked against the actual production bundle, because
+    // getting this wrong bricks every copy at once.
     await resetScene(page);
     const state = await page.evaluate(async () => {
       const ed = window.kline.editor;
@@ -998,9 +998,12 @@ if (app.skip) {
         blocked: ed.licenceBlockedMessage,
       };
     });
-    assert.equal(state.canExport, true, 'a build with no signing key refused to export');
+    assert.equal(state.canExport, true, 'a fresh install refused to export');
     assert.equal(state.blocked, '', 'it gave a reason for blocking something it did not block');
-    assert.match(state.summary, /no licence needed|source/i, `it said: ${state.summary}`);
+    assert.match(state.summary, /trial|no licence needed|source/i, `it said: ${state.summary}`);
+    // Whatever state it is in, it must never be one that stops a new user dead.
+    assert.ok(['trial', 'source', 'owner', 'licensed'].includes(state.status),
+      `a fresh install landed in "${state.status}"`);
 
     // And saving actually works, rather than merely claiming it would.
     const saved = await page.evaluate(async () => {
@@ -1022,7 +1025,7 @@ if (app.skip) {
       return { files: window.__saved, status: window.kline.editor.statusMessage };
     });
     assert.deepEqual(saved.files, ['scene.kline'],
-      `saving was refused in an unlicensed build: ${saved.status}`);
+      `saving was refused on a fresh install: ${saved.status}`);
   });
 
   test('19 · an expired licence pauses export and never touches the work', async () => {
@@ -1046,6 +1049,9 @@ if (app.skip) {
         return `${body}.${b64u(sig)}`;
       };
 
+      // Self-contained: this test owns its scene, so it cannot be thrown by
+      // whatever ran before it.
+      window.kline.run('add.cube');
       const mod = window.__klineLicence;
       const now = Date.now();
       const live = await mint({ name: 'Acme', plan: 'Studio', seats: 5, issued: now, expires: now + 8.64e7 });

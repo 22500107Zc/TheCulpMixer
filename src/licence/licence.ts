@@ -75,7 +75,7 @@ export const TRIAL_KEY = 'kline.trial.start';
  * because a build that cannot verify anything must not punish the person
  * running it for that.
  */
-export const PUBLIC_KEY_SPKI = '';
+export const PUBLIC_KEY_SPKI = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE_pma6h_dx9SqshCzfIOF_Ok2IFKU5-2eHuXUnvGqNfcw-eAhM7903DVTwLWgZ1iOo0IYnopraxnMfky2QtPv0Q';
 
 /**
  * Whether this build was made by running the repository.
