@@ -1,4 +1,5 @@
 import { Editor } from '../editor/Editor';
+import { TERMS } from '../licence/licence';
 import { h } from './dom';
 import { altKeyName, isMac, navigationHint, scrollPhrase } from './platform';
 
@@ -37,6 +38,7 @@ const CARDS: Card[] = [
     title: 'Welcome to Kline',
     body: 'A 3D modelling application that runs on your machine and nowhere else. '
       + 'Nothing you open is uploaded, there is no account, and there is no server. '
+      + `Kline is proprietary software, not free software: ${TERMS} `
       + 'This takes about a minute and you can stop at any point.',
     action: {
       label: 'Put a cube in front of me',

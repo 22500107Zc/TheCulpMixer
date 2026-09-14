@@ -171,14 +171,15 @@ export class App {
     this.setupGuide.showOnStart();
     this.watchForUpdates();
     this.editor.panels.toggleLicence = () => this.licencePanel.toggle();
+    // Whenever Kline is locked, the wall goes up — at startup and again on any
+    // refused command. Registered before the first check runs, so a build that
+    // is already past its trial never gets a frame of the editor.
+    this.editor.on('licence', () => {
+      if (this.locked) this.licencePanel.show();
+    });
     // Asked once at startup. A build from source, or one shipped without a
     // signing key, answers "nothing to enforce" and nothing else happens.
     void this.editor.refreshLicence();
-    // And whenever an export is refused, the way out is put on screen rather
-    // than left as a line in the status bar somebody has to notice.
-    this.editor.on('licence', () => {
-      if (!this.editor.canExport && this.editor.licence.status !== 'source') this.licencePanel.show();
-    });
     this.editor.renderer.onTexturesReady = () => this.editor.requestRender();
     // Closing the tab: write a recovery copy, and let the browser ask its own
     // "leave site?" question when there is unsaved work. A page cannot put its
@@ -268,8 +269,26 @@ export class App {
     this.viewportHint.classList.toggle('visible', !!label);
   }
 
+  /** Past the trial, with no key. The wall is up and nothing else responds. */
+  private get locked(): boolean {
+    return !this.editor.canUse && this.editor.licence.status !== 'source';
+  }
+
   private wireKeyboard(): void {
     document.addEventListener('keydown', (e) => {
+      // Locked, and not typing a licence key into the one field that still
+      // takes input: swallow it. The wall covers the window so the mouse
+      // cannot reach anything, and this is the other half of that — otherwise
+      // G, R, S and the modal transforms would still drive the scene behind
+      // it, and the shortcut would be the product.
+      const typingTarget = e.target as HTMLElement | null;
+      const typing = !!typingTarget && /^(INPUT|TEXTAREA|SELECT)$/.test(typingTarget.tagName);
+      if (this.locked && !typing) {
+        if (!this.licencePanel.visible) this.licencePanel.show();
+        e.preventDefault();
+        return;
+      }
+
       // The app-wide chords work from anywhere, including inside a text field.
       const meta = e.ctrlKey || e.metaKey;
       if (meta && e.key.toLowerCase() === 'k') {

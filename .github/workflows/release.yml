@@ -391,6 +391,12 @@ jobs:
             **Do not click "Source code" at the bottom — that is the
             repository, not the app.**
 
+            > **Kline is proprietary software. It is not open source and it is
+            > not free.** You get a **33-hour free trial**. After that it is
+            > **$199/month** to use Kline at all — not to export, to open it.
+            > Downloading a build, or the source, is not a licence. See
+            > [LICENSE](https://github.com/22500107Zc/Kline/blob/main/LICENSE).
+
             | | |
             |---|---|
             | **macOS - Apple Silicon** (M1/M2/M3/M4) | **[Kline-arm64.dmg](https://github.com/22500107Zc/Kline/releases/latest/download/Kline-arm64.dmg)** |

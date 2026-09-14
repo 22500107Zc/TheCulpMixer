@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import {
-  LicencePayload, TRIAL_MS, canExport, describeLicence, licenceState, verifyKey, whyBlocked,
+  LicencePayload, PRICE, TERMS, TRIAL_MS, canExport, canUse, describeLicence, licenceState,
+  verifyKey, whyBlocked,
 } from '../src/licence/licence';
 
 /**
@@ -119,7 +120,7 @@ test('nonsense keys are refused rather than throwing', async () => {
 
 // -------------------------------------------------------------- the states
 
-test('a live subscription can export; an expired one cannot', async () => {
+test('a live subscription works; an expired one is locked out entirely', async () => {
   const { spki, mint } = issuer();
   const key = mint(subscription({ expires: NOW + 864e5 }));
 
@@ -130,9 +131,13 @@ test('a live subscription can export; an expired one cannot', async () => {
   const lapsed = await licenceState({ fromSource: false, key, publicKey: spki, now: NOW + 2 * 864e5 });
   assert.equal(lapsed.status, 'expired');
   assert.equal(canExport(lapsed), false);
+  assert.equal(canUse(lapsed), false, 'an expired licence could still use Kline');
+  // It names the price, because a lock that does not say what it costs is just
+  // a dead end.
+  assert.ok(whyBlocked(lapsed).includes(PRICE), whyBlocked(lapsed));
   // And it says the work is safe, because that is the first thing anybody
   // wonders when an application tells them their licence has run out.
-  assert.match(whyBlocked(lapsed), /nothing you have made is locked in/i);
+  assert.match(whyBlocked(lapsed), /still on your disk, untouched/i);
 });
 
 test('a perpetual licence never lapses', async () => {
@@ -143,7 +148,7 @@ test('a perpetual licence never lapses', async () => {
   assert.equal(canExport(state), true);
 });
 
-test('the trial runs for fourteen days with everything unlocked, then gates export', async () => {
+test('the trial runs for thirty-three hours, then locks the whole application', async () => {
   const { spki } = issuer();
   // The trial clock lives in localStorage, which Node does not have. A stub is
   // enough, and it also proves the clock is read once and then honoured rather
@@ -159,40 +164,50 @@ test('the trial runs for fourteen days with everything unlocked, then gates expo
   };
   try {
     const at = (now: number) => licenceState({ fromSource: false, key: null, publicKey: spki, now });
+    const HOUR = 3600000;
 
     const first = await at(NOW);
     assert.equal(first.status, 'trial', 'a first run was not a trial');
-    assert.equal(canExport(first), true, 'the trial could not export');
-    assert.equal(first.status === 'trial' && first.daysLeft, 14);
+    assert.equal(canUse(first), true, 'the trial could not be used');
+    assert.equal(first.status === 'trial' && first.hoursLeft, 33);
 
-    const midway = await at(NOW + 7 * 864e5);
+    const midway = await at(NOW + 11 * HOUR);
     assert.equal(midway.status, 'trial');
-    assert.equal(midway.status === 'trial' && midway.daysLeft, 7, 'the trial clock restarted');
-    assert.equal(canExport(midway), true);
+    assert.equal(midway.status === 'trial' && midway.hoursLeft, 22, 'the trial clock restarted');
+    assert.equal(canUse(midway), true);
+
+    // Still inside the window one minute before it closes, and shut a minute
+    // after. Thirty-three hours, not thirty-three days.
+    const nearly = await at(NOW + TRIAL_MS - 60000);
+    assert.equal(nearly.status, 'trial');
+    const overnight = await at(NOW + 34 * HOUR);
+    assert.equal(overnight.status, 'trial-over', 'the trial outlasted thirty-three hours');
 
     const over = await at(NOW + TRIAL_MS + 1);
     assert.equal(over.status, 'trial-over');
+    assert.equal(canUse(over), false, 'Kline was still usable after the trial ended');
     assert.equal(canExport(over), false, 'export was still open after the trial ended');
-    assert.match(whyBlocked(over), /still here and still editable/i);
-
-    // And a key bought on the last day unlocks it again immediately.
-    const { mint } = issuer();
-    assert.ok(mint);
+    assert.match(whyBlocked(over), /locked/i);
+    assert.ok(whyBlocked(over).includes(PRICE), whyBlocked(over));
+    assert.match(whyBlocked(over), /still on your disk, untouched/i);
   } finally {
     if (had) g.localStorage = previous;
     else delete g.localStorage;
   }
 });
 
-test('an expired licence is never a reason to lose work', async () => {
-  // Stated as a test because it is the promise: the gate is on getting new
-  // work *out*, and nothing here can stop the application opening or editing.
+test('the lock stops the application, never the work', async () => {
+  // Stated as a test because it is the promise. After the trial Kline is
+  // locked — that is what is being sold — but the lock is on the software, not
+  // on anything a person made with it. Nothing is deleted, nothing is held.
   const { spki, mint } = issuer();
   const key = mint(subscription({ expires: NOW - 1 }));
   const state = await licenceState({ fromSource: false, key, publicKey: spki, now: NOW });
   assert.equal(state.status, 'expired');
+  assert.equal(canUse(state), false);
   const message = whyBlocked(state);
-  assert.match(message, /saving and exporting/i, 'it did not say what is actually paused');
+  assert.match(message, /locked/i, 'it did not say the application is locked');
+  assert.match(message, /untouched/i, 'it did not say the files are safe');
   assert.doesNotMatch(message, /deleted|lost|removed/i, 'it implied work could be lost');
 });
 
@@ -212,8 +227,31 @@ test('every state describes itself in a sentence a person can act on', async () 
   }
 });
 
-test('the trial window is fourteen days', () => {
-  assert.equal(TRIAL_MS, 14 * 24 * 60 * 60 * 1000);
+test('the trial window is thirty-three hours and the price is $199 a month', () => {
+  assert.equal(TRIAL_MS, 33 * 60 * 60 * 1000);
+  assert.equal(PRICE, '$199/month');
+  assert.match(TERMS, /33-hour free trial/);
+  assert.ok(TERMS.includes(PRICE), TERMS);
+});
+
+test('every surface a person can read states the price and the trial', async () => {
+  // The terms went in six different places and came out of four of them by
+  // accident over successive edits. This is the sweep that stops that: if a
+  // file a customer can read does not say what Kline costs, it fails here.
+  const { readFileSync } = await import('node:fs');
+  const files = [
+    'README.md', 'LICENSE', 'index.html',
+    'package.json', 'public/manifest.webmanifest',
+  ];
+  for (const file of files) {
+    const text = readFileSync(file, 'utf8');
+    assert.match(text, /199/, `${file} does not say what Kline costs`);
+    assert.match(text, /33[ -](hour|hours)|thirty-three \(33\) hours|thirty-three hours/i,
+      `${file} does not state the 33-hour trial`);
+  }
+  // And in the application itself, on the first card a new user sees.
+  const guide = readFileSync('src/ui/SetupGuide.ts', 'utf8');
+  assert.match(guide, /TERMS/, 'the setup guide does not state the terms');
 });
 
 test('nothing Kline ships describes Kline as open source or MIT', async () => {

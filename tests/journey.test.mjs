@@ -1028,7 +1028,7 @@ if (app.skip) {
       `saving was refused on a fresh install: ${saved.status}`);
   });
 
-  test('19 · an expired licence pauses export and never touches the work', async () => {
+  test('19 · an expired licence locks Kline and never touches the work', async () => {
     // The customer-facing half, driven through the real command path. The key
     // is minted here with the same scheme the selling tool uses.
     const result = await page.evaluate(async () => {
@@ -1072,7 +1072,11 @@ if (app.skip) {
     assert.equal(result.live.can, true, 'a live subscription could not export');
     assert.equal(result.dead.status, 'expired');
     assert.equal(result.dead.can, false, 'an expired licence still exported');
-    assert.match(result.dead.why, /still here|locked in/i,
+    assert.match(result.dead.why, /locked/i,
+      `the expiry message did not say Kline is locked: ${result.dead.why}`);
+    assert.ok(result.dead.why.includes('$199/month'),
+      `the expiry message did not say what it costs: ${result.dead.why}`);
+    assert.match(result.dead.why, /still on your disk, untouched/i,
       `the expiry message did not reassure: ${result.dead.why}`);
     assert.equal(result.owner.status, 'owner');
     assert.equal(result.owner.can, true, 'the owner licence could not export');
@@ -1147,7 +1151,86 @@ if (app.skip) {
     assert.doesNotMatch(message, /^Recorded/, 'it claimed to have recorded something');
   });
 
-  test('22 · nothing logged an error along the whole journey', () => {
+  test('22 · past the trial, Kline is a wall that says what it costs', async () => {
+    // The product decision, proved in the browser rather than in a unit: after
+    // 33 hours a shipped build does not merely refuse to export — it stops.
+    // The wall covers the window, it has no way out but a key, and it says
+    // $199/month on it.
+    const before = await page.evaluate(() => {
+      const ed = window.kline.editor;
+      window.__licenceWas = ed.licence;
+      window.kline.run('add.cube');
+      const objects = ed.scene.objects.size;
+      // Straight into the state a customer lands in on hour thirty-four.
+      ed.licence = { status: 'trial-over', endsAt: Date.now() - 1 };
+      ed.emit('licence');
+      return objects;
+    });
+
+    // Give the panel a frame to be put up by the licence handler.
+    await page.waitForSelector('.licence-wall:not(.hidden)', { timeout: 2000 });
+
+    // Escape is the reflex, and it must not work.
+    await page.keyboard.press('Escape');
+    // So is reaching for a shortcut. G is Grab; behind a wall it is nothing.
+    await page.keyboard.press('g');
+
+    const locked = await page.evaluate(() => {
+      const ed = window.kline.editor;
+      const wall = document.querySelector('.licence-panel');
+      const objectsBefore = ed.scene.objects.size;
+      // Every route in: the command path, and the palette's own path.
+      window.kline.run('add.cube');
+      window.kline.run('add.sphere');
+      window.kline.run('render.image');
+      return {
+        visible: !wall.classList.contains('hidden'),
+        isWall: wall.classList.contains('licence-wall'),
+        closeButtons: wall.querySelectorAll('.overlay-head .icon-btn').length,
+        text: wall.textContent,
+        covers: (() => {
+          const r = wall.getBoundingClientRect();
+          return r.width >= window.innerWidth - 1 && r.height >= window.innerHeight - 1;
+        })(),
+        added: ed.scene.objects.size - objectsBefore,
+        modal: ed.modalLabel ?? '',
+        status: ed.statusMessage,
+      };
+    });
+
+    assert.equal(locked.visible, true, 'Escape dismissed the wall');
+    assert.equal(locked.isWall, true, 'the licence panel was not a wall');
+    assert.equal(locked.covers, true, 'the wall did not cover the window');
+    assert.equal(locked.closeButtons, 0, 'the wall offered a close button');
+    assert.equal(locked.added, 0, `${locked.added} object(s) were added while locked`);
+    assert.equal(locked.modal, '', `a modal transform started while locked: ${locked.modal}`);
+    assert.ok(locked.text.includes('$199/month'), `the wall did not say the price: ${locked.text}`);
+    assert.match(locked.text, /33-hour free trial/, `the wall did not state the terms: ${locked.text}`);
+    assert.match(locked.text, /still on your disk, untouched/i,
+      `the wall did not say the work is safe: ${locked.text}`);
+    assert.ok(before >= 1, 'the scene was empty before the lock, so nothing was proved');
+
+    // Put it back, so the rest of the suite runs against an unlocked editor.
+    await page.evaluate(() => {
+      const ed = window.kline.editor;
+      ed.licence = window.__licenceWas;
+      ed.emit('licence');
+      ed.panels.toggleLicence?.();
+    });
+    const freed = await page.evaluate(() => {
+      const ed = window.kline.editor;
+      const n = ed.scene.objects.size;
+      window.kline.run('add.cube');
+      return {
+        added: ed.scene.objects.size - n,
+        hidden: document.querySelector('.licence-panel').classList.contains('hidden'),
+      };
+    });
+    assert.equal(freed.added, 1, 'Kline stayed locked after the licence state was restored');
+    assert.equal(freed.hidden, true, 'the wall stayed up after the lock was lifted');
+  });
+
+  test('23 · nothing logged an error along the whole journey', () => {
     const noise = app.consoleErrors.filter((m) => !/favicon|404/i.test(m));
     assert.deepEqual(noise, [], `the app logged: ${noise.join(' | ')}`);
   });

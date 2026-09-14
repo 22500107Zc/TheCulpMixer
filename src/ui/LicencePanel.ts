@@ -1,5 +1,6 @@
 import { Editor } from '../editor/Editor';
 import { button, clear, h } from './dom';
+import { PRICE, TERMS } from '../licence/licence';
 
 /**
  * Where a licence key goes in.
@@ -11,6 +12,7 @@ import { button, clear, h } from './dom';
  */
 export class LicencePanel {
   readonly root = h('div', { class: 'overlay-panel licence-panel hidden' });
+  private head = h('div', { class: 'overlay-head' });
   private body = h('div', { class: 'licence-body' });
   private input = h('textarea', {
     class: 'code-area licence-input',
@@ -20,13 +22,7 @@ export class LicencePanel {
 
   constructor(private editor: Editor) {
     this.root.append(
-      h('div', { class: 'overlay-head' }, [
-        h('h2', { text: 'Licence' }),
-        h('button', {
-          class: 'icon-btn', text: '✕', title: 'Close',
-          on: { click: () => this.hide() },
-        }),
-      ]),
+      this.head,
       this.body,
     );
     this.editor.on('licence', () => {
@@ -46,6 +42,11 @@ export class LicencePanel {
     return !this.root.classList.contains('hidden');
   }
 
+  /** Locked means the panel is a wall, not a window: it does not close. */
+  private get locked(): boolean {
+    return !this.editor.canUse && this.editor.licence.status !== 'source';
+  }
+
   show(): void {
     this.render();
     this.root.classList.remove('hidden');
@@ -53,6 +54,8 @@ export class LicencePanel {
   }
 
   hide(): void {
+    // While Kline is locked this is the only way back in, so it stays.
+    if (this.locked) return;
     this.root.classList.add('hidden');
   }
 
@@ -62,10 +65,27 @@ export class LicencePanel {
   }
 
   private render(): void {
+    clear(this.head);
     clear(this.body);
     const state = this.editor.licence;
+    const locked = this.locked;
+
+    this.head.append(h('h2', { text: locked ? 'Kline is locked' : 'Licence' }));
+    // No way out of a wall except a key. A close button here would look like
+    // an escape and would not be one.
+    if (!locked) {
+      this.head.append(h('button', {
+        class: 'icon-btn', text: '✕', title: 'Close',
+        on: { click: () => this.hide() },
+      }));
+    }
+    this.root.classList.toggle('licence-wall', locked);
 
     this.body.append(h('p', { class: 'licence-state', text: this.editor.licenceSummary }));
+
+    if (state.status !== 'source') {
+      this.body.append(h('p', { class: 'dim small licence-terms', text: TERMS }));
+    }
 
     if (state.status === 'source') {
       this.body.append(h('p', {
@@ -83,12 +103,13 @@ export class LicencePanel {
       }));
     }
 
-    if (!this.editor.canExport) {
+    if (locked) {
+      this.body.append(h('p', { class: 'licence-price', text: PRICE }));
       this.body.append(h('p', { class: 'licence-blocked', text: this.editor.licenceBlockedMessage }));
       this.body.append(h('ul', { class: 'licence-list' }, [
-        h('li', { text: 'Modelling, sculpting, rigging, animating and rendering to the screen still work.' }),
-        h('li', { text: 'Every project you have already saved still opens and still edits.' }),
-        h('li', { text: 'Saving and exporting come back the moment a key is entered.' }),
+        h('li', { text: 'Every file you have already saved is still on your disk, untouched.' }),
+        h('li', { text: 'Nothing has been deleted and nothing has been sent anywhere.' }),
+        h('li', { text: 'A licence key unlocks everything again immediately.' }),
       ]));
     }
 

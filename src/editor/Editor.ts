@@ -31,7 +31,7 @@ import { SceneTexture } from '../scene/Texture';
 import { transferUV } from '../uv/transfer';
 import { forgetSaveTargets } from '../io/files';
 import {
-  LicenceState, canExport as licenceAllowsExport, clearLicence, describeLicence, licenceState,
+  LicenceState, canUse as licenceAllowsUse, clearLicence, describeLicence, licenceState,
   storeLicence, verifyKey, whyBlocked,
 } from '../licence/licence';
 import { RenderJob } from '../render/pathtrace/RenderJob';
@@ -681,9 +681,14 @@ export class Editor {
     return this.licence;
   }
 
+  /** Whether Kline may be used at all. False once the trial has ended. */
+  get canUse(): boolean {
+    return licenceAllowsUse(this.licence);
+  }
+
   /** Whether finished work can leave the application. */
   get canExport(): boolean {
-    return licenceAllowsExport(this.licence);
+    return licenceAllowsUse(this.licence);
   }
 
   get licenceSummary(): string {

@@ -1578,16 +1578,16 @@ function heldDuringRevision(id: string): boolean {
 }
 
 /**
- * Commands a licence gates.
+ * The handful of commands that still work once Kline is locked.
  *
- * Getting finished work *out* — and nothing else. Every modelling, sculpting,
- * rigging, animating and viewport operation stays available for ever, licensed
- * or not, because an application that stops you editing what you already made
- * is holding your work hostage rather than asking to be paid.
+ * After the trial, Kline is locked — not restricted, locked. These four are
+ * the exceptions and each one exists so the lock cannot trap somebody: the
+ * licence panel is how you unlock it, Help and the guide explain why it is
+ * locked, and Save lets whatever is on screen right now reach the disk before
+ * the session ends. Everything else is refused.
  */
-const NEEDS_LICENCE = new Set([
-  'file.save', 'file.autosave', 'file.exportObj', 'file.exportStl', 'file.exportGltf',
-  'render.animation', 'render.video',
+const ALLOWED_WHILE_LOCKED = new Set([
+  'help.licence', 'help.guide', 'help.guideOnStart', 'file.save',
 ]);
 
 const MODE_NAMES: Record<string, string> = {
@@ -1618,8 +1618,9 @@ export function runCommand(editor: Editor, id: string): void {
   // that could not have done anything.
   // The licence gate. Checked here, once, rather than in each command: a gate
   // somebody has to remember to add is a gate that will be missing from the
-  // next export somebody writes.
-  if (NEEDS_LICENCE.has(id) && !editor.canExport) {
+  // next command somebody writes. Everything is refused while locked except
+  // the few things that let a person unlock it or save what is already open.
+  if (!editor.canUse && !ALLOWED_WHILE_LOCKED.has(id)) {
     editor.setStatus(editor.licenceBlockedMessage);
     editor.emit('licence');
     return;

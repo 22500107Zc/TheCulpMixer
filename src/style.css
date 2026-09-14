@@ -2685,3 +2685,74 @@ button:disabled {
 .licence-note.licence-bad {
   color: var(--ember);
 }
+
+/*
+ * The wall.
+ *
+ * When the trial is over the licence panel stops being a panel and becomes the
+ * whole screen. It covers everything, it has no close button, and the price is
+ * the largest thing on it. There is no way past it except a key — which is the
+ * point, because Kline is not free after the trial and the interface should not
+ * pretend otherwise.
+ */
+.licence-panel.licence-wall {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  max-width: none;
+  border: 0;
+  border-radius: 0;
+  align-items: center;
+  justify-content: center;
+  background: var(--shell-sunk);
+}
+
+.licence-wall .overlay-head {
+  border-bottom: 0;
+  justify-content: center;
+  padding-bottom: 0;
+}
+
+.licence-wall .overlay-head h2 {
+  font-size: 20px;
+  letter-spacing: 0.02em;
+}
+
+.licence-wall .licence-body {
+  width: min(560px, 92vw);
+}
+
+.licence-price {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--ember);
+}
+
+/*
+ * The trial chip.
+ *
+ * Sits in the status bar for the whole of the trial and says what is left and
+ * what it costs. Clicking it opens the licence panel. It is deliberately not
+ * dismissible: somebody who is thirty-two hours into a thirty-three hour trial
+ * should not be able to be surprised by that.
+ */
+.trial-chip {
+  appearance: none;
+  margin-right: 8px;
+  padding: 1px 7px;
+  border: 1px solid var(--ember-deep);
+  border-radius: 999px;
+  background: var(--ember-wash);
+  color: var(--ember);
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.trial-chip:hover {
+  background: var(--ember);
+  color: var(--shell-sunk);
+}

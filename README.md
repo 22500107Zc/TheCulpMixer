@@ -8,6 +8,9 @@ export — in dependency-free TypeScript. Drop in a photo or a video and it
 builds geometry from it. No account, no server; nothing you open ever leaves
 your machine.
 
+**Proprietary software. 33-hour free trial, then $199/month.** Kline is not
+open source and it is not free — see [LICENSE](LICENSE).
+
 ![Kline editing a subdivided form](docs/screenshot.png)
 
 Kline runs two ways: as a **desktop app** you double-click, or as a page in a
@@ -988,6 +991,11 @@ Paste the public key it prints into `PUBLIC_KEY_SPKI` in
 expiry, reissued each period — so a customer who stops paying keeps every file
 they ever made and just stops receiving new keys.
 
+**The terms: 33-hour free trial, then $199/month to use Kline at all.** After
+33 hours a shipped build locks — not "export is disabled", locked. Every
+command except *Help ▸ Licence* and saving what is already open is refused, and
+a full-screen wall says what it costs. A key unlocks it again immediately.
+
 Three things the licensing deliberately cannot do, each covered by a test:
 
 - **Lock you out of your own application.** A build made from source is never
@@ -995,16 +1003,23 @@ Three things the licensing deliberately cannot do, each covered by a test:
   accidentally set on one is ignored.
 - **Brick every copy.** A build shipped without a public key enforces nothing,
   rather than refusing everything.
-- **Hold work hostage.** Only saving and exporting are ever gated, and only
-  after a fourteen-day full trial. Opening, editing, sculpting, rigging,
-  animating and rendering to the screen always work, licensed or not.
+- **Destroy anyone's work.** The lock stops the application; it never touches a
+  file. Everything already saved stays on disk, untouched, licensed or not, and
+  what a customer made with Kline stays theirs for ever.
 
 ## Licence
 
-**Proprietary — see [LICENSE](LICENSE).** Kline is not open source and it is
-not free. Fourteen days to try it; after that you pay or you have no right to
-use it — not to run it, not to keep a copy, not to build it from source. You
-may not copy, modify, resell or redistribute the Software.
+**Proprietary — see [LICENSE](LICENSE). Kline is not open source and it is not
+free.**
+
+**33-hour free trial. After that it is $199/month to use Kline at all.** Not
+$199 to export — $199 to open it. When the trial ends you have no right to use
+the Software in any way: not to run it, not to keep a copy, not to build it
+from source, not to put it inside anything you make or sell. You may not copy,
+modify, resell or redistribute it.
+
+Reading this repository is not permission. Cloning it, downloading a build or
+being handed a copy gives you the same 33 hours and nothing else.
 
 **What you make with it is yours.** The licence claims no ownership of and no
 rights over your models, scenes, renders or animations, and you may use them

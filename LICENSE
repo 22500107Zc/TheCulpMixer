@@ -20,15 +20,19 @@ IN PLAIN WORDS
 You do not get to take this. It is not free, it is not open source, and
 finding a copy of it does not give you the right to use it.
 
-You may try it for fourteen days. After that, if you have not paid, you have no
-licence and no right to use the Software at all — not to run it, not to keep a
-copy, not to build it from source, not to put it inside anything else you make
-or sell.
+You may try it free for thirty-three (33) hours. After that, if you have not
+paid, you have no licence and no right to use the Software at all — not to run
+it, not to open it, not to keep a copy, not to build it from source, not to put
+it inside anything else you make or sell.
 
-Paying gets you the right to use it for as long as you keep paying, for the
-number of people your licence says. It does not get you the right to copy it,
-change it, resell it, give it away, take it apart, or work around the licence
-check.
+The price is USD $199 per month, per licence. Paying gets you the right to use
+it for as long as you keep paying, for the number of people your licence says.
+It does not get you the right to copy it, change it, resell it, give it away,
+take it apart, or work around the licence check.
+
+Having the source code changes none of this. The repository being readable is
+not permission. Cloning it, downloading a build, or being sent a copy by
+somebody else gives you the same thirty-three hours and nothing more.
 
 Everything you create with Kline is yours and stays yours, for ever, including
 after you stop paying. The Software is the Licensor's. Your work is yours.
@@ -38,12 +42,17 @@ That line does not move.
 1. WHAT YOU MAY DO
 
 1.1 Evaluation. You may install and use the Software free of charge for
-    evaluation for up to fourteen (14) days from first use. No other
-    permission is needed for that period.
+    evaluation for up to thirty-three (33) hours of elapsed time from first
+    use. No other permission is needed for that period. This permission covers
+    every copy you obtain by any route, including a copy you build yourself
+    from source: the thirty-three hours are granted once, to you, not once per
+    copy.
 
 1.2 Licensed use. If you hold a valid, unexpired licence issued by the
     Licensor, you may install and use the Software for its intended purpose,
-    for the number of users and for the period that licence states.
+    for the number of users and for the period that licence states. The
+    published price of a licence is USD $199 per month. A subscription licence
+    is issued for one month at a time and lapses if it is not renewed.
 
 1.3 Your work is yours. The Licensor claims no ownership of and no licence to
     any model, scene, image, animation or other content you create with the
@@ -86,7 +95,8 @@ with their terms reproduced or linked there.
 4. TERM AND TERMINATION
 
 4.1 This licence runs for the period your licence states, and the evaluation
-    permission in 1.1 runs for fourteen days.
+    permission in 1.1 runs for thirty-three hours. When either ends, every
+    permission in section 1 ends with it, except 1.3 and 1.4.
 
 4.2 It ends automatically if you breach section 2 and do not remedy the breach
     within thirty (30) days of being asked to in writing.

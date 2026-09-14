@@ -4,6 +4,12 @@ Thanks for taking a look. Kline is small enough that you can read the whole thin
 before changing it, and the fastest way to get a change merged is to keep it
 that way.
 
+**Kline is proprietary software — see [LICENSE](LICENSE). It is not open source
+and it is not free: a 33-hour trial, then $199/month to use it at all.** Reading
+this repository is not a licence to use what is in it, and building it yourself
+does not extend the trial. Contributions are accepted only under a signed
+contributor agreement — ask first at zachculprit@gmail.com.
+
 ## Getting set up
 
 ```bash

@@ -11,9 +11,9 @@
  *    This file checks a signature. Selling happens somewhere else entirely —
  *    any processor, or a bank transfer, or a handshake — and ends with a key
  *    being minted by `tools/kline-licence.mjs`.
- * 3. **Lose somebody's work.** Nothing here can stop the application opening,
- *    stop a document loading, or stop an edit. The gate is on getting *new*
- *    work out, and even then only after a full trial.
+ * 3. **Destroy somebody's work.** The trial ends by locking the application,
+ *    not by deleting anything. Files already on disk stay on disk, and a key
+ *    unlocks everything again immediately.
  *
  * The scheme is an offline signed token: ECDSA P-256 over a JSON payload, the
  * public key baked into the build, the private key held by whoever sells it.
@@ -55,14 +55,20 @@ export type LicenceState =
   | { status: 'owner'; licence: LicencePayload }
   | { status: 'licensed'; licence: LicencePayload }
   | { status: 'expired'; licence: LicencePayload }
-  | { status: 'trial'; daysLeft: number; endsAt: number }
+  | { status: 'trial'; hoursLeft: number; endsAt: number }
   | { status: 'trial-over'; endsAt: number }
   | { status: 'unsigned'; reason: string }
   /** Built from source. Not a licence state so much as the absence of one. */
   | { status: 'source' };
 
-/** Fourteen days, in milliseconds. */
-export const TRIAL_MS = 14 * 24 * 60 * 60 * 1000;
+/** Thirty-three hours, in milliseconds. */
+export const TRIAL_MS = 33 * 60 * 60 * 1000;
+
+/** What Kline costs, in one place so nothing can quote a different figure. */
+export const PRICE = '$199/month';
+
+/** The one sentence, used everywhere the terms are stated. */
+export const TERMS = `33-hour free trial. After that ${PRICE} to use Kline at all.`;
 
 export const LICENCE_KEY = 'kline.licence';
 export const TRIAL_KEY = 'kline.trial.start';
@@ -247,22 +253,36 @@ export async function licenceState(options: {
   const started = trialStart(now);
   const endsAt = started + TRIAL_MS;
   if (now >= endsAt) return { status: 'trial-over', endsAt };
-  return { status: 'trial', daysLeft: Math.ceil((endsAt - now) / (24 * 60 * 60 * 1000)), endsAt };
+  return { status: 'trial', hoursLeft: Math.ceil((endsAt - now) / 3600000), endsAt };
 }
 
 /**
- * Whether finished work can leave the application.
+ * Whether Kline may be used at all.
  *
- * The only thing a licence gates. Modelling, sculpting, rigging, animating and
- * rendering to the screen all keep working for ever, licensed or not — what a
- * licence buys is getting the result out as a file.
+ * After the trial the application is locked, not merely restricted: no
+ * modelling, no rendering, no export. That is the product decision, and it is
+ * one line so it cannot drift apart from what the licence says.
+ *
+ * Two exemptions survive it, and they are not loopholes — they are the reason
+ * the owner can never be locked out of their own application. A build made
+ * from source is never gated, and the owner's own key is perpetual.
  */
-export function canExport(state: LicenceState): boolean {
+export function canUse(state: LicenceState): boolean {
   return state.status === 'source'
     || state.status === 'owner'
     || state.status === 'licensed'
     || state.status === 'trial';
 }
+
+/**
+ * Whether finished work can leave the application.
+ *
+ * The same answer as `canUse`: after the trial there is nothing to export
+ * from, because there is nothing running. Kept as its own name because the
+ * command gate reads better for it, and because the two could diverge again if
+ * a lighter tier is ever sold.
+ */
+export const canExport = canUse;
 
 /** One line for the status bar or the About box. */
 export function describeLicence(state: LicenceState): string {
@@ -276,24 +296,41 @@ export function describeLicence(state: LicenceState): string {
         ? `Licensed to ${state.licence.name} (${state.licence.plan})`
         : `Licensed to ${state.licence.name} — renews ${new Date(state.licence.expires).toLocaleDateString()}`;
     case 'expired':
-      return `The licence for ${state.licence.name} ran out on `
-        + `${new Date(state.licence.expires ?? 0).toLocaleDateString()}. Your work is untouched.`;
+      return `The subscription for ${state.licence.name} ended on `
+        + `${new Date(state.licence.expires ?? 0).toLocaleDateString()}. `
+        + `${PRICE} to continue. Your files are untouched.`;
     case 'trial':
-      return `Trial — ${state.daysLeft} day${state.daysLeft === 1 ? '' : 's'} left, everything unlocked`;
+      return `Free trial — ${timeLeft(state.endsAt)} left of 33 hours. Then ${PRICE}.`;
     case 'trial-over':
-      return 'The trial has finished. Everything still opens and edits; saving and exporting need a licence.';
+      return `Your 33-hour free trial has ended. Kline is ${PRICE} to keep using.`;
     default:
       return state.reason;
   }
 }
 
-/** What to say when an export is refused. Never a dead end. */
+/** How much of the trial is left, in words. */
+function timeLeft(endsAt: number, now = Date.now()): string {
+  const ms = Math.max(0, endsAt - now);
+  const hours = Math.floor(ms / 3600000);
+  const minutes = Math.floor((ms % 3600000) / 60000);
+  if (hours >= 1) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+/** What to say when Kline is locked. Never a dead end. */
 export function whyBlocked(state: LicenceState): string {
-  if (canExport(state)) return '';
-  if (state.status === 'expired') {
-    return `The licence for ${state.licence.name} has run out, so saving and exporting are paused. `
-      + 'Nothing you have made is locked in — a renewed key unlocks it again immediately.';
+  if (canUse(state)) return '';
+  if (state.status === 'unsigned') {
+    return 'The licence key stored on this machine does not verify against this build, so '
+      + `Kline is locked. Paste the key again, or ask for a new one — it is ${PRICE}. `
+      + 'Every file you have made is still on your disk, untouched.';
   }
-  return 'The trial has finished, so saving and exporting are paused. Everything you have made is '
-    + 'still here and still editable, and a licence key unlocks it again immediately.';
+  if (state.status === 'expired') {
+    return `The subscription for ${state.licence.name} has ended, so Kline is locked. `
+      + `It is ${PRICE} to continue. Every file you have made is still on your disk, `
+      + 'untouched, and a new key unlocks everything immediately.';
+  }
+  return `Your 33-hour free trial has ended, so Kline is locked. It is ${PRICE} to keep using it. `
+    + 'Every file you have made is still on your disk, untouched, and a licence key unlocks '
+    + 'everything immediately.';
 }

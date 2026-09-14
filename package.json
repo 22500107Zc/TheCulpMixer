@@ -1,8 +1,8 @@
 {
   "name": "kline",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "private": false,
-  "description": "Kline \u2014 a proprietary 3D modelling application. Runs in a browser tab or as a desktop app.",
+  "description": "Kline — a proprietary 3D modelling application. 33-hour free trial, then $199/month. Runs in a browser tab or as a desktop app.",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "scripts": {
@@ -51,7 +51,7 @@
   "build": {
     "appId": "org.kline.app",
     "productName": "Kline",
-    "copyright": "Copyright \u00a9 2026 Kline contributors",
+    "copyright": "Copyright © 2026 Kline contributors",
     "directories": {
       "output": "release",
       "buildResources": "build"
