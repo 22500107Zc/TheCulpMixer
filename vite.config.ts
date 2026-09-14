@@ -32,6 +32,10 @@ function stampServiceWorker(): Plugin {
           }
           const rel = relative(out, full).split(/[\\/]/).join('/');
           if (rel === 'sw.js' || rel.endsWith('.map') || rel.endsWith('.onnx') || rel.endsWith('.wasm')) continue;
+          // The founder console is for one person and is not part of the app.
+          // Precaching it would push it into every visitor's browser and serve
+          // them a stale copy of it for ever after.
+          if (rel === 'founder.html') continue;
           if (statSync(full).size > 8 * 1024 * 1024) continue;
           files.push(rel === 'index.html' ? './' : `./${rel}`);
         }

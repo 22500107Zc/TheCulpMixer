@@ -32,6 +32,7 @@
  */
 
 import { createPrivateKey, sign } from 'node:crypto';
+import { KEYS, env, kvGet, kvSet, liveAccount, settings } from './_store';
 
 /** Thirty-three hours. The same number the application and the LICENCE state. */
 const TRIAL_MS = 33 * 60 * 60 * 1000;
@@ -61,10 +62,6 @@ interface Res {
   end(body?: string): void;
 }
 
-const env = (name: string): string =>
-  (globalThis as { process?: { env?: Record<string, string | undefined> } })
-    .process?.env?.[name] ?? '';
-
 const base64url = (b: Buffer | Uint8Array): string =>
   Buffer.from(b).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
@@ -90,7 +87,8 @@ function mint(payload: Record<string, unknown>): string {
 async function stripe(
   path: string, params?: Record<string, string>, method: 'GET' | 'POST' = 'GET',
 ): Promise<Record<string, unknown> | null> {
-  const key = env('STRIPE_SECRET_KEY');
+  // The environment first, then whatever was typed into the founder console.
+  const key = (await settings()).stripeSecretKey;
   if (!key) return null;
   const query = params && method === 'GET' ? `?${new URLSearchParams(params)}` : '';
   const response = await fetch(`${STRIPE}${path}${query}`, {
@@ -107,27 +105,23 @@ async function stripe(
   return response.ok ? json : { error: json.error ?? true };
 }
 
-/** The optional server-side trial clock. Absent storage is not an error. */
-async function kv(command: string[]): Promise<string | null> {
-  const url = env('KV_REST_API_URL');
-  const token = env('KV_REST_API_TOKEN');
-  if (!url || !token) return null;
-  try {
-    const response = await fetch(`${url}/${command.map(encodeURIComponent).join('/')}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) return null;
-    const json = (await response.json()) as { result?: unknown };
-    return json.result == null ? null : String(json.result);
-  } catch {
-    return null;
-  }
-}
-
 /** An active subscription for this install, or for this email. Null if none. */
 async function findSubscription(
   install: string, email: string, session: string,
-): Promise<{ name: string; until: number } | null> {
+): Promise<{ name: string; until: number; plan?: string } | null> {
+  // 0. An account the founder made by hand, which beats everything else.
+  //    This is how somebody gets in without paying Stripe at all — a partner,
+  //    a reviewer, a customer who paid by bank transfer — and it is checked
+  //    first so that granting one always works, whatever Stripe thinks.
+  const granted = await liveAccount(email);
+  if (granted) {
+    return {
+      name: granted.email,
+      until: granted.expires ?? Date.now() + 365 * 24 * 3600000,
+      plan: granted.plan,
+    };
+  }
+
   // 1. Straight after checkout, by the session the browser came back with.
   //    Stripe's search index lags by up to a minute, so paying and then being
   //    told you have not paid is exactly the moment this avoids.
@@ -184,7 +178,7 @@ function emailOf(session: Record<string, unknown> | null): string {
 
 /** Where the trial stands for this install. */
 async function trialEndsAt(install: string, claimed: number, now: number): Promise<number> {
-  const stored = await kv(['get', `kline:trial:${install}`]);
+  const stored = await kvGet(KEYS.trial(install));
   const started = Number(stored);
   if (Number.isFinite(started) && started > 0) return started + TRIAL_MS;
 
@@ -193,7 +187,7 @@ async function trialEndsAt(install: string, claimed: number, now: number): Promi
   // browser would be a fresh thirty-three hours, which is the hole this
   // closes.
   const begin = Number.isFinite(claimed) && claimed > 0 && claimed < now ? claimed : now;
-  await kv(['set', `kline:trial:${install}`, String(begin)]);
+  await kvSet(KEYS.trial(install), String(begin));
   return begin + TRIAL_MS;
 }
 
@@ -230,8 +224,8 @@ export default async function handler(req: Req, res: Res): Promise<void> {
 
   try {
     if (action === 'checkout') {
-      const price = env('KLINE_PRICE_ID');
-      if (!price || !env('STRIPE_SECRET_KEY')) {
+      const { priceId: price, stripeSecretKey } = await settings();
+      if (!price || !stripeSecretKey) {
         res.status(503).json({ error: 'not-selling-yet' });
         return;
       }
@@ -267,7 +261,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
         status: 'active',
         key: mint({
           name: subscription.name,
-          plan: 'Subscription',
+          plan: subscription.plan ?? 'Subscription',
           seats: 1,
           issued: now,
           expires,

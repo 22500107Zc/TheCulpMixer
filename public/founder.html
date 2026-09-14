@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Kline — Founder</title>
+    <!--
+      Self-contained on purpose. This page is not part of the application
+      bundle: it has no build step, no imports, and nothing to go stale. It
+      talks to /api/admin and nothing else.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'"
+    />
+    <style>
+      :root {
+        --shell: #1b1a1d; --sunk: #131214; --raised: #26242a; --edge: #35323a;
+        --ink: #e7e3e0; --dim: #948d8a; --faint: #6a6469;
+        --ember: #ff9e2c; --ember-deep: #c2621a; --good: #7ba832; --bad: #c94050;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; padding: 24px 16px 64px; background: var(--sunk); color: var(--ink);
+        font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      }
+      main { max-width: 720px; margin: 0 auto; }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      h2 { font-size: 14px; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); }
+      .sub { color: var(--dim); margin: 0 0 24px; font-size: 13px; }
+      section {
+        background: var(--shell); border: 1px solid var(--edge); border-radius: 4px;
+        padding: 16px; margin-bottom: 16px;
+      }
+      label { display: block; font-size: 12px; color: var(--dim); margin: 10px 0 4px; }
+      input, select, textarea {
+        width: 100%; padding: 8px 10px; background: var(--sunk); color: var(--ink);
+        border: 1px solid var(--edge); border-radius: 3px; font: inherit; font-size: 13px;
+      }
+      input:focus, select:focus { outline: none; border-color: var(--ember-deep); }
+      button {
+        padding: 8px 14px; background: var(--raised); color: var(--ink);
+        border: 1px solid var(--edge); border-radius: 3px; font: inherit; font-size: 13px;
+        cursor: pointer;
+      }
+      button:hover { background: #302d35; }
+      button.primary { background: var(--ember); border-color: var(--ember); color: #1b1a1d; font-weight: 600; }
+      button.primary:hover { background: #ffb457; }
+      button.danger { color: var(--bad); }
+      .row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+      .row > * { flex: 1; min-width: 140px; }
+      .row > button { flex: 0 0 auto; }
+      .note { font-size: 12px; margin: 10px 0 0; min-height: 18px; }
+      .note.bad { color: var(--bad); }
+      .note.good { color: var(--good); }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th { text-align: left; color: var(--faint); font-weight: 500; font-size: 11px;
+           text-transform: uppercase; letter-spacing: .06em; padding: 6px 8px 6px 0; }
+      td { padding: 8px 8px 8px 0; border-top: 1px solid var(--edge); vertical-align: middle; }
+      td.right, th.right { text-align: right; padding-right: 0; }
+      .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px;
+              border: 1px solid var(--edge); color: var(--dim); }
+      .pill.live { color: var(--good); border-color: var(--good); }
+      .pill.test { color: var(--ember); border-color: var(--ember-deep); }
+      .pill.off { color: var(--bad); border-color: var(--bad); }
+      .hint { font-size: 12px; color: var(--faint); margin: 8px 0 0; }
+      .hint code { color: var(--dim); }
+      .hidden { display: none; }
+      ol { padding-left: 18px; font-size: 13px; color: var(--dim); }
+      ol li { margin: 6px 0; }
+      a { color: var(--ember); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Kline — Founder</h1>
+      <p class="sub">Accounts, and the Stripe details that make Subscribe work.</p>
+
+      <!-- Sign in -->
+      <section id="gate">
+        <h2>Sign in</h2>
+        <label for="password">Founder password</label>
+        <div class="row">
+          <input id="password" type="password" autocomplete="current-password" />
+          <button class="primary" id="signIn">Sign in</button>
+        </div>
+        <p class="note" id="gateNote"></p>
+      </section>
+
+      <div id="console" class="hidden">
+        <!-- Stripe -->
+        <section>
+          <h2>Stripe</h2>
+          <p id="stripeState" class="sub" style="margin-bottom:12px"></p>
+          <label for="secret">Secret key</label>
+          <input id="secret" type="password" placeholder="sk_live_… or sk_test_…" />
+          <label for="price">Price ID for $199/month</label>
+          <input id="price" type="text" placeholder="price_…" />
+          <div class="row" style="margin-top:12px">
+            <button class="primary" id="saveStripe">Save</button>
+          </div>
+          <p class="note" id="stripeNote"></p>
+          <p class="hint">
+            Both come from your Stripe dashboard — the key from Developers ▸ API keys, the
+            price from the product you made. Saved here they are stored in your KV and never
+            shown again. Setting them in Vercel instead takes precedence over anything typed
+            here.
+          </p>
+        </section>
+
+        <!-- Accounts -->
+        <section>
+          <h2>Give somebody an account</h2>
+          <p class="sub" style="margin-bottom:12px">
+            Unlocks Kline for that email without them paying Stripe. They open Kline,
+            go to Help ▸ Licence, and type the email. That is all they do.
+          </p>
+          <div class="row">
+            <div>
+              <label for="email">Email</label>
+              <input id="email" type="email" placeholder="them@example.com" />
+            </div>
+            <div style="max-width:130px">
+              <label for="length">Length</label>
+              <select id="length">
+                <option value="1">1 month</option>
+                <option value="3">3 months</option>
+                <option value="6">6 months</option>
+                <option value="12">12 months</option>
+                <option value="forever">Never expires</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label for="plan">Plan name</label>
+              <input id="plan" type="text" placeholder="Subscription" />
+            </div>
+            <div>
+              <label for="note">Note (only you see this)</label>
+              <input id="note" type="text" placeholder="paid by bank transfer" />
+            </div>
+            <button class="primary" id="createAccount">Create</button>
+          </div>
+          <p class="note" id="accountNote"></p>
+        </section>
+
+        <section>
+          <h2>Accounts</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Email</th><th>Plan</th><th>Until</th><th class="right"></th>
+              </tr>
+            </thead>
+            <tbody id="accounts"></tbody>
+          </table>
+          <p class="hint" id="accountsEmpty">Nobody yet.</p>
+        </section>
+
+        <section>
+          <h2>The trial</h2>
+          <p class="sub" style="margin:0">
+            <strong>33 hours, then locked.</strong> That is fixed in the application and in
+            the server, and there is nothing here to change it — deliberately, so it cannot
+            be widened by accident.
+          </p>
+          <p class="hint" id="storageHint"></p>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const API = '/api/admin';
+      let session = sessionStorage.getItem('kline.founder') || '';
+
+      const say = (el, message, kind) => {
+        el.textContent = message;
+        el.className = `note${kind ? ` ${kind}` : ''}`;
+      };
+
+      async function call(action, extra = {}) {
+        const response = await fetch(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, session, ...extra }),
+        });
+        let body = {};
+        try { body = await response.json(); } catch { /* keep the status */ }
+        return { ok: response.ok, status: response.status, body };
+      }
+
+      async function signIn() {
+        const password = $('password').value;
+        if (!password) { say($('gateNote'), 'Put the password in.', 'bad'); return; }
+        say($('gateNote'), 'Checking…');
+        const result = await call('login', { password });
+        if (!result.ok) {
+          say($('gateNote'), result.body.detail
+            || (result.body.error === 'wrong-password'
+              ? 'That is not the password.'
+              : result.body.error || 'Could not sign in.'), 'bad');
+          return;
+        }
+        session = result.body.session;
+        sessionStorage.setItem('kline.founder', session);
+        $('password').value = '';
+        say($('gateNote'), '');
+        await load();
+      }
+
+      async function load() {
+        const result = await call('state');
+        if (!result.ok) {
+          // An expired session lands here; show the gate again rather than an
+          // empty console that silently does nothing.
+          session = '';
+          sessionStorage.removeItem('kline.founder');
+          $('console').classList.add('hidden');
+          $('gate').classList.remove('hidden');
+          if (result.body.detail) say($('gateNote'), result.body.detail, 'bad');
+          return;
+        }
+        $('gate').classList.add('hidden');
+        $('console').classList.remove('hidden');
+
+        const stripe = result.body.stripe || {};
+        const pill = stripe.mode === 'live' ? '<span class="pill live">live</span>'
+          : stripe.mode === 'test' ? '<span class="pill test">test mode</span>'
+          : '<span class="pill off">not set up</span>';
+        const where = stripe.fromEnvironment ? ' (set in Vercel)' : '';
+        $('stripeState').innerHTML = stripe.configured
+          ? `${pill} Key is set${where}. Price: ${stripe.priceId || '<span class="pill off">missing</span>'}`
+          : `${pill} Subscribe will not work until a key and a price are set.`;
+
+        $('storageHint').textContent = result.body.storage
+          ? 'Storage is connected, so the trial clock lives on the server and clearing a '
+            + 'browser does not restart it.'
+          : 'No KV store is connected, so the trial clock lives in the visitor’s browser '
+            + 'and clearing it restarts the 33 hours. Add one in Vercel under Storage.';
+
+        renderAccounts(result.body.accounts || []);
+      }
+
+      function renderAccounts(accounts) {
+        const body = $('accounts');
+        body.textContent = '';
+        $('accountsEmpty').style.display = accounts.length ? 'none' : '';
+        for (const account of accounts) {
+          const row = document.createElement('tr');
+
+          const email = document.createElement('td');
+          email.textContent = account.email;
+
+          const plan = document.createElement('td');
+          plan.textContent = account.plan || 'Subscription';
+
+          const until = document.createElement('td');
+          until.textContent = account.expires === null
+            ? 'never expires'
+            : new Date(account.expires).toLocaleDateString();
+          if (account.expires !== null && account.expires < Date.now()) {
+            until.innerHTML = '<span class="pill off">expired</span>';
+          }
+
+          const actions = document.createElement('td');
+          actions.className = 'right';
+          const remove = document.createElement('button');
+          remove.className = 'danger';
+          remove.textContent = 'Remove';
+          remove.onclick = async () => {
+            if (!confirm(`Remove ${account.email}? They lose access within a week.`)) return;
+            const result = await call('accounts.delete', { email: account.email });
+            if (result.ok) renderAccounts(result.body.accounts || []);
+          };
+          actions.append(remove);
+
+          row.append(email, plan, until, actions);
+          if (account.note) row.title = account.note;
+          body.append(row);
+        }
+      }
+
+      $('signIn').onclick = signIn;
+      $('password').onkeydown = (e) => { if (e.key === 'Enter') signIn(); };
+
+      $('createAccount').onclick = async () => {
+        const email = $('email').value.trim();
+        if (!email.includes('@')) { say($('accountNote'), 'That is not an email address.', 'bad'); return; }
+        const length = $('length').value;
+        say($('accountNote'), 'Creating…');
+        const result = await call('accounts.create', {
+          email,
+          ...(length === 'forever' ? { forever: true } : { months: Number(length) }),
+          plan: $('plan').value.trim(),
+          note: $('note').value.trim(),
+        });
+        if (!result.ok) {
+          say($('accountNote'), result.body.detail || result.body.error || 'Could not create it.', 'bad');
+          return;
+        }
+        say($('accountNote'), `${email} is in. Tell them to open Help ▸ Licence and type that email.`, 'good');
+        $('email').value = '';
+        $('note').value = '';
+        renderAccounts(result.body.accounts || []);
+      };
+
+      $('saveStripe').onclick = async () => {
+        const stripeSecretKey = $('secret').value.trim();
+        const priceId = $('price').value.trim();
+        if (!stripeSecretKey && !priceId) {
+          say($('stripeNote'), 'Nothing to save.', 'bad');
+          return;
+        }
+        say($('stripeNote'), 'Saving…');
+        const result = await call('settings.save', { stripeSecretKey, priceId });
+        if (!result.ok) {
+          say($('stripeNote'), result.body.detail || result.body.error || 'Could not save.', 'bad');
+          return;
+        }
+        // Never left on screen, and never read back from the server.
+        $('secret').value = '';
+        say($('stripeNote'), 'Saved. Subscribe uses it from now on.', 'good');
+        await load();
+      };
+
+      if (session) load();
+    </script>
+  </body>
+</html>

@@ -70,14 +70,20 @@ async function call(
     ...options.env,
   });
   const kv = options.kv;
-  globalThis.fetch = (async (input: string | URL) => {
+  globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
     if (kv && url.startsWith('https://kv.test/')) {
-      const parts = url.slice('https://kv.test/'.length).split('/').map(decodeURIComponent);
-      if (parts[0] === 'get') return json({ result: kv.get(parts[1]) ?? null });
-      if (parts[0] === 'set') {
-        kv.set(parts[1], parts[2]);
+      // The value travels in the body, not the path: an email or a secret in
+      // a URL ends up in every proxy log between here and the store.
+      const [verb, key] = url.slice('https://kv.test/'.length).split('/').map(decodeURIComponent);
+      if (verb === 'get') return json({ result: kv.get(key) ?? null });
+      if (verb === 'set') {
+        kv.set(key, String(init?.body ?? ''));
         return json({ result: 'OK' });
+      }
+      if (verb === 'del') {
+        kv.delete(key);
+        return json({ result: 1 });
       }
     }
     for (const [prefix, answer] of Object.entries(options.routes ?? {})) {
