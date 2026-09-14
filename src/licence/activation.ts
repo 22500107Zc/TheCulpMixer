@@ -81,7 +81,19 @@ export function licenceApi(): string {
   return origin.startsWith('http') ? `${origin}/api/licence` : FALLBACK_API;
 }
 
-async function post(payload: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+/**
+ * Ask the server something.
+ *
+ * Returns the status as well as the body, because the difference between
+ * "the server said no" and "there was no server" is the difference between
+ * telling somebody their password is wrong and telling them the internet is
+ * broken. Getting that backwards sends a customer to support over a typo.
+ *
+ * `reached` is false only when nothing answered at all.
+ */
+async function post(
+  payload: Record<string, unknown>,
+): Promise<{ reached: boolean; ok: boolean; body: Record<string, unknown> | null }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -91,10 +103,15 @@ async function post(payload: Record<string, unknown>): Promise<Record<string, un
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
-    if (!response.ok) return null;
-    return (await response.json()) as Record<string, unknown>;
+    let body: Record<string, unknown> | null = null;
+    try {
+      body = (await response.json()) as Record<string, unknown>;
+    } catch {
+      /* A body that is not JSON is the same as no body here. */
+    }
+    return { reached: true, ok: response.ok, body };
   } catch {
-    return null;
+    return { reached: false, ok: false, body: null };
   } finally {
     clearTimeout(timer);
   }
@@ -129,14 +146,14 @@ export function takeCheckoutSession(): string {
  */
 export async function syncLicence(options: { email?: string; session?: string } = {}): Promise<SyncResult> {
   const startedAt = Number(read(TRIAL_KEY));
-  const answer = await post({
+  const { ok, body: answer } = await post({
     action: 'state',
     install: installId(),
     ...(options.email ? { email: options.email } : {}),
     ...(options.session ? { session: options.session } : {}),
     ...(Number.isFinite(startedAt) && startedAt > 0 ? { startedAt } : {}),
   });
-  if (!answer) return { status: 'offline' };
+  if (!ok || !answer) return { status: 'offline' };
 
   if (answer.status === 'active' && typeof answer.key === 'string') {
     storeLicence(answer.key);
@@ -168,11 +185,12 @@ export async function syncLicence(options: { email?: string; session?: string } 
 export async function signIn(
   email: string, password: string,
 ): Promise<{ ok: true } | { ok: false; reason: 'wrong' | 'offline' }> {
-  const answer = await post({
+  const { reached, body: answer } = await post({
     action: 'signin', install: installId(), email, password,
   });
-  if (!answer) return { ok: false, reason: 'offline' };
-  if (answer.status === 'active' && typeof answer.key === 'string') {
+  // Nothing answered at all: that is the network, not their password.
+  if (!reached) return { ok: false, reason: 'offline' };
+  if (answer?.status === 'active' && typeof answer.key === 'string') {
     storeLicence(answer.key);
     return { ok: true };
   }
@@ -187,7 +205,7 @@ export async function signIn(
  * plainly instead of opening a broken tab.
  */
 export async function checkoutUrl(email?: string): Promise<string | null> {
-  const answer = await post({
+  const { body: answer } = await post({
     action: 'checkout',
     install: installId(),
     ...(email ? { email } : {}),
