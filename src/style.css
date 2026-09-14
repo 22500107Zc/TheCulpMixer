@@ -2823,3 +2823,193 @@ button:disabled {
 .licence-advanced .licence-input {
   margin-top: 6px;
 }
+
+/*
+ * The front door.
+ *
+ * Covers the window until somebody is signed in, and again once their
+ * thirty-three hours have gone. It is the first thing anybody sees at the
+ * link, so it says what Kline is, what it costs and who is behind it before
+ * it asks for anything.
+ */
+.home {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  overflow-y: auto;
+  background: var(--shell-sunk);
+}
+
+.home.hidden {
+  display: none;
+}
+
+.home-card {
+  width: min(460px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 26px 24px 22px;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  background: var(--shell);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+}
+
+.home-brand {
+  margin-bottom: 2px;
+}
+
+.home-title {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.home-tagline {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-dim);
+}
+
+.home-terms {
+  margin: 4px 0 2px;
+  padding: 9px 11px;
+  border: 1px solid var(--ember-deep);
+  border-radius: var(--radius);
+  background: var(--ember-wash);
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.home-terms strong {
+  color: var(--ember);
+}
+
+.home-tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  border-bottom: 1px solid var(--edge);
+}
+
+.home-tab {
+  appearance: none;
+  padding: 7px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.home-tab:hover {
+  color: var(--ink);
+}
+
+.home-tab.active {
+  color: var(--ink);
+  border-bottom-color: var(--ember);
+}
+
+.home-field {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--shell-sunk);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.home-field:focus {
+  outline: none;
+  border-color: var(--ember-deep);
+}
+
+.home-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.home-go {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+}
+
+.home-note {
+  margin: 0;
+  min-height: 16px;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.home-note.home-bad {
+  color: var(--ember);
+}
+
+.home-small {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--ink-faint);
+}
+
+/* Who somebody is actually buying from. */
+.home-founder {
+  margin: 6px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--edge-soft);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--ink-faint);
+}
+
+.home-founder strong {
+  color: var(--ink-dim);
+}
+
+/* Past the trial. */
+.home-locked-title {
+  margin: 4px 0 0;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.home-price {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--ember);
+}
+
+.home-locked-body {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-dim);
+}
+
+.home-steps {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-dim);
+}

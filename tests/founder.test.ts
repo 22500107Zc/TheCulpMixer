@@ -407,14 +407,22 @@ test('an account that ran out cannot sign in', async () => {
   }, { kv });
   const password = String(made.body.password);
 
-  // Wind it back so it has already ended.
+  // Wind both clocks back: the paid-through date and the trial, or it is
+  // still inside its thirty-three hours and correctly still working.
   const raw = JSON.parse(kv.data.get('kline:account:lapsing@example.com') as string);
-  kv.data.set('kline:account:lapsing@example.com', JSON.stringify({ ...raw, expires: Date.now() - 1 }));
+  kv.data.set('kline:account:lapsing@example.com', JSON.stringify({
+    ...raw, expires: Date.now() - 1, trialEndsAt: Date.now() - 1,
+  }));
 
   const result = await run(licence, {
     action: 'signin', install: 'i', email: 'lapsing@example.com', password,
   }, { kv });
-  assert.equal(result.code, 401, 'an expired account still signed in');
+  // The password is right, so this is not a failed sign-in — but it is not a
+  // licence either. Telling somebody their password is wrong when it is right
+  // would be a support email and a lost customer.
+  assert.equal(result.code, 200);
+  assert.equal(result.body.status, 'locked', 'an expired account still got in');
+  assert.equal(result.body.key, undefined, 'an expired account was handed a working key');
 });
 
 test('a removed account cannot sign in', async () => {

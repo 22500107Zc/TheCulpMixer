@@ -20,8 +20,9 @@
  */
 
 import {
-  Account, checkPassword, deleteAccount, generatePassword, hashPassword, kvConfigured,
-  listAccounts, mintSession, readJson, saveAccount, settings, validSession, writeJson, KEYS, env,
+  Account, TRIAL_MS, checkPassword, deleteAccount, findAccount, generatePassword, hashPassword,
+  kvConfigured, listAccounts, mintSession, readJson, saveAccount, settings, standing,
+  validSession, writeJson, KEYS, env,
 } from './_store';
 
 interface Req {
@@ -45,8 +46,17 @@ const MONTH_MS = 30 * 24 * 3600000;
  * The console has no use for it, and a hash on the wire is a hash somebody
  * can work on offline at their leisure.
  */
-async function visibleAccounts(): Promise<Account[]> {
-  return (await listAccounts()).map((one) => ({ ...one, password: undefined }));
+async function visibleAccounts(): Promise<unknown[]> {
+  const now = Date.now();
+  return (await listAccounts()).map((one) => ({
+    ...one,
+    password: undefined,
+    // Worked out here so the console and the application cannot disagree
+    // about whether somebody is in their trial, and so the founder sees the
+    // same countdown the customer does.
+    standing: standing(one, now),
+    msLeft: one.paid ? null : Math.max(0, one.trialEndsAt - now),
+  }));
 }
 
 function clean(value: unknown, max: number): string {
@@ -125,6 +135,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
           // Never the secret itself — only whether one is set, and where it
           // came from. A console that echoes a live Stripe key back over the
           // wire is a console that leaks it to anything watching.
+          paymentLink: current.paymentLink,
           stripe: {
             configured: !!current.stripeSecretKey,
             fromEnvironment: !!env('STRIPE_SECRET_KEY'),
@@ -157,10 +168,16 @@ export default async function handler(req: Req, res: Res): Promise<void> {
         const password = chosen || generatePassword();
         const account: Account = {
           email,
+          username: clean(body?.username, 60) || email.split('@')[0],
           plan: clean(body?.plan, 60) || 'Subscription',
+          // Made by the founder means paid by definition: this is the button
+          // for somebody who has already handed over money, or who is being
+          // let in for nothing.
+          paid: true,
           expires: forever
             ? null
             : Date.now() + (Number.isFinite(months) && months > 0 ? months : 1) * MONTH_MS,
+          trialEndsAt: Date.now() + TRIAL_MS,
           created: Date.now(),
           password: hashPassword(password),
           ...(clean(body?.note, 300) ? { note: clean(body?.note, 300) } : {}),
@@ -192,6 +209,43 @@ export default async function handler(req: Req, res: Res): Promise<void> {
         return;
       }
 
+      case 'accounts.approve': {
+        // The whole payment system, in one button. Somebody paid through
+        // whatever link is set, said so, and this is the founder agreeing.
+        const wanted = clean(body?.email, 200).toLowerCase();
+        const existing = await findAccount(wanted);
+        if (!existing) {
+          res.status(404).json({ error: 'No account with that email.' });
+          return;
+        }
+        const months = Number(body?.months);
+        const forever = body?.forever === true;
+        await saveAccount({
+          ...existing,
+          paid: true,
+          plan: clean(body?.plan, 60) || (existing.plan === 'Trial' ? 'Subscription' : existing.plan),
+          expires: forever
+            ? null
+            : Date.now() + (Number.isFinite(months) && months > 0 ? months : 1) * MONTH_MS,
+        });
+        res.status(200).json({ accounts: await visibleAccounts() });
+        return;
+      }
+
+      case 'accounts.revoke': {
+        // Turned off without being deleted: they keep their login and their
+        // history, and are simply back to needing to pay.
+        const wanted = clean(body?.email, 200).toLowerCase();
+        const existing = await findAccount(wanted);
+        if (!existing) {
+          res.status(404).json({ error: 'No account with that email.' });
+          return;
+        }
+        await saveAccount({ ...existing, paid: false, expires: null });
+        res.status(200).json({ accounts: await visibleAccounts() });
+        return;
+      }
+
       case 'accounts.delete': {
         const email = clean(body?.email, 200).toLowerCase();
         await deleteAccount(email);
@@ -203,6 +257,14 @@ export default async function handler(req: Req, res: Res): Promise<void> {
         const stored = (await readJson<Record<string, unknown>>(KEYS.settings)) ?? {};
         const secret = clean(body?.stripeSecretKey, 200);
         const priceId = clean(body?.priceId, 100);
+        const paymentLink = clean(body?.paymentLink, 500);
+        if (paymentLink && !/^https:\/\//.test(paymentLink)) {
+          res.status(400).json({
+            error: 'The payment link has to be a full https:// address — the one people '
+              + 'land on to pay you.',
+          });
+          return;
+        }
         if (secret && !/^sk_(test|live)_/.test(secret)) {
           res.status(400).json({
             error: 'That is not a Stripe secret key. It starts with sk_test_ or sk_live_ and '
@@ -219,6 +281,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
         }
         await writeJson(KEYS.settings, {
           ...stored,
+          ...(paymentLink ? { paymentLink } : {}),
           ...(secret ? { stripeSecretKey: secret } : {}),
           ...(priceId ? { priceId } : {}),
         });

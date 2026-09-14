@@ -70,7 +70,7 @@ function ensureBuild() {
 /** Bundle the two handlers so this plain-ESM test can import the TypeScript. */
 function buildHandlers() {
   execFileSync('npx', [
-    'esbuild', 'api/licence.ts', 'api/admin.ts',
+    'esbuild', 'api/licence.ts', 'api/admin.ts', 'api/account.ts',
     '--bundle', '--platform=node', '--format=esm', `--outdir=${relative(ROOT, BUILD)}`,
     '--log-level=warning',
   ], { cwd: ROOT, stdio: 'inherit' });
@@ -130,6 +130,7 @@ const app = await (async () => {
 
   const licence = (await import(join(BUILD, 'licence.js'))).default;
   const admin = (await import(join(BUILD, 'admin.js'))).default;
+  const accounts = (await import(join(BUILD, 'account.js'))).default;
 
   // An in-memory store speaking the REST shape the handlers expect, so the
   // trial clock and the accounts behave exactly as they will on Vercel.
@@ -162,11 +163,10 @@ const app = await (async () => {
       return;
     }
 
-    if (url === '/api/licence' || url === '/api/admin') {
+    if (url === '/api/licence' || url === '/api/admin' || url === '/api/account') {
       const body = await readBody(req);
-      await (url === '/api/admin' ? admin : licence)(
-        { method: req.method, body, headers: req.headers }, adapt(res),
-      );
+      const handler = url === '/api/admin' ? admin : url === '/api/account' ? accounts : licence;
+      await handler({ method: req.method, body, headers: req.headers }, adapt(res));
       return;
     }
 
@@ -189,6 +189,7 @@ const app = await (async () => {
   process.env.KLINE_PRICE_ID = '';
   process.env.KV_REST_API_URL = '';
   process.env.KV_REST_API_TOKEN = '';
+  process.env.KLINE_PAYMENT_LINK = '';
 
   const browser = await chromium.launch({
     executablePath,
@@ -211,6 +212,7 @@ if (app.skip) {
   test.before(() => {
     process.env.KV_REST_API_URL = `${app.origin}/kv`;
     process.env.KV_REST_API_TOKEN = 'test-token';
+    process.env.KLINE_PAYMENT_LINK = 'https://buy.example.com/kline';
   });
 
   const carried = {};
@@ -264,107 +266,235 @@ if (app.skip) {
     assert.match(table, /journey-customer@example\.com/);
   });
 
-  test('4 · past the trial, Kline is locked', async () => {
-    const page = await app.browser.newPage();
+  test('4 · a founder-made account logs in on the home page', async () => {
+    const page = await app.browser.newContext().then((c) => c.newPage());
     carried.app = page;
-    // Land as somebody whose thirty-three hours ran out: the server is the
-    // authority on that, so the clock is wound back in the store rather than
-    // faked in the page.
     await page.goto(`${app.origin}/`, { waitUntil: 'networkidle' });
-    const install = await page.evaluate(() => localStorage.getItem('kline.install'));
-    assert.ok(install, 'the application never registered an install id');
 
-    await fetch(`${app.origin}/kv/set/${encodeURIComponent(`kline:trial:${install}`)}`, {
-      method: 'POST', body: String(Date.now() - 40 * 3600000),
-    });
+    // The front door, not the editor. Nobody gets in without an account.
+    await page.waitForSelector('.home:not(.hidden)', { timeout: 8000 });
+    await page.click('.home-tabs button:nth-child(2)');
 
-    await page.reload({ waitUntil: 'networkidle' });
-    await page.waitForSelector('.licence-wall:not(.hidden)', { timeout: 8000 });
-    const wall = await page.textContent('.licence-panel');
-    assert.ok(wall.includes('$199/month'), `the wall did not say the price: ${wall}`);
-  });
+    const fields = await page.$$('.home-field');
+    assert.equal(fields.length, 2, 'logging in asked for something other than email and password');
+    await fields[0].fill('journey-customer@example.com');
+    await fields[1].fill(carried.password);
+    await page.click('.home-go');
 
-  test('5 · the account signs in, and Kline works again', async () => {
-    const page = carried.app;
-    await page.fill('.licence-email', 'journey-customer@example.com');
-    await page.fill('input[type="password"].licence-email', carried.password);
-    await page.click('.licence-signin .btn.primary');
-
-    // The wall comes down of its own accord once the licence verifies.
+    // Waiting on the class, not on visibility: .hidden is display:none, so a
+    // visibility wait can never resolve.
     await page.waitForFunction(
-      () => document.querySelector('.licence-panel')?.classList.contains('hidden')
-        || !document.querySelector('.licence-panel')?.classList.contains('licence-wall'),
+      () => document.querySelector('.home')?.classList.contains('hidden'),
       { timeout: 10000 },
     );
-
-    const state = await page.evaluate(() => ({
-      status: window.kline.editor.licence.status,
-      canUse: window.kline.editor.canUse,
-      summary: window.kline.editor.licenceSummary,
-    }));
-    assert.equal(state.canUse, true, `still locked: ${state.summary}`);
-    assert.equal(state.status, 'licensed');
-    assert.match(state.summary, /journey-customer@example\.com/);
-
-    // And the application actually does something, rather than merely
-    // reporting that it could.
-    const works = await page.evaluate(() => {
+    const state = await page.evaluate(() => {
       const ed = window.kline.editor;
       const before = ed.scene.objects.size;
       window.kline.run('add.cube');
-      return ed.scene.objects.size - before;
+      return {
+        status: ed.account?.status,
+        canUse: ed.canUse,
+        added: ed.scene.objects.size - before,
+      };
     });
-    assert.equal(works, 1, 'Kline said it was unlocked and still refused to work');
+    // Made by the founder means paid: no trial, straight in.
+    assert.equal(state.status, 'paid', `they landed in "${state.status}"`);
+    assert.equal(state.canUse, true);
+    assert.equal(state.added, 1, 'Kline let them in and then refused to work');
   });
 
-  test('6 · the same details work on a second machine', async () => {
-    // A different browser context is a different install id and an empty
-    // localStorage: the same thing as their laptop at home.
-    const second = await app.browser.newContext();
-    const page = await second.newPage();
+  test('5 · the same details work on a second machine', async () => {
+    const page = await app.browser.newContext().then((c) => c.newPage());
     await page.goto(`${app.origin}/`, { waitUntil: 'networkidle' });
-
     const unlocked = await page.evaluate(async ({ email, password }) => {
       const ed = window.kline.editor;
-      const result = await ed.signInToKline(email, password);
+      const result = await ed.logIn(email, password);
       return { ok: result.ok, message: result.message, canUse: ed.canUse };
     }, { email: 'journey-customer@example.com', password: carried.password });
-
     assert.equal(unlocked.ok, true, `a second machine was refused: ${unlocked.message}`);
     assert.equal(unlocked.canUse, true);
-    await second.close();
+    await page.context().close();
   });
 
-  test('7 · a wrong password is refused in the application too', async () => {
-    const third = await app.browser.newContext();
-    const page = await third.newPage();
+  test('6 · a wrong password is refused, and says so plainly', async () => {
+    const page = await app.browser.newContext().then((c) => c.newPage());
     await page.goto(`${app.origin}/`, { waitUntil: 'networkidle' });
-    const refused = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      return ed.signInToKline('journey-customer@example.com', 'definitely-not-it');
-    });
-    assert.equal(refused.ok, false, 'a wrong password signed in');
-    assert.match(refused.message, /do not match/i);
-    await third.close();
+    const refused = await page.evaluate(
+      async () => window.kline.editor.logIn('journey-customer@example.com', 'definitely-not-it'),
+    );
+    assert.equal(refused.ok, false, 'a wrong password logged in');
+    // Not "could not reach the server": that would send somebody to support
+    // over a typo.
+    assert.match(refused.message, /do not match/i, `it said: ${refused.message}`);
+    await page.context().close();
   });
 
-  test('8 · removing the account in the console takes Kline away', async () => {
+  test('7 · removing the account in the console takes Kline away', async () => {
     const page = carried.page;
     page.once('dialog', (d) => void d.accept());
-    await page.click('#accounts button.danger');
+    const rows = await page.$$('#accounts tr');
+    for (const row of rows) {
+      if (!(await row.textContent()).includes('journey-customer@example.com')) continue;
+      const buttons = await row.$$('button.danger');
+      await buttons[buttons.length - 1].click();
+      break;
+    }
     await page.waitForFunction(
       () => !document.querySelector('#accounts')?.textContent?.includes('journey-customer'),
       { timeout: 5000 },
     );
 
-    const fourth = await app.browser.newContext();
-    const fresh = await fourth.newPage();
+    const fresh = await app.browser.newContext().then((c) => c.newPage());
     await fresh.goto(`${app.origin}/`, { waitUntil: 'networkidle' });
-    const after = await fresh.evaluate(async ({ email, password }) => {
+    const after = await fresh.evaluate(
+      async ({ email, password }) => window.kline.editor.logIn(email, password),
+      { email: 'journey-customer@example.com', password: carried.password },
+    );
+    assert.equal(after.ok, false, 'a removed account still logged in');
+    await fresh.context().close();
+  });
+
+
+  // ------------------------------------------------- the customer's own path
+
+  test('9 · somebody signs themselves up on the home page', async () => {
+    const page = await app.browser.newContext().then((c) => c.newPage());
+    carried.customer = page;
+    await page.goto(`${app.origin}/`, { waitUntil: 'networkidle' });
+
+    // The front door is the first thing at the link, before any of the app.
+    await page.waitForSelector('.home:not(.hidden)', { timeout: 8000 });
+    const front = await page.textContent('.home-card');
+    assert.match(front, /33 hours free/i, `the home page did not state the trial: ${front}`);
+    assert.ok(front.includes('$199/month'), 'the home page did not state the price');
+    assert.match(front, /One person runs Kline/i, 'the home page did not say who is behind it');
+
+    const fields = await page.$$('.home-field');
+    assert.equal(fields.length, 3, 'sign-up did not ask for a username, email and password');
+    await fields[0].fill('Journey Person');
+    await fields[1].fill('selfserve@example.com');
+    await fields[2].fill('my-own-password');
+    await page.click('.home-go');
+
+    // No confirmation step of any kind: the door closes and Kline is there.
+    // Waiting on the class, not on visibility: .hidden is display:none, so a
+    // visibility wait can never resolve.
+    await page.waitForFunction(
+      () => document.querySelector('.home')?.classList.contains('hidden'),
+      { timeout: 10000 },
+    );
+    const state = await page.evaluate(() => ({
+      status: window.kline.editor.account?.status,
+      username: window.kline.editor.account?.username,
+      canUse: window.kline.editor.canUse,
+    }));
+    assert.equal(state.status, 'trial');
+    assert.equal(state.username, 'Journey Person');
+    assert.equal(state.canUse, true, 'signing up did not actually unlock Kline');
+
+    // And the countdown is on screen, not hidden in a menu.
+    const chip = await page.textContent('.trial-chip');
+    assert.match(chip, /Trial —/, `no countdown in the status bar: ${chip}`);
+    assert.ok(chip.includes('$199/month'), `the chip did not say the price: ${chip}`);
+    assert.match(chip, /3[23]h/, `the countdown did not start at 33 hours: ${chip}`);
+  });
+
+  test('10 · the application actually works during the trial', async () => {
+    const added = await carried.customer.evaluate(() => {
       const ed = window.kline.editor;
-      return ed.signInToKline(email, password);
-    }, { email: 'journey-customer@example.com', password: carried.password });
-    assert.equal(after.ok, false, 'a removed account still signed in');
-    await fourth.close();
+      const before = ed.scene.objects.size;
+      window.kline.run('add.cube');
+      return ed.scene.objects.size - before;
+    });
+    assert.equal(added, 1, 'a signed-up customer in trial could not use Kline');
+  });
+
+  test('11 · when the 33 hours are up they meet the payment link', async () => {
+    const page = carried.customer;
+    // Wind their account's clock past the end, the way time would.
+    await fetch(`${app.origin}/kv/get/${encodeURIComponent('kline:account:selfserve@example.com')}`)
+      .then((r) => r.json())
+      .then(({ result }) => {
+        const raw = JSON.parse(result);
+        return fetch(`${app.origin}/kv/set/${encodeURIComponent('kline:account:selfserve@example.com')}`, {
+          method: 'POST',
+          body: JSON.stringify({ ...raw, trialEndsAt: Date.now() - 1000 }),
+        });
+      });
+
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForSelector('.home:not(.hidden)', { timeout: 10000 });
+
+    const locked = await page.evaluate(() => ({
+      status: window.kline.editor.account?.status,
+      text: document.querySelector('.home-card')?.textContent ?? '',
+      href: document.querySelector('.home-card a.home-go')?.getAttribute('href') ?? '',
+      canUse: window.kline.editor.canUse,
+    }));
+    assert.equal(locked.status, 'locked');
+    assert.equal(locked.canUse, false, 'Kline was still usable after the trial ended');
+    assert.match(locked.text, /33 hours are up/i);
+    assert.ok(locked.text.includes('$199/month'), `no price on the locked screen: ${locked.text}`);
+    assert.equal(locked.href, 'https://buy.example.com/kline', 'the pay button led nowhere');
+    assert.match(locked.text, /still on your disk, untouched/i);
+    assert.match(locked.text, /One person runs Kline/i);
+  });
+
+  test('12 · the founder sees their countdown run out, and switches them on', async () => {
+    const console_ = carried.page;
+    await console_.reload({ waitUntil: 'networkidle' });
+    // The session survives a reload, so the gate may already be behind us.
+    // Signing in again would be a thirty-second wait on a field that is not
+    // there.
+    if (!(await console_.isHidden('#gate'))) {
+      await console_.fill('#password', FOUNDER_PASSWORD);
+      await console_.click('#signIn');
+    }
+    await console_.waitForSelector('#console:not(.hidden)', { timeout: 8000 });
+
+    const before = await console_.textContent('#accounts');
+    assert.match(before, /selfserve@example\.com/, 'the founder could not see the signup');
+    assert.match(before, /waiting to pay/i, `the console did not show them as locked: ${before}`);
+
+    // The whole payment system: one button, pressed by one person.
+    const rows = await console_.$$('#accounts tr');
+    let approved = false;
+    for (const row of rows) {
+      if (!(await row.textContent()).includes('selfserve@example.com')) continue;
+      const mark = await row.$('button.primary');
+      assert.ok(mark, 'no way to mark them paid');
+      await mark.click();
+      approved = true;
+      break;
+    }
+    assert.ok(approved, 'never found the account to approve');
+    await console_.waitForFunction(
+      () => document.querySelector('#accounts')?.textContent?.includes('paid'),
+      { timeout: 5000 },
+    );
+  });
+
+  test('13 · and they are back in, on the same login', async () => {
+    const page = carried.customer;
+    await page.reload({ waitUntil: 'networkidle' });
+    // Waiting on the class, not on visibility: .hidden is display:none, so a
+    // visibility wait can never resolve.
+    await page.waitForFunction(
+      () => document.querySelector('.home')?.classList.contains('hidden'),
+      { timeout: 10000 },
+    );
+    const state = await page.evaluate(() => {
+      const ed = window.kline.editor;
+      const before = ed.scene.objects.size;
+      window.kline.run('add.cube');
+      return {
+        status: ed.account?.status,
+        canUse: ed.canUse,
+        added: ed.scene.objects.size - before,
+      };
+    });
+    assert.equal(state.status, 'paid', 'being marked paid did not let them back in');
+    assert.equal(state.canUse, true);
+    assert.equal(state.added, 1, 'Kline said they were paid and still refused to work');
   });
 }

@@ -1159,9 +1159,13 @@ if (app.skip) {
     const before = await page.evaluate(() => {
       const ed = window.kline.editor;
       window.__licenceWas = ed.licence;
+      window.__accountWas = ed.account;
       window.kline.run('add.cube');
       const objects = ed.scene.objects.size;
-      // Straight into the state a customer lands in on hour thirty-four.
+      // An install with no account, past its trial — the desktop build, or
+      // anyone who never signed up. Somebody with an account meets the front
+      // door instead, which the console journey covers against a real server.
+      ed.account = null;
       ed.licence = { status: 'trial-over', endsAt: Date.now() - 1 };
       ed.emit('licence');
       return objects;
@@ -1272,6 +1276,8 @@ if (app.skip) {
         close() {},
       });
 
+      window.__accountWas2 = ed.account;
+      ed.account = null;
       ed.licence = { status: 'trial-over', endsAt: Date.now() - 1 };
       ed.emit('licence');
       await new Promise((r) => setTimeout(r, 50));
@@ -1298,6 +1304,7 @@ if (app.skip) {
     await page.evaluate(async () => {
       const ed = window.kline.editor;
       ed.licence = { status: 'source' };
+      ed.account = window.__accountWas2 ?? null;
       ed.emit('licence');
       ed.panels.toggleLicence?.();
     });

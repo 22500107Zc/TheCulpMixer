@@ -125,6 +125,23 @@ function serveDist() {
       return;
     }
 
+    // The account service, as Vercel serves it. Answered as somebody already
+    // signed in and inside their thirty-three hours, so the suite exercises
+    // the state a customer spends nearly all of their time in rather than
+    // meeting the front door on every test. No key: the harness has no
+    // signing key, and the offline trial already grants use.
+    if (url === '/api/account') {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(JSON.stringify({
+        status: 'trial',
+        username: 'Test',
+        email: 'test@example.com',
+        plan: 'Trial',
+        trialEndsAt: Date.now() + TRIAL_MS,
+      }));
+      return;
+    }
+
     const path = join(DIST, url === '/' ? 'index.html' : decodeURIComponent(url).replace(/^\/+/, ''));
     if (!path.startsWith(DIST) || !existsSync(path) || statSync(path).isDirectory()) {
       res.writeHead(404).end('not found');

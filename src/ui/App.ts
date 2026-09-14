@@ -22,6 +22,7 @@ import { askUnsaved } from './UnsavedDialog';
 import { describeSave, saveText, saveWorked } from '../io/files';
 import { formatAge } from '../editor/recovery';
 import { altKeyName, ctrlKeyName, isMac, navigationHint, scrollPhrase } from './platform';
+import { HomePage } from './HomePage';
 import { LicencePanel } from './LicencePanel';
 
 /** Assembles the shell around the viewport and routes keyboard input. */
@@ -39,6 +40,7 @@ export class App {
   })();
   private shortcuts = h('div', { class: 'overlay-panel shortcuts hidden' });
   private licencePanel: LicencePanel;
+  private homePage: HomePage;
   private viewportHint = h('div', { class: 'viewport-hint' });
   private dropVeil = h('div', { class: 'drop-veil' }, [
     h('p', { text: 'Drop to build geometry from it' }),
@@ -78,6 +80,7 @@ export class App {
     this.canvas = h('canvas', { class: 'viewport-canvas' });
     this.editor = new Editor(this.canvas);
     this.licencePanel = new LicencePanel(this.editor);
+    this.homePage = new HomePage(this.editor);
 
     const header = new Header(this.editor, () => this.toggleShortcuts());
     const toolbar = new Toolbar(this.editor);
@@ -112,6 +115,7 @@ export class App {
       sculptPanel.root, this.uvEditor.root, this.graphEditor.root, this.diffPanel.root,
       this.revisionPanel.root,
       this.setupGuide.root, this.dropVeil, this.shortcuts, this.licencePanel.root,
+      this.homePage.root,
       this.renderWindow.root, this.palette.root,
     ]);
     const right = h('div', { class: 'sidebar' }, [outliner.root, properties.root]);
@@ -186,7 +190,20 @@ export class App {
     // second machine, without anybody being handed a key to copy. It cannot
     // fail loudly: offline, server down, or no Stripe account connected yet
     // all leave the local answer standing.
-    void this.editor.refreshLicence().then(() => this.editor.syncLicence());
+    // The front door goes up before anything else if nobody is signed in, and
+    // the account is checked on every launch — that is what notices a trial
+    // running out, and what notices the founder switching somebody on after
+    // they paid.
+    void this.editor.refreshLicence()
+      .then(() => this.editor.refreshAccountState())
+      .then(() => {
+        this.homePage.refresh();
+        // Only an old-style install, with nobody signed in, still consults
+        // the licence server. A signed-in account has already been answered.
+        if (!this.editor.signedIn) return this.editor.syncLicence();
+        return undefined;
+      });
+    this.homePage.refresh();
     this.editor.renderer.onTexturesReady = () => this.editor.requestRender();
     // Closing the tab: write a recovery copy, and let the browser ask its own
     // "leave site?" question when there is unsaved work. A page cannot put its
@@ -278,6 +295,9 @@ export class App {
 
   /** Past the trial, with no key. The wall is up and nothing else responds. */
   private get locked(): boolean {
+    // Somebody signed in meets the front door instead of the licence wall:
+    // one screen, with the countdown and the way to pay on it.
+    if (this.editor.account) return false;
     return !this.editor.canUse && this.editor.licence.status !== 'source';
   }
 
@@ -290,8 +310,8 @@ export class App {
       // it, and the shortcut would be the product.
       const typingTarget = e.target as HTMLElement | null;
       const typing = !!typingTarget && /^(INPUT|TEXTAREA|SELECT)$/.test(typingTarget.tagName);
-      if (this.locked && !typing) {
-        if (!this.licencePanel.visible) this.licencePanel.show();
+      if ((this.locked || this.homePage.visible) && !typing) {
+        if (this.locked && !this.licencePanel.visible) this.licencePanel.show();
         e.preventDefault();
         return;
       }

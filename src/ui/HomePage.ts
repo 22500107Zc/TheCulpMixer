@@ -1,0 +1,250 @@
+import { Editor } from '../editor/Editor';
+import { PRICE } from '../licence/licence';
+import { button, clear, h } from './dom';
+
+/**
+ * The front door.
+ *
+ * The first thing anybody sees at the link: what Kline is, what it costs, who
+ * is behind it, and two boxes to make an account. It covers the whole window
+ * until they are signed in, and it comes back the moment their thirty-three
+ * hours run out — at which point the only thing on it is the way to pay.
+ *
+ * Three decisions worth writing down, because each is a thing people expect
+ * and will not find:
+ *
+ * 1. **No confirmation email.** They pick a username, an email and a password,
+ *    and they are in. Nothing to go to their inbox for, nothing to click,
+ *    nothing to get stuck in a spam folder at the exact moment they were
+ *    interested. They are told plainly to remember what they typed.
+ * 2. **The countdown is on this page.** Somebody who is going to be asked for
+ *    money in thirty-three hours should be able to see that from the first
+ *    minute, not discover it when the application stops.
+ * 3. **It says one person runs Kline.** That is why approval is by hand, why
+ *    it may take a moment, and why paying from a different address is fine.
+ *    Saying it up front turns a support complaint into an expectation.
+ */
+export class HomePage {
+  readonly root = h('div', { class: 'home hidden' });
+  private card = h('div', { class: 'home-card' });
+  private note = h('p', { class: 'home-note' });
+  private username = field('text', 'Username');
+  private email = field('email', 'you@example.com');
+  private password = field('password', 'Password — 8 characters or more');
+  private mode: 'signup' | 'signin' | 'locked' = 'signup';
+  private busy = false;
+
+  constructor(private editor: Editor) {
+    this.root.append(this.card);
+    for (const input of [this.username, this.email, this.password]) {
+      input.addEventListener('keydown', (e) => {
+        if ((e as KeyboardEvent).key === 'Enter') void this.submit();
+      });
+    }
+    this.editor.on('licence', () => this.refresh());
+  }
+
+  get visible(): boolean {
+    return !this.root.classList.contains('hidden');
+  }
+
+  /** Show or hide according to where the account stands. Never guesses. */
+  refresh(): void {
+    const account = this.editor.account;
+    // Nothing behind the door: an offline desktop build, or a deployment with
+    // no store. Showing a sign-up form nobody could complete would be the
+    // worst of both.
+    if (!this.editor.accountsAvailable && !account) {
+      this.root.classList.add('hidden');
+      return;
+    }
+    const needed = !account || account.status === 'locked';
+    if (needed) {
+      if (account?.status === 'locked') this.mode = 'locked';
+      this.render();
+      this.root.classList.remove('hidden');
+    } else {
+      this.root.classList.add('hidden');
+    }
+  }
+
+  private render(): void {
+    clear(this.card);
+    const account = this.editor.account;
+
+    this.card.append(
+      h('div', { class: 'home-brand' }, [
+        h('h1', { class: 'home-title', text: 'Kline' }),
+        h('p', {
+          class: 'home-tagline',
+          text: 'A 3D modelling application that runs on your machine. Mesh editing, '
+            + 'sculpting, UV unwrapping, rigging, animation and a path-traced renderer.',
+        }),
+      ]),
+    );
+
+    if (account?.status === 'locked') {
+      this.renderLocked(account);
+      return;
+    }
+
+    this.card.append(
+      h('p', { class: 'home-terms' }, [
+        h('strong', { text: '33 hours free.' }),
+        h('span', { text: ` Then ${PRICE}. One account covers your whole team.` }),
+      ]),
+      h('div', { class: 'home-tabs' }, [
+        tab('Create an account', this.mode === 'signup', () => {
+          this.mode = 'signup';
+          this.render();
+        }),
+        tab('Log in', this.mode === 'signin', () => {
+          this.mode = 'signin';
+          this.render();
+        }),
+      ]),
+    );
+
+    const fields = this.mode === 'signup'
+      ? [this.username, this.email, this.password]
+      : [this.email, this.password];
+    for (const input of fields) this.card.append(input);
+
+    this.card.append(
+      h('div', { class: 'home-actions' }, [
+        button(
+          this.mode === 'signup' ? 'Create account and start' : 'Log in',
+          () => void this.submit(),
+          { class: 'primary home-go' },
+        ),
+      ]),
+      this.note,
+    );
+
+    if (this.mode === 'signup') {
+      this.card.append(h('p', {
+        class: 'home-small',
+        text: 'No confirmation email and nothing to click — you are in as soon as you press '
+          + 'the button. Remember what you typed: it is how you get back in, on this machine '
+          + 'and on any other.',
+      }));
+    }
+
+    this.card.append(this.founderNote());
+    window.setTimeout(() => fields[0]?.focus(), 0);
+  }
+
+  /** Past the trial. One thing on the screen, and it is how to pay. */
+  private renderLocked(account: NonNullable<Editor['account']>): void {
+    this.card.append(
+      h('p', { class: 'home-locked-title', text: 'Your 33 hours are up' }),
+      h('p', { class: 'home-price', text: PRICE }),
+      h('p', {
+        class: 'home-locked-body',
+        text: 'Everything you made is still on your disk, untouched. Nothing has been deleted '
+          + 'and nothing has been sent anywhere.',
+      }),
+    );
+
+    if (account.paymentLink) {
+      this.card.append(h('div', { class: 'home-actions' }, [
+        payLink(`Pay — ${PRICE}`, account.paymentLink),
+      ]));
+    } else {
+      this.card.append(h('p', {
+        class: 'home-small',
+        text: 'The payment link has not been set up yet. Get in touch and it will be sorted.',
+      }));
+    }
+
+    this.card.append(
+      h('ol', { class: 'home-steps' }, [
+        h('li', { text: 'Pay through the link.' }),
+        h('li', { text: 'Send a note saying which email you paid with.' }),
+        h('li', { text: 'Your account is switched on by hand, and you log back in here.' }),
+      ]),
+      h('p', {
+        class: 'home-small',
+        text: `Paid from a different address? That is fine — say so and the address that paid `
+          + 'gets the access. One account covers your whole team.',
+      }),
+      h('div', { class: 'home-actions' }, [
+        button('Log in with another account', () => {
+          this.editor.signOutOfKline();
+          this.mode = 'signin';
+          this.render();
+        }),
+      ]),
+      this.note,
+      this.founderNote(),
+    );
+  }
+
+  /**
+   * Who is behind this.
+   *
+   * On the page because it is the answer to three questions at once: why
+   * approval is by hand, why it might take an hour rather than a second, and
+   * who somebody is actually buying from.
+   */
+  private founderNote(): HTMLElement {
+    return h('p', { class: 'home-founder' }, [
+      h('strong', { text: 'One person runs Kline.' }),
+      h('span', {
+        text: ' Not a company, not a team — one founder, who wrote it and answers the email. '
+          + 'That is why accounts are switched on by hand after you pay, and why it is worth '
+          + 'saying which address you paid from.',
+      }),
+    ]);
+  }
+
+  private say(message: string, bad = false): void {
+    this.note.textContent = message;
+    this.note.classList.toggle('home-bad', bad);
+  }
+
+  private async submit(): Promise<void> {
+    if (this.busy) return;
+    this.busy = true;
+    this.say(this.mode === 'signup' ? 'Making your account…' : 'Logging in…');
+    try {
+      const result = this.mode === 'signup'
+        ? await this.editor.createAccount(
+          this.username.value.trim(), this.email.value.trim(), this.password.value,
+        )
+        : await this.editor.logIn(this.email.value.trim(), this.password.value);
+      if (result.ok) {
+        this.password.value = '';
+        this.say('');
+        this.refresh();
+      } else {
+        this.say(result.message, true);
+      }
+    } finally {
+      this.busy = false;
+    }
+  }
+}
+
+/** A real anchor, so it works with a middle click and a right click too. */
+function payLink(label: string, href: string): HTMLElement {
+  const link = h('a', { class: 'btn primary home-go', text: label }) as HTMLAnchorElement;
+  link.href = href;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  return link;
+}
+
+function field(type: string, placeholder: string): HTMLInputElement {
+  const input = h('input', { class: 'home-field', type, placeholder }) as HTMLInputElement;
+  input.autocomplete = type === 'password' ? 'current-password' : type === 'email' ? 'email' : 'username';
+  return input;
+}
+
+function tab(label: string, active: boolean, onClick: () => void): HTMLElement {
+  return h('button', {
+    class: `home-tab${active ? ' active' : ''}`,
+    text: label,
+    on: { click: onClick },
+  });
+}

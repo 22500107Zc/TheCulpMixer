@@ -37,6 +37,10 @@ import {
 import {
   checkoutUrl, signIn as signInToAccount, syncLicence, takeCheckoutSession,
 } from '../licence/activation';
+import {
+  AccountState, forgetSession, hasSession, logIn as logInToAccount, refreshAccount,
+  signUp as signUpForAccount,
+} from '../licence/account';
 import { RenderJob } from '../render/pathtrace/RenderJob';
 import { RenderSettings, defaultRenderSettings } from '../render/pathtrace/types';
 import { buildTraceScene, cameraFromObject, cameraFromViewport } from '../render/pathtrace/build';
@@ -676,6 +680,81 @@ export class Editor {
    */
   licence: LicenceState = { status: 'source' };
 
+  /**
+   * Who is signed in, and where their thirty-three hours stand.
+   *
+   * Null means nobody — which is the front door, not an error.
+   */
+  account: AccountState | null = null;
+
+  /**
+   * Whether this build can take accounts at all.
+   *
+   * False for a desktop build with no network, or a deployment with no store.
+   * The front door is only put in somebody's way when there is something
+   * behind it — a sign-up form that cannot be completed is worse than no form.
+   */
+  accountsAvailable = false;
+
+  /** Whether anybody is signed in at all, without waiting for the server. */
+  get signedIn(): boolean {
+    return this.account !== null || hasSession();
+  }
+
+  /** Make an account and start the trial. No confirmation email, by design. */
+  async createAccount(
+    username: string, email: string, password: string,
+  ): Promise<{ ok: boolean; message: string }> {
+    if (!username || !email || !password) {
+      return { ok: false, message: 'Fill all three in.' };
+    }
+    const result = await signUpForAccount(username, email, password);
+    if (!result.ok) return { ok: false, message: result.message };
+    this.account = result.account;
+    await this.refreshLicence();
+    this.emit('licence');
+    return { ok: true, message: '' };
+  }
+
+  /** Log back in, here or on any other machine. */
+  async logIn(email: string, password: string): Promise<{ ok: boolean; message: string }> {
+    if (!email || !password) return { ok: false, message: 'Both the email and the password.' };
+    const result = await logInToAccount(email, password);
+    if (!result.ok) return { ok: false, message: result.message };
+    this.account = result.account;
+    await this.refreshLicence();
+    this.emit('licence');
+    return { ok: true, message: '' };
+  }
+
+  /** Forget the session on this machine. Their work and account are untouched. */
+  signOutOfKline(): void {
+    forgetSession();
+    this.account = null;
+    void this.refreshLicence();
+    this.emit('licence');
+  }
+
+  /**
+   * Ask where the account stands, on every launch.
+   *
+   * This is what notices that the founder has switched somebody on after they
+   * paid, and what notices a trial running out. It never throws anybody out
+   * over a dropped connection: no answer means the last one stands.
+   */
+  async refreshAccountState(): Promise<AccountState | null> {
+    const { reached, account } = await refreshAccount();
+    this.accountsAvailable = reached;
+    if (account) {
+      this.account = account;
+      await this.refreshLicence();
+    } else if (!hasSession()) {
+      this.account = null;
+    }
+    this.emit('licence');
+    return account;
+  }
+
   /** Ask the licence layer, and tell the interface what it said. */
   async refreshLicence(): Promise<LicenceState> {
     this.licence = await licenceState();
@@ -739,14 +818,22 @@ export class Editor {
     };
   }
 
-  /** Whether Kline may be used at all. False once the trial has ended. */
+  /**
+   * Whether Kline may be used at all. False once the trial has ended.
+   *
+   * When somebody is signed in, their account is the authority and nothing
+   * else gets a say. Without this, a customer whose thirty-three hours ran out
+   * fell through to the anonymous install trial and was quietly handed another
+   * thirty-three — which is every customer, for ever, and no revenue.
+   */
   get canUse(): boolean {
+    if (this.account) return this.account.status !== 'locked';
     return licenceAllowsUse(this.licence);
   }
 
   /** Whether finished work can leave the application. */
   get canExport(): boolean {
-    return licenceAllowsUse(this.licence);
+    return this.canUse;
   }
 
   get licenceSummary(): string {

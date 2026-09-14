@@ -978,45 +978,42 @@ For the house style and the test expectations, see
 
 **Send somebody the link. That is the whole of the sale.**
 
-They get 33 hours. Then Kline locks, full screen, and offers them a Subscribe
-button at $199/month. They pay on Stripe's own page and land back in Kline,
-unlocked — on the web, in the desktop app, and on their next machine. Nobody
-ever sees a licence key, and you never do anything per customer.
+They land on a home page, make an account — username, email, password, no
+confirmation email — and get **33 hours**, counting down where they can see it.
+When it runs out Kline locks and shows them your payment link. They pay, tell
+you which address they paid from, and you press **Mark paid** in the founder
+console. They are back in on the login they already have.
 
-There is also a **founder console** at `/founder.html` — one login, yours — for
-setting up Stripe and for making somebody an account directly, without them
-paying: a partner, a reviewer, anyone who paid you another way. You type their
-email and press Create; it hands you their email and password to send on, once.
-They sign in under *Help ▸ Licence* and they are working. The 33-hour trial is
-not adjustable from it, on purpose.
+No payment API, no webhooks, no integration. **One person runs Kline**, and the
+whole payment system is one button pressed by that person. The setup is four
+things, done once: **[SELLING.md](SELLING.md)**.
 
-The setup is four things, done once, and takes about fifteen minutes:
-**[SELLING.md](SELLING.md)**.
+The founder console at `/founder.html` shows every account, whether they are in
+trial, waiting to pay, or paid — with **the same countdown the customer sees**,
+so a message saying "I have two hours left" can be checked. It can also make
+accounts directly, reset a password, and revoke access without deleting
+anything.
 
-How it works, briefly: `api/licence.ts` runs next to the web app and asks
-Stripe who is paying. There is no database to run and no admin panel, because
-Stripe already holds that. Its answer is a short-lived signed entitlement in
-the same format the application has always verified offline, so the key
-machinery is still there — it is just invisible, and mints itself.
+Paid from a different address than they signed up with? Make them an account on
+the address that paid. One account covers a whole team.
 
-**The terms: 33-hour free trial, then $199/month to use Kline at all.** After
-33 hours a shipped build locks — not "export is disabled", locked. Every
-command except *Help ▸ Licence* and saving what is already open is refused, and
-a full-screen wall says what it costs.
+**The terms: 33-hour free trial, then $199/month to use Kline at all.** Not
+$199 to export — $199 to open it. The 33 hours cannot be changed from the
+console, on purpose.
 
 Four things the licensing deliberately cannot do, each covered by a test:
 
 - **Lock you out of your own application.** A build made from source is never
-  gated at all, and the owner key is perpetual by construction — an expiry
-  accidentally set on one is ignored.
+  gated at all, and the owner key is perpetual by construction.
 - **Brick every copy.** A build shipped without a public key enforces nothing,
-  rather than refusing everything.
+  rather than refusing everything; a build that cannot reach the account
+  service never puts a sign-up form in the way that nobody could complete.
 - **Lock a paying customer out over an outage.** No network, a server that is
-  down, Stripe having a bad day: all of them leave the last good answer
-  standing, and a paid licence keeps working offline for a week.
+  down, a store that is unreachable: all of them leave the last good answer
+  standing, and a paid account keeps working offline for a week.
 - **Destroy anyone's work.** The lock stops the application; it never touches a
-  file. Everything already saved stays on disk, untouched, licensed or not, and
-  what a customer made with Kline stays theirs for ever.
+  file. Everything already saved stays on disk, untouched, and what a customer
+  made with Kline stays theirs for ever.
 
 ## Licence
 

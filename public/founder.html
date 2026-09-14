@@ -99,32 +99,45 @@
       </section>
 
       <div id="console" class="hidden">
-        <!-- Stripe -->
+        <!-- Where people pay -->
         <section>
-          <h2>Stripe</h2>
+          <h2>Where people pay</h2>
           <p id="stripeState" class="sub" style="margin-bottom:12px"></p>
-          <label for="secret">Secret key</label>
-          <input id="secret" type="password" placeholder="sk_live_… or sk_test_…" />
-          <label for="price">Price ID for $199/month</label>
-          <input id="price" type="text" placeholder="price_…" />
+          <label for="paymentLink">Payment link</label>
+          <input id="paymentLink" type="url" placeholder="https://buy.stripe.com/…" />
           <div class="row" style="margin-top:12px">
-            <button class="primary" id="saveStripe">Save</button>
+            <button class="primary" id="savePayment">Save</button>
           </div>
           <p class="note" id="stripeNote"></p>
           <p class="hint">
-            Both come from your Stripe dashboard — the key from Developers ▸ API keys, the
-            price from the product you made. Saved here they are stored in your KV and never
-            shown again. Setting them in Vercel instead takes precedence over anything typed
-            here.
+            Any link that takes money — a Stripe payment link, PayPal, anything. No API key
+            and no integration: when their 33 hours are up this is the button they see. They
+            pay, they tell you, and you press <strong>Mark paid</strong> on their row below.
           </p>
+          <details style="margin-top:10px">
+            <summary style="cursor:pointer;color:var(--faint);font-size:11px">
+              Stripe API keys (optional — only for automatic checkout)
+            </summary>
+            <label for="secret">Secret key</label>
+            <input id="secret" type="password" placeholder="sk_live_… or sk_test_…" />
+            <label for="price">Price ID</label>
+            <input id="price" type="text" placeholder="price_…" />
+            <div class="row" style="margin-top:12px">
+              <button id="saveStripe">Save keys</button>
+            </div>
+            <p class="hint">
+              You do not need these. They only turn on the self-serve Subscribe button, which
+              charges people without you doing anything. The payment link above is enough.
+            </p>
+          </details>
         </section>
 
         <!-- Accounts -->
         <section>
-          <h2>Give somebody an account</h2>
+          <h2>Make an account for somebody</h2>
           <p class="sub" style="margin-bottom:12px">
-            Unlocks Kline for that person without them paying Stripe. They open Kline,
-            go to Help ▸ Licence, and sign in with the email and password below.
+            Most people will sign themselves up on the home page. This is for when you want
+            to make one yourself — it is switched on immediately, no trial and no payment.
           </p>
           <div class="row">
             <div>
@@ -168,16 +181,21 @@
         </section>
 
         <section>
-          <h2>Accounts</h2>
+          <h2>Everyone</h2>
           <table>
             <thead>
               <tr>
-                <th>Email</th><th>Plan</th><th>Until</th><th class="right"></th>
+                <th>Who</th><th>State</th><th>Time left / until</th><th class="right"></th>
               </tr>
             </thead>
             <tbody id="accounts"></tbody>
           </table>
-          <p class="hint" id="accountsEmpty">Nobody yet.</p>
+          <p class="hint" id="accountsEmpty">Nobody has signed up yet.</p>
+          <p class="hint">
+            When somebody pays you, find them here and press <strong>Mark paid</strong>. If
+            they paid from a different address than they signed up with, make them an account
+            on that address instead — one account covers their whole team.
+          </p>
         </section>
 
         <section>
@@ -252,9 +270,18 @@
           : stripe.mode === 'test' ? '<span class="pill test">test mode</span>'
           : '<span class="pill off">not set up</span>';
         const where = stripe.fromEnvironment ? ' (set in Vercel)' : '';
-        $('stripeState').innerHTML = stripe.configured
-          ? `${pill} Key is set${where}. Price: ${stripe.priceId || '<span class="pill off">missing</span>'}`
-          : `${pill} Subscribe will not work until a key and a price are set.`;
+        const link = result.body.paymentLink || '';
+        $('paymentLink').value = link;
+        $('stripeState').innerHTML = link
+          ? `<span class="pill live">ready</span> People past their 33 hours are sent to this link.`
+          : `<span class="pill off">no link yet</span> People past their 33 hours have nowhere `
+            + `to pay. Put a link in below.`;
+        // The API half is secondary now, and only mentioned when it is on.
+        if (stripe.configured) {
+          $('stripeState').innerHTML += `<br><span style="font-size:12px">Automatic checkout `
+            + `is also on: ${pill}${where}, price `
+            + `${stripe.priceId || '<span class="pill off">missing</span>'}.</span>`;
+        }
 
         $('storageHint').textContent = result.body.storage
           ? 'Storage is connected, so the trial clock lives on the server and clearing a '
@@ -265,34 +292,73 @@
         renderAccounts(result.body.accounts || []);
       }
 
+      /** Time left, the same way the application says it. */
+      function timeLeft(ms) {
+        if (ms <= 0) return 'up';
+        const hours = Math.floor(ms / 3600000);
+        const minutes = Math.floor((ms % 3600000) / 60000);
+        if (hours >= 1) return `${hours}h ${minutes}m`;
+        if (minutes >= 1) return `${minutes}m`;
+        return 'under a minute';
+      }
+
       function renderAccounts(accounts) {
         const body = $('accounts');
         body.textContent = '';
         $('accountsEmpty').style.display = accounts.length ? 'none' : '';
         for (const account of accounts) {
           const row = document.createElement('tr');
+          const state = account.standing?.state ?? (account.paid ? 'paid' : 'locked');
 
-          const email = document.createElement('td');
-          email.textContent = account.email;
+          const who = document.createElement('td');
+          const name = document.createElement('div');
+          name.textContent = account.username || account.email.split('@')[0];
+          const mail = document.createElement('div');
+          mail.style.cssText = 'font-size:11px;color:var(--faint)';
+          mail.textContent = account.email;
+          who.append(name, mail);
 
-          const plan = document.createElement('td');
-          plan.textContent = account.plan || 'Subscription';
+          const where = document.createElement('td');
+          where.innerHTML = state === 'paid' ? '<span class="pill live">paid</span>'
+            : state === 'trial' ? '<span class="pill test">trial</span>'
+            : '<span class="pill off">waiting to pay</span>';
 
+          // The same countdown the customer is looking at, so a message saying
+          // "I have two hours left" can be checked rather than taken on faith.
           const until = document.createElement('td');
-          until.textContent = account.expires === null
-            ? 'never expires'
-            : new Date(account.expires).toLocaleDateString();
-          if (account.expires !== null && account.expires < Date.now()) {
-            until.innerHTML = '<span class="pill off">expired</span>';
+          if (state === 'trial') {
+            until.textContent = timeLeft(account.msLeft ?? 0);
+          } else if (state === 'paid') {
+            until.textContent = account.expires === null
+              ? 'never expires'
+              : `until ${new Date(account.expires).toLocaleDateString()}`;
+          } else {
+            until.textContent = 'trial ended';
           }
 
           const actions = document.createElement('td');
           actions.className = 'right';
 
-          const reset = document.createElement('button');
-          reset.textContent = 'New password';
-          reset.style.marginRight = '6px';
-          reset.onclick = async () => {
+          if (state === 'paid') {
+            actions.append(act('Revoke', 'danger', async () => {
+              if (!confirm(`Turn off ${account.email}? They go back to needing to pay.`)) return;
+              const result = await call('accounts.revoke', { email: account.email });
+              if (result.ok) renderAccounts(result.body.accounts || []);
+            }));
+          } else {
+            // The whole payment system, in one button.
+            actions.append(act('Mark paid', 'primary', async () => {
+              const result = await call('accounts.approve', { email: account.email, months: 1 });
+              if (!result.ok) {
+                say($('accountNote'), result.body.error || 'Could not do that.', 'bad');
+                return;
+              }
+              say($('accountNote'), `${account.email} is switched on for a month.`, 'good');
+              renderAccounts(result.body.accounts || []);
+            }));
+          }
+
+          actions.append(act('New password', '', async () => {
             const result = await call('accounts.resetPassword', { email: account.email });
             if (!result.ok) {
               say($('accountNote'), result.body.error || 'Could not reset it.', 'bad');
@@ -301,23 +367,27 @@
             say($('accountNote'), `New password for ${account.email}.`, 'good');
             showHandout(account.email, result.body.password);
             renderAccounts(result.body.accounts || []);
-          };
-          actions.append(reset);
+          }));
 
-          const remove = document.createElement('button');
-          remove.className = 'danger';
-          remove.textContent = 'Remove';
-          remove.onclick = async () => {
-            if (!confirm(`Remove ${account.email}? They lose access within a week.`)) return;
+          actions.append(act('Remove', 'danger', async () => {
+            if (!confirm(`Remove ${account.email} completely? This deletes the account.`)) return;
             const result = await call('accounts.delete', { email: account.email });
             if (result.ok) renderAccounts(result.body.accounts || []);
-          };
-          actions.append(remove);
+          }));
 
-          row.append(email, plan, until, actions);
+          row.append(who, where, until, actions);
           if (account.note) row.title = account.note;
           body.append(row);
         }
+      }
+
+      function act(label, kind, onClick) {
+        const btn = document.createElement('button');
+        if (kind) btn.className = kind;
+        btn.textContent = label;
+        btn.style.marginLeft = '6px';
+        btn.onclick = onClick;
+        return btn;
       }
 
       $('signIn').onclick = signIn;
@@ -376,6 +446,19 @@
           getSelection()?.removeAllRanges();
           getSelection()?.addRange(range);
         }
+      };
+
+      $('savePayment').onclick = async () => {
+        const paymentLink = $('paymentLink').value.trim();
+        if (!paymentLink) { say($('stripeNote'), 'Put a link in first.', 'bad'); return; }
+        say($('stripeNote'), 'Saving…');
+        const result = await call('settings.save', { paymentLink });
+        if (!result.ok) {
+          say($('stripeNote'), result.body.detail || result.body.error || 'Could not save.', 'bad');
+          return;
+        }
+        say($('stripeNote'), 'Saved. That is where people are sent to pay.', 'good');
+        await load();
       };
 
       $('saveStripe').onclick = async () => {

@@ -32,7 +32,7 @@
  */
 
 import { createPrivateKey, sign } from 'node:crypto';
-import { KEYS, env, kvGet, kvSet, liveAccount, settings, signInAccount } from './_store';
+import { KEYS, env, kvGet, kvSet, liveAccount, settings, signInAccount, standing } from './_store';
 
 /** Thirty-three hours. The same number the application and the LICENCE state. */
 const TRIAL_MS = 33 * 60 * 60 * 1000;
@@ -262,6 +262,23 @@ export default async function handler(req: Req, res: Res): Promise<void> {
         // cannot be used to find out which emails have accounts.
         await new Promise((done) => setTimeout(done, 400));
         res.status(401).json({ error: 'wrong-details' });
+        return;
+      }
+      // Right password, trial over, not paid. That is not a failed sign-in and
+      // must not be reported as one — but it is emphatically not a key
+      // either. signInAccount deliberately stops filtering these out, so the
+      // check has to happen here.
+      const where = standing(account, now);
+      if (where.state === 'locked') {
+        const { paymentLink } = await settings();
+        res.status(200).json({
+          status: 'locked',
+          email: account.email,
+          trialEndedAt: where.trialEndedAt,
+          paymentLink,
+          message: 'Your 33 hours are up. Kline is $199/month. One person runs Kline, so '
+            + 'access is switched on by hand once you have paid.',
+        });
         return;
       }
       const expires = Math.min(account.expires ?? now + LEASE_MS, now + LEASE_MS);

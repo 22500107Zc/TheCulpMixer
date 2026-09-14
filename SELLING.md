@@ -1,198 +1,143 @@
 # Turning Kline on for money
 
-The goal this is built around: **you send somebody a link and that is the end
-of your involvement.** They get 33 hours. Then Kline locks and shows them a
-Subscribe button. They pay $199/month. Kline unlocks — on the web, on the
-desktop app, on their second machine. You do nothing, ever, per customer.
+**How it works, end to end:**
 
-Stripe holds who is paying; `api/licence.ts` asks it; the app believes the
-signed answer. And there is a **founder console** at `/founder.html` — one
-login, yours — for setting up Stripe and for handing somebody an account
-directly, without them paying at all.
+1. You send somebody the link.
+2. They land on the home page. Username, email, password. No confirmation
+   email, nothing to click — they are in.
+3. **33 hours**, counting down in the corner where they can see it.
+4. It runs out. Kline locks and shows them your payment link.
+5. They pay and tell you which address they paid from.
+6. You open `/founder.html`, find them, press **Mark paid**. They are back in.
+
+No Stripe API key, no webhooks, no integration. One person runs Kline and one
+person presses the button.
 
 ---
 
-## The four things to do, once
+## Setting it up, once
 
-Everything below is done in a browser. It takes about fifteen minutes.
+### 1. Two environment variables in Vercel
 
-### 1. A Stripe account
-
-https://dashboard.stripe.com/register
-
-This is the one step nobody can do for you. Taking recurring card payments
-means a payment processor, and every processor in the world verifies who is
-receiving the money before it releases it — name, address, and a bank account
-to pay out to. There is no version of accepting $199/month from strangers that
-skips this. Budget a day or two for Stripe's review; you can build and test
-everything else immediately in **test mode**, which needs no verification at
-all.
-
-### 2. A $199/month price
-
-Stripe dashboard → **Product catalogue** → **Add product**.
-
-- Name: `Kline`
-- Price: `199.00` USD, **Recurring**, **Monthly**
-- Save, then copy the **price ID**. It looks like `price_1Qx...`.
-
-### 3. Two environment variables in Vercel
-
-Your Vercel project → **Settings** → **Environment Variables**. Add these for
-**Production**:
+Project → **Settings** → **Environment Variables**, for **Production**:
 
 | Name | Value |
 |---|---|
 | `KLINE_SIGNING_KEY` | The entire contents of `kline-private-key.pem`, including the `-----BEGIN` and `-----END` lines. |
 | `KLINE_FOUNDER_HASH` | Run `node tools/kline-founder.mjs "your password"` and paste the line it prints. |
 
-Then **Redeploy**.
+`KLINE_SIGNING_KEY` is the only thing that can mint a licence. It is not in
+this repository and must never be.
 
-`KLINE_SIGNING_KEY` is the only thing that can mint a licence. Paste it into
-Vercel and nowhere else. It is not in this repository and must never be.
-
-`KLINE_FOUNDER_HASH` is your founder password, hashed. **Your password itself
-never goes in the repository**, because this repository is readable and the
-founder console can issue licences and see every customer you have — a password
-in the source is a password every reader of the source has. The hash is safe to
+`KLINE_FOUNDER_HASH` is your founder password, hashed. **The password itself
+never goes in the repository** — this repository is readable, and the founder
+console can let people in and see every customer you have. The hash is safe to
 paste into Vercel and cannot be turned back into the password.
 
-The Stripe key and price ID can go here too, as `STRIPE_SECRET_KEY` and
-`KLINE_PRICE_ID` — or you can just type them into the founder console in the
-next step, which is easier. If you set them here, here wins.
+### 2. A place to keep accounts
 
-### 4. Optional, but do it: a trial clock that cannot be reset
+Vercel project → **Storage** → **Create** → any Upstash-compatible Redis. The
+free tier is plenty. Vercel adds `KV_REST_API_URL` and `KV_REST_API_TOKEN` for
+you.
 
-Without this, the 33-hour clock lives in the visitor's browser, and clearing
-site data gives them another 33 hours, for ever.
+**This one is not optional.** Without it there is nowhere to put accounts and
+Kline will say so rather than pretending to save them.
 
-Vercel project → **Storage** → **Create** → any Upstash-compatible Redis (the
-free tier is plenty). Vercel adds `KV_REST_API_URL` and `KV_REST_API_TOKEN`
-automatically. The server picks them up on the next deploy and starts keeping
-the clock itself. Nothing else changes.
+### 3. Redeploy
+
+### 4. A payment link
+
+Anywhere that takes money: a Stripe payment link, PayPal, Buy Me a Coffee. Make
+it $199/month.
+
+Then go to **`https://kline-flax.vercel.app/founder.html`**, sign in, and paste
+it into **Where people pay**. That is the button your customers see when their
+33 hours are up.
 
 ---
 
 ## The founder console
 
-Once step 3 is deployed, go to **`https://kline-flax.vercel.app/founder.html`**
-and sign in with your password.
+`/founder.html`, your password.
 
-From there you can:
+**Everyone** — every account, whether they signed themselves up or you made it.
+For each: their username and email, whether they are in trial / waiting to pay /
+paid, and **the same countdown they are looking at**. When somebody messages you
+saying "I have two hours left", you can check.
 
-**Set up Stripe** — paste your secret key and the `price_...` from step 2, press
-Save, and the Subscribe button starts working. The key is stored in your KV and
-never shown again, not even back to you.
+**Mark paid** — the whole payment system. One month by default. They are back in
+immediately, on the login they already have.
 
-**Make somebody an account** — type their email, pick a length (1 month, 12
-months, never expires), and press Create. Leave the password box empty and one
-is made for them.
+**Revoke** — turns them off without deleting anything. Their login still works;
+they are simply back to needing to pay.
 
-The console then shows you a block of text with their email and password in it
-and a **Copy** button. Send them that. They open Kline, go to **Help ▸
-Licence**, type the email and password, press Sign in, and they are working.
+**Make an account for somebody** — for when you want to create one yourself
+rather than have them sign up. It is switched on immediately: no trial, no
+payment. The console hands you their email and password to send, once.
 
-That unlocks Kline **without them paying Stripe** — a partner, a reviewer,
-somebody who paid you by bank transfer, a friend, yourself. It is shown once:
-the server stores only a hash of the password and genuinely cannot tell anybody
-what it was afterwards. If it gets lost, press **New password** on their row
-and send them the new block.
+**New password** — if they lose theirs. Shown once; only a hash is stored, so
+nothing can tell you the old one.
 
-**Take an account away** — press Remove. They lose access within a week (the
-offline lease has to run out first).
+**Paid from a different address than they signed up with?** Make them an account
+on the address that paid. One account covers their whole team, so that is fine
+rather than a problem.
 
-**See everyone who has an account**, when it runs out, and your own note about
-who they are.
-
-The 33-hour trial is **not** adjustable from the console, on purpose. It is
-fixed in the application and in the server so it cannot be widened by accident
-or by anyone who ever gets into the console.
+The 33 hours cannot be changed from the console, on purpose — it is fixed in
+both the application and the server so it cannot be widened by accident or by
+anyone who ever gets into the console.
 
 ### Keeping the console yours
 
-- The password is checked against a hash. Getting it wrong tells you nothing
-  useful and takes the same time every attempt.
-- A session lasts 12 hours and is signed. A forged or expired one is refused.
+- The password is checked against a hash. A wrong one tells you nothing useful
+  and takes the same time every attempt.
+- Sessions last 12 hours and are signed; a forged or expired one is refused.
 - Changing the password signs every open console out immediately.
-- The page is never indexed by search engines and cannot be put in a frame.
-- If `KLINE_FOUNDER_HASH` is missing, the console refuses **every** login
-  rather than falling open.
+- Never indexed by search engines, never loadable in a frame.
+- No `KLINE_FOUNDER_HASH` means **every** login is refused, rather than the
+  console falling open.
 
-If you ever think the password has got out: run `tools/kline-founder.mjs` with
-a new one, replace the variable in Vercel, redeploy. That is the whole rotation.
+To change the password: run `tools/kline-founder.mjs` with a new one, replace
+the variable in Vercel, redeploy.
 
 ---
 
-## Then you are selling
-
-Send anybody `https://kline-flax.vercel.app`, or a link to the installers on
-the releases page. From there:
-
-1. They use Kline for 33 hours. A chip in the status bar counts it down and
-   says `$199/month` the whole time.
-2. It locks. Full screen, no way past, **Subscribe — $199/month**.
-3. They pay on Stripe's own page. Card details never touch your code.
-4. They land back in Kline, unlocked, within a second or two.
-5. Next month Stripe charges them again. If it fails, or they cancel, Kline
-   locks again within a week.
-
-On another machine, or after reinstalling, they open **Help ▸ Licence** and
-type the email they paid with. That is the only support question this design
-can generate, and the answer is on the screen already.
-
 ## Your own copy
 
-You are never charged for Kline and never have to be. Three separate ways, any
-one of which is enough:
+You are never charged for Kline. Three ways, any one is enough:
 
-- Running it from source (`npm run dev`) is never gated at all.
-- Make yourself an account in the founder console with your own email, set to
-  **never expires**. Then in Kline: **Help ▸ Licence**, type your email.
-- Or mint a perpetual key once and apply it under **Have a licence key?**:
+- Running from source (`npm run dev`) is never gated at all.
+- Make yourself an account in the console — it is paid from the moment it
+  exists. Set it to **never expires**.
+- Or mint a perpetual key: `node tools/kline-licence.mjs owner --name "You"`,
+  then **Help ▸ Licence ▸ Have a licence key?**
 
-  ```bash
-  node tools/kline-licence.mjs owner --name "Your Name"
-  ```
+## What it costs to run
 
-## Checking it works before a real customer does
-
-Use Stripe **test mode** (`sk_test_...` and a test-mode price ID). Card
-`4242 4242 4242 4242`, any future expiry, any CVC. Pay, and watch Kline unlock.
-Then switch both values to the live ones and redeploy.
-
-To see where a build thinks it stands without waiting 33 hours, open
-**Help ▸ Licence**.
-
-## What it costs you to run
-
-- Vercel: the free tier covers this comfortably. The licence call is one small
-  request per launch.
-- Upstash: free tier, one key per install.
-- Stripe: 2.9% + 30¢ per payment. On $199 that is about **$6.07**, so you keep
-  roughly **$192.93** per subscriber per month.
+- Vercel: free tier is fine. One small request per launch.
+- Upstash: free tier, a few keys per customer.
+- Payment link: whatever your processor charges. Stripe is 2.9% + 30¢, so on
+  $199 you keep about **$192.93**.
 
 ## If something is wrong
 
-The app never locks somebody out because of an outage. No network, server down,
-Stripe down — all of them leave the last good answer standing, and a paid
-licence keeps working offline for a week.
+Nobody is locked out by an outage. No network, server down, store unreachable —
+the last good answer stands, and a paid account keeps working offline for a
+week.
 
-If the server is misconfigured it says so rather than guessing:
+Misconfiguration says so rather than guessing:
 
-- `not-selling-yet` — no Stripe key or price ID, in Vercel or in the console.
-- `no-signing-key` — `KLINE_SIGNING_KEY` is missing. Until it is set, nobody
-  can be unlocked by paying, so fix this one first.
+- `no-storage` — no KV store. Accounts cannot be saved. Fix this first.
+- `no-signing-key` — `KLINE_SIGNING_KEY` is missing. Nobody can be let in
+  until it is set.
 - `no-founder-password` — `KLINE_FOUNDER_HASH` is missing, so the console
-  cannot be signed into by anybody, including you.
-- `no-storage` — no KV store, so accounts cannot be saved. Add one in Vercel
-  under Storage.
+  cannot be opened by anybody, including you.
 
-Check with:
+Check the server is alive:
 
 ```bash
-curl -s -X POST https://kline-flax.vercel.app/api/licence \
-  -H 'Content-Type: application/json' \
-  -d '{"action":"state","install":"test-install-1"}'
+curl -s -X POST https://kline-flax.vercel.app/api/account \
+  -H 'Content-Type: application/json' -d '{"action":"refresh","session":""}'
 ```
 
-A healthy server answers `{"status":"trial","endsAt":...}`.
+A healthy server answers `{"error":"sign-in-again"}` — it is up and it has
+storage. `no-storage` means step 2 is not done.

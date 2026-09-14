@@ -3,6 +3,21 @@ import { PRICE } from '../licence/licence';
 import { clear, h } from './dom';
 
 /**
+ * Time left, in the shortest form that is still honest.
+ *
+ * Minutes once it is under an hour, because "0h left" on a trial with fifty
+ * minutes in it reads as broken.
+ */
+function countdown(endsAt: number, now = Date.now()): string {
+  const ms = Math.max(0, endsAt - now);
+  const hours = Math.floor(ms / 3600000);
+  const minutes = Math.floor((ms % 3600000) / 60000);
+  if (hours >= 1) return `${hours}h ${minutes}m`;
+  if (minutes >= 1) return `${minutes}m`;
+  return 'under a minute';
+}
+
+/**
  * Bottom bar. Left: what is in the scene or the current selection. Right: the
  * live operator readout — the same numbers the modal transform is applying.
  */
@@ -18,6 +33,11 @@ export class StatusBar {
     editor.on('status', () => this.refresh());
     editor.on('modal', () => this.refresh());
     editor.on('licence', () => this.refresh());
+    // The countdown has to move on its own, or somebody watching the last
+    // minutes of their trial sees a number that never changes.
+    setInterval(() => {
+      if (this.editor.account?.status === 'trial') this.refresh();
+    }, 30000);
     this.refresh();
   }
 
@@ -54,7 +74,15 @@ export class StatusBar {
     // The trial says so, permanently and in the same place, for as long as it
     // runs. A countdown somebody has to go looking for is a countdown they
     // find out about when the application stops.
-    if (ed.licence.status === 'trial') {
+    const account = ed.account;
+    if (account?.status === 'trial' && account.trialEndsAt) {
+      this.left.append(h('button', {
+        class: 'trial-chip',
+        title: 'How long is left of your 33 hours, and what Kline costs after',
+        text: `Trial — ${countdown(account.trialEndsAt)} left · ${PRICE}`,
+        on: { click: () => ed.panels.toggleLicence?.() },
+      }));
+    } else if (!account && ed.licence.status === 'trial') {
       this.left.append(h('button', {
         class: 'trial-chip',
         title: 'What Kline costs, and how long is left of the trial',

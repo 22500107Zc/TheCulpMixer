@@ -21,12 +21,32 @@ export const KEYS = {
   settings: 'kline:settings',
 };
 
+/** Thirty-three hours. The one number the whole business runs on. */
+export const TRIAL_MS = 33 * 60 * 60 * 1000;
+
 export interface Account {
   email: string;
+  /** What they called themselves when they signed up. */
+  username: string;
   /** Free text — "Founder", "Studio", whoever they are. */
   plan: string;
-  /** Epoch ms, or null for an account that never expires. */
+  /**
+   * Paid through, epoch ms — or null for access that never runs out.
+   *
+   * Only meaningful when `paid` is true. Kline is approved by hand, so this
+   * is whatever the founder decided, not something a card reader set.
+   */
   expires: number | null;
+  /**
+   * Whether the founder has let them in.
+   *
+   * There is no payment API here on purpose. Somebody pays through whatever
+   * link is set, tells the founder, and the founder turns this on. One person
+   * runs Kline; this is what that looks like in the data.
+   */
+  paid: boolean;
+  /** When their thirty-three hours run out. Set once, at sign-up. */
+  trialEndsAt: number;
   created: number;
   note?: string;
   /**
@@ -39,8 +59,16 @@ export interface Account {
   password?: string;
 }
 
-/** Stripe details, when they are set from the console rather than the env. */
+/** What the founder has configured. */
 export interface Settings {
+  /**
+   * Where somebody is sent to pay.
+   *
+   * A plain link — a Stripe payment link, a Buy Me a Coffee page, a PayPal
+   * button, anything. No API key, no webhook, no integration: the application
+   * opens it, they pay, and the founder marks the account paid by hand.
+   */
+  paymentLink?: string;
   stripeSecretKey?: string;
   priceId?: string;
 }
@@ -118,13 +146,12 @@ export async function deleteAccount(email: string): Promise<void> {
   await writeJson(KEYS.accountList, emails.filter((one) => one !== wanted));
 }
 
-/** An account that exists and has not run out. */
+/** An account that exists and is allowed in right now — paid, or in trial. */
 export async function liveAccount(email: string): Promise<Account | null> {
   if (!email) return null;
   const account = await readJson<Account>(KEYS.account(email));
   if (!account) return null;
-  if (account.expires !== null && account.expires < Date.now()) return null;
-  return account;
+  return standing(account).state === 'locked' ? null : account;
 }
 
 /**
@@ -136,17 +163,45 @@ export async function liveAccount(email: string): Promise<Account | null> {
 export async function settings(): Promise<Required<Settings>> {
   const stored = (await readJson<Settings>(KEYS.settings)) ?? {};
   return {
+    paymentLink: env('KLINE_PAYMENT_LINK') || stored.paymentLink || '',
     stripeSecretKey: env('STRIPE_SECRET_KEY') || stored.stripeSecretKey || '',
     priceId: env('KLINE_PRICE_ID') || stored.priceId || '',
   };
 }
 
+/** Where an account stands, in one place so nothing can answer differently. */
+export type AccountStanding =
+  | { state: 'paid'; until: number | null }
+  | { state: 'trial'; endsAt: number }
+  | { state: 'locked'; trialEndedAt: number };
+
+export function standing(account: Account, now = Date.now()): AccountStanding {
+  if (account.paid && (account.expires === null || account.expires > now)) {
+    return { state: 'paid', until: account.expires };
+  }
+  if (now < account.trialEndsAt) return { state: 'trial', endsAt: account.trialEndsAt };
+  return { state: 'locked', trialEndedAt: account.trialEndsAt };
+}
+
+/** Any account with this email, expired or not. The founder sees everything. */
+export const findAccount = (email: string): Promise<Account | null> =>
+  readJson<Account>(KEYS.account(email));
+
 // ------------------------------------------------------------ the founder
 
-/** Somebody signing in with the password on their account. */
+/**
+ * Somebody signing in.
+ *
+ * Deliberately returns the account even when it is locked: being past the
+ * trial is not a failed sign-in, it is a signed-in person who has to pay. The
+ * caller decides what that means, and the difference matters — telling
+ * somebody their password is wrong when it is right would be a support email
+ * and a lost customer.
+ */
 export async function signInAccount(email: string, password: string): Promise<Account | null> {
-  const account = await liveAccount(email);
-  if (!account || !account.password || !password) return null;
+  if (!email || !password) return null;
+  const account = await findAccount(email);
+  if (!account?.password) return null;
   return verifyHash(password, account.password) ? account : null;
 }
 
@@ -211,6 +266,38 @@ export function hashPassword(password: string, salt = randomBytes(16)): string {
  */
 function sessionSecret(): string {
   return `kline-console:${env('KLINE_FOUNDER_HASH')}`;
+}
+
+/**
+ * A customer's session, so the application does not hold their password.
+ *
+ * Signed with the signing key, which every deployment already has. Long-lived
+ * on purpose: this is "remember your login", and somebody who signed up on
+ * Tuesday should not be asked again on Wednesday.
+ */
+export function mintAccountSession(email: string, days = 180): string {
+  const expires = Date.now() + days * 24 * 3600000;
+  const body = `${Buffer.from(email).toString('base64url')}.${expires}`;
+  return `${body}.${createHmac('sha256', accountSecret()).update(body).digest('hex')}`;
+}
+
+/** The email behind a session, or empty when it does not check out. */
+export function readAccountSession(token: string): string {
+  const parts = String(token ?? '').split('.');
+  if (parts.length !== 3) return '';
+  const [encoded, expires, signature] = parts;
+  if (!(Number(expires) > Date.now())) return '';
+  const wanted = createHmac('sha256', accountSecret()).update(`${encoded}.${expires}`).digest('hex');
+  try {
+    if (!timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(wanted, 'hex'))) return '';
+    return Buffer.from(encoded, 'base64url').toString('utf8');
+  } catch {
+    return '';
+  }
+}
+
+function accountSecret(): string {
+  return `kline-account:${env('KLINE_SIGNING_KEY')}`;
 }
 
 export function mintSession(hours = 12): string {
