@@ -1,7 +1,7 @@
 {
   "name": "Kline \u2014 3D Modelling",
   "short_name": "Kline",
-  "description": "An open source 3D modelling application: mesh editing, modifiers, materials and glTF export, running entirely on your machine.",
+  "description": "A 3D modelling application: mesh editing, sculpting, rigging, animation, materials and glTF export, running entirely on your machine.",
   "id": "kline-3d",
   "start_url": "./",
   "scope": "./",

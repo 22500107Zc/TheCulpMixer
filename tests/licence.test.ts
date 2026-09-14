@@ -215,3 +215,35 @@ test('every state describes itself in a sentence a person can act on', async () 
 test('the trial window is fourteen days', () => {
   assert.equal(TRIAL_MS, 14 * 24 * 60 * 60 * 1000);
 });
+
+test('nothing Kline ships describes Kline as open source or MIT', async () => {
+  // This kept coming back. package.json said MIT while LICENSE said
+  // proprietary; the README called it an open source alternative to Blender;
+  // THIRD-PARTY-NOTICES.md — which is inside every build — opened with "Kline
+  // itself is MIT licensed"; and the web manifest and package description said
+  // open source too. Each was found separately, by a person reading the page
+  // rather than by anything failing.
+  const { readFileSync } = await import('node:fs');
+  const files = [
+    'package.json', 'README.md', 'index.html',
+    'public/manifest.webmanifest', 'THIRD-PARTY-NOTICES.md', 'LICENSE',
+  ];
+  for (const file of files) {
+    const text = readFileSync(file, 'utf8');
+    for (const line of text.split('\n')) {
+      // A line saying Kline is NOT open source is the point, not a failure.
+      if (/\bnot\b[^.]*open.?source|open.?source[^.]*\bnot\b/i.test(line)) continue;
+      assert.ok(!/open.?source/i.test(line),
+        `${file} calls Kline open source: ${line.trim()}`);
+      // A third-party component's own MIT licence is legitimate and required
+      // to be reproduced; a claim that *Kline* is MIT is not.
+      if (/\bMIT\b/.test(line)) {
+        assert.ok(!/\bKline\b/i.test(line),
+          `${file} claims Kline is MIT licensed: ${line.trim()}`);
+      }
+    }
+  }
+  const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+  assert.notEqual(pkg.license, 'MIT', 'package.json still declares MIT');
+  assert.match(pkg.license, /SEE LICENSE/i, `package.json license is "${pkg.license}"`);
+});
