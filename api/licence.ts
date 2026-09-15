@@ -345,5 +345,5 @@ function clean(value: unknown, max: number): string {
 function originOf(req: Req): string {
   const host = req.headers['x-forwarded-host'] ?? req.headers.host;
   const name = Array.isArray(host) ? host[0] : host;
-  return name ? `https://${name}` : 'https://kline-flax.vercel.app';
+  return name ? `https://${name}` : 'https://theculpmixer.vercel.app';
 }

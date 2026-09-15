@@ -435,7 +435,10 @@
         $('handoutText').textContent = [
           'You have a The Culp Mixer account.',
           '',
-          '  Open:      https://kline-flax.vercel.app',
+          // location.origin, so the address in the handout is always the one
+          // this console is actually being served from — no name to keep in
+          // sync when the site moves or is renamed.
+          '  Open:      ' + location.origin,
           '             (or the desktop app)',
           '  Then:      Help > Licence > Sign in',
           '',

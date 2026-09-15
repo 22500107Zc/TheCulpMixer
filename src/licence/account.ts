@@ -13,7 +13,7 @@ import { LocalAccount, localCurrent, localLogIn, localSignOut, localSignUp } fro
  * application already knew how to verify offline.
  */
 
-const FALLBACK_API = 'https://kline-flax.vercel.app/api/account';
+const FALLBACK_API = 'https://theculpmixer.vercel.app/api/account';
 const SESSION_KEY = 'kline.session';
 const TIMEOUT_MS = 8000;
 

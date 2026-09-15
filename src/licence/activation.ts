@@ -22,7 +22,7 @@ import { LICENCE_KEY, TRIAL_KEY, TRIAL_MS, clearLicence, storeLicence } from './
  */
 
 /** Where the server lives. Same origin on the web; the web app for desktop. */
-const FALLBACK_API = 'https://kline-flax.vercel.app/api/licence';
+const FALLBACK_API = 'https://theculpmixer.vercel.app/api/licence';
 
 /** This installation, so the server can keep one trial clock for it. */
 const INSTALL_KEY = 'kline.install';

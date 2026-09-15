@@ -83,7 +83,7 @@ The console shows `Supabase is connected` once it is working.
 Anywhere that takes money: a Stripe payment link, PayPal, Buy Me a Coffee. Make
 it $199/month.
 
-Then go to **`https://kline-flax.vercel.app/founder.html`**, sign in, and paste
+Then go to **`https://theculpmixer.vercel.app/founder.html`**, sign in, and paste
 it into **Where people pay**. That is the button your customers see when their
 33 hours are up.
 
@@ -91,7 +91,7 @@ it into **Where people pay**. That is the button your customers see when their
 
 ## The founder console
 
-**https://kline-flax.vercel.app/founder.html** — a different page from the app.
+**https://theculpmixer.vercel.app/founder.html** — a different page from the app.
 Signing in on the app's own home page will not get you in there; that form is
 for customers and your founder login is not a customer account.
 
@@ -174,7 +174,7 @@ Misconfiguration says so rather than guessing:
 
 ## Is it working? Open this in a browser
 
-**https://kline-flax.vercel.app/api/account**
+**https://theculpmixer.vercel.app/api/account**
 
 That is the whole check. It answers with what is set up and what is not:
 
