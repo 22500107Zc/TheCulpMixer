@@ -75,6 +75,22 @@ export class StatusBar {
     // runs. A countdown somebody has to go looking for is a countdown they
     // find out about when the application stops.
     const account = ed.account;
+    // The owner's own licence is on this copy, so this is the founder looking
+    // at it. Gated on the signature rather than on an account flag: the
+    // signature is the thing that cannot be switched on by editing storage,
+    // and it is also the thing that works with no server, which is the state
+    // this is most needed in.
+    if (ed.licence.status === 'owner') {
+      this.left.append(h('button', {
+        // Its own class. .founder-chip already belonged to the console
+        // button, and two buttons answering to one selector is how a test
+        // ends up asserting against whichever happens to come first.
+        class: 'trial-chip issue-chip',
+        title: 'Somebody paid — turn their account on, here, with no server',
+        text: 'Issue a licence',
+        on: { click: () => ed.panels.toggleIssue?.() },
+      }));
+    }
     // Signed in as the founder: the way into the console, in the application
     // rather than a URL to remember.
     if (account?.founder) {

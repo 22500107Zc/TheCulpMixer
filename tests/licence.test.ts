@@ -319,3 +319,73 @@ test('the API is built with rules that let it actually run on the host', async (
     }
   }
 });
+
+test('the founder can issue a working licence with no server anywhere', async () => {
+  // The last thing that needed a backend, and the one that decides whether
+  // this is a business: somebody pays, and somebody has to turn them on.
+  // Everything else — signing up, the 33 hours, the lock, the way to pay —
+  // already worked with nothing configured. Switching a paying customer on
+  // did not: it wanted a signing key on the host, a database and a set of
+  // environment variables, so a customer could pay and still be locked out.
+  //
+  // Now the founder signs the key on their own machine and emails it. Same
+  // signature, checked against the public key built into every copy, so it
+  // holds offline on both sides.
+  const { generateKeyPairSync } = await import('node:crypto');
+  const { issueKey, handoutFor } = await import('../src/licence/issue');
+
+  const pair = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+  const pem = pair.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+  const spki = pair.publicKey.export({ type: 'spki', format: 'der' })
+    .toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+  const issued = await issueKey(
+    { name: 'Dana Reyes', email: 'dana@studio.example', months: 1 }, pem,
+  );
+  assert.ok(issued.ok, `issuing failed: ${issued.ok ? '' : issued.message}`);
+
+  // The customer's side, which is the only side that matters.
+  const seen = await verifyKey(issued.key, spki);
+  assert.ok(seen, 'a key the founder just issued did not verify');
+  assert.equal(seen.email, 'dana@studio.example');
+  assert.equal(seen.name, 'Dana Reyes');
+  assert.ok(seen.expires && seen.expires > Date.now(), 'it was issued already expired');
+  assert.ok(canUse(await Promise.resolve({ status: 'licensed', licence: seen } as const)),
+    'a freshly issued licence does not allow use');
+
+  // A licence that never expires, for somebody who buys outright.
+  const forever = await issueKey({ name: '', email: 'a@b.co', months: null }, pem);
+  assert.ok(forever.ok);
+  assert.equal((await verifyKey(forever.key, spki))?.expires, null);
+
+  // And the lock still holds: a signature nobody can forge is the whole
+  // mechanism, so an edited payload has to fail against the real key.
+  const [body] = issued.key.split('.');
+  assert.equal(await verifyKey(`${body}.${'A'.repeat(86)}`, spki), null,
+    'a forged signature was accepted');
+  const other = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+  const otherSpki = other.publicKey.export({ type: 'spki', format: 'der' })
+    .toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  assert.equal(await verifyKey(issued.key, otherSpki), null,
+    'a key verified against somebody else’s public key');
+
+  // The message that gets sent has the key in it and tells them what to do.
+  const note = handoutFor(seen, issued.key, 'https://example.com');
+  assert.ok(note.includes(issued.key), 'the handout does not contain the key');
+  assert.match(note, /Apply key/, 'the handout does not say what to press');
+});
+
+test('a bad signing key is refused before it can mint anything', async () => {
+  // A key that imports but is the wrong curve would produce licences that
+  // verify nowhere — discovered by a customer, at the worst moment.
+  const { issueKey } = await import('../src/licence/issue');
+  const notAKey = await issueKey({ name: '', email: 'a@b.co', months: 1 }, 'not a pem at all');
+  assert.equal(notAKey.ok, false);
+  const noKey = await issueKey({ name: '', email: 'a@b.co', months: 1 }, null);
+  assert.equal(noKey.ok, false);
+  const { generateKeyPairSync } = await import('node:crypto');
+  const pair = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+  const pem = pair.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+  const noEmail = await issueKey({ name: '', email: 'nonsense', months: 1 }, pem);
+  assert.equal(noEmail.ok, false, 'it issued a licence to something that is not an address');
+});

@@ -187,6 +187,7 @@ export class Editor {
     openCreate?: () => void;
     focusBuild?: (prefill?: string) => void;
     toggleLicence?: () => void;
+    toggleIssue?: () => void;
   } = {};
   private pointer = { x: 0, y: 0, down: false, button: -1, startX: 0, startY: 0, dragging: false };
   /**

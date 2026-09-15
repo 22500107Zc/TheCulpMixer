@@ -24,6 +24,7 @@ import { formatAge } from '../editor/recovery';
 import { altKeyName, ctrlKeyName, isMac, navigationHint, scrollPhrase } from './platform';
 import { HomePage } from './HomePage';
 import { LicencePanel } from './LicencePanel';
+import { IssuePanel } from './IssuePanel';
 
 /** Assembles the shell around the viewport and routes keyboard input. */
 export class App {
@@ -40,6 +41,7 @@ export class App {
   })();
   private shortcuts = h('div', { class: 'overlay-panel shortcuts hidden' });
   private licencePanel: LicencePanel;
+  private issuePanel: IssuePanel;
   private homePage: HomePage;
   private viewportHint = h('div', { class: 'viewport-hint' });
   private dropVeil = h('div', { class: 'drop-veil' }, [
@@ -80,6 +82,7 @@ export class App {
     this.canvas = h('canvas', { class: 'viewport-canvas' });
     this.editor = new Editor(this.canvas);
     this.licencePanel = new LicencePanel(this.editor);
+    this.issuePanel = new IssuePanel(this.editor);
     this.homePage = new HomePage(this.editor);
 
     const header = new Header(this.editor, () => this.toggleShortcuts());
@@ -115,6 +118,7 @@ export class App {
       sculptPanel.root, this.uvEditor.root, this.graphEditor.root, this.diffPanel.root,
       this.revisionPanel.root,
       this.setupGuide.root, this.dropVeil, this.shortcuts, this.licencePanel.root,
+      this.issuePanel.root,
       this.homePage.root,
       this.renderWindow.root, this.palette.root,
     ]);
@@ -175,6 +179,7 @@ export class App {
     this.setupGuide.showOnStart();
     this.watchForUpdates();
     this.editor.panels.toggleLicence = () => this.licencePanel.toggle();
+    this.editor.panels.toggleIssue = () => this.issuePanel.toggle();
     // Whenever The Culp Mixer is locked, the wall goes up — at startup and again on any
     // refused command. Registered before the first check runs, so a build that
     // is already past its trial never gets a frame of the editor.

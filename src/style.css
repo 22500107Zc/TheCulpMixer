@@ -3176,3 +3176,119 @@ button:disabled {
 .build-chip:empty {
   display: none;
 }
+
+/* ------------------------------------------------------------ issue licence */
+
+/*
+ * Turning a payment into a working account. Borrows the overlay-panel shell,
+ * so only what is particular to this panel is here.
+ */
+
+.issue-panel {
+  inset: 10% 50% auto 50%;
+  width: min(620px, calc(100% - 48px));
+  transform: translateX(-50%);
+  inset-inline: auto;
+  left: 50%;
+  bottom: auto;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.issue-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 2px 2px;
+}
+
+.issue-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.issue-field,
+.issue-select,
+.issue-pem {
+  width: 100%;
+  padding: 7px 9px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  background: var(--shell-sunk);
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+}
+
+.issue-pem {
+  min-height: 108px;
+  font-family: var(--mono);
+  font-size: 11px;
+  resize: vertical;
+}
+
+.issue-field:focus,
+.issue-select:focus,
+.issue-pem:focus {
+  outline: none;
+  border-color: var(--ember-deep);
+}
+
+.issue-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/*
+ * The shared .btn is a 22px control built for dense panels, so anything that
+ * grows one has to let the height go with it — otherwise the label overflows
+ * and the button's own bottom border runs through the text. That exact bug
+ * shipped on the home page once already.
+ */
+.issue-go {
+  height: auto;
+  min-height: 34px;
+  padding: 0 16px;
+  font-weight: 600;
+}
+
+.issue-note {
+  min-height: 16px;
+  margin: 0;
+}
+
+.issue-note.issue-bad {
+  color: var(--bad, #c94050);
+}
+
+.issue-out {
+  margin: 0;
+  padding: 10px;
+  max-height: 260px;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--ink);
+  background: var(--shell-sunk);
+  border: 1px solid var(--ember-deep);
+  border-radius: 3px;
+}
+
+.issue-out.hidden {
+  display: none;
+}
+
+.issue-advanced summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
