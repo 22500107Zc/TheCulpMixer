@@ -3116,3 +3116,28 @@ button:disabled {
   font-size: 12px;
   white-space: normal;
 }
+
+/*
+ * The build panel's close button.
+ *
+ * It sits over the viewport, so it has to be dismissible — without this the
+ * thing you were building stayed permanently behind the thing that built it.
+ */
+.build-bar.hidden {
+  display: none;
+}
+
+.build-close {
+  flex: 0 0 auto;
+  margin-left: 2px;
+  opacity: 0.65;
+}
+
+.build-close:hover {
+  opacity: 1;
+}
+
+/* No chip text left to show when nothing is running. */
+.build-chip:empty {
+  display: none;
+}

@@ -327,7 +327,9 @@ export class App {
       // the Build prompt takes the Shift variant.
       if (meta && e.shiftKey && e.key.toLowerCase() === 'b') {
         e.preventDefault();
-        this.buildBar.focus();
+        // Toggle, not just focus: the panel sits over the viewport, so the
+        // shortcut that opens it has to be the one that puts it away.
+        this.buildBar.toggle();
         return;
       }
 

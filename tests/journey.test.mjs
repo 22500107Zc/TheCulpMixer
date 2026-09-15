@@ -1246,7 +1246,132 @@ if (app.skip) {
     assert.equal(freed.hidden, true, 'the wall stayed up after the lock was lifted');
   });
 
-  test('23 · nothing logged an error along the whole journey', () => {
+  /**
+   * Put the editor back in the ordinary signed-in state.
+   *
+   * Earlier steps deliberately drive it into locked and signed-out states, and
+   * the front door is a full-screen overlay — so anything testing the editor
+   * itself has to start from a known place or it is really testing the
+   * overlay.
+   */
+  const signedIn = () => page.evaluate(() => {
+    const ed = window.kline.editor;
+    ed.account = {
+      status: 'trial',
+      username: 'Test',
+      email: 'test@example.com',
+      plan: 'Trial',
+      trialEndsAt: Date.now() + 33 * 3600000,
+    };
+    ed.licence = { status: 'source' };
+    ed.emit('licence');
+    // Earlier steps open the render window, the UV and graph editors and the
+    // revision panel. Any one of them left up is a full-size overlay, and a
+    // click aimed at the viewport lands on it instead.
+    for (const sel of [
+      '.render-window', '.uv-editor', '.graph-editor', '.diff-panel',
+      '.revision-panel', '.setup-guide', '.shortcuts', '.build-bar',
+    ]) {
+      document.querySelectorAll(sel).forEach((el) => el.classList.add('hidden'));
+    }
+  });
+
+  test('23 · the build panel closes, reopens, and is not in the way', async () => {
+    await signedIn();
+    // It sits over the viewport. Until it could be closed, the thing you were
+    // building stayed permanently behind the thing that built it.
+    const closed = await page.evaluate(() => {
+      const bar = document.querySelector('.build-bar');
+      const close = bar?.querySelector('.build-close');
+      close?.click();
+      return {
+        hadButton: !!close,
+        hidden: bar?.classList.contains('hidden'),
+      };
+    });
+    assert.equal(closed.hadButton, true, 'the build panel had no way to close it');
+    assert.equal(closed.hidden, true, 'pressing close did not close it');
+
+    // The shortcut brings it back, and puts it away again. Focus goes to the
+    // body first: the close button it was on has just been hidden, and a key
+    // pressed into a hidden element goes nowhere.
+    await page.evaluate(() => document.activeElement?.blur?.());
+    await page.keyboard.press('Control+Shift+B');
+    await new Promise((r) => setTimeout(r, 120));
+    const reopened = await page.evaluate(() => ({
+      hidden: document.querySelector('.build-bar')?.classList.contains('hidden'),
+      home: document.querySelector('.home')?.classList.contains('hidden'),
+      wall: document.querySelector('.licence-panel')?.classList.contains('hidden'),
+    }));
+    assert.equal(reopened.hidden, false,
+      `the shortcut did not reopen it (home hidden: ${reopened.home}, wall hidden: ${reopened.wall})`);
+    await page.keyboard.press('Control+Shift+B');
+    await new Promise((r) => setTimeout(r, 80));
+    assert.equal(
+      await page.evaluate(() => document.querySelector('.build-bar')?.classList.contains('hidden')),
+      true,
+      'the shortcut did not put it away again',
+    );
+  });
+
+  test('24 · nothing on screen asks for an AI model', async () => {
+    await signedIn();
+    // Asked for plainly: it needed installing, it looked like clutter, and a
+    // customer meeting it first has no idea what to do with it.
+    const text = await page.evaluate(() => document.body.innerText);
+    for (const word of ['Ollama', 'LOCAL MODEL', 'Local model', 'llama3.2', 'Provider']) {
+      assert.ok(!text.includes(word), `the interface still says "${word}"`);
+    }
+    // And the settings panel is gone from the document, not merely hidden.
+    assert.equal(
+      await page.evaluate(() => document.querySelectorAll('.build-settings').length),
+      0,
+      'the model settings panel is still in the page',
+    );
+  });
+
+  test('25 · clicking an object in the viewport selects it', async () => {
+    await signedIn();
+    // With the panel closed the viewport is reachable, which is the point of
+    // being able to close it.
+    const picked = await page.evaluate(() => {
+      const ed = window.kline.editor;
+      // Object mode: in Edit or Sculpt a click picks geometry, not objects,
+      // and the journey has been through both by now.
+      if (ed.mode !== 'object') window.kline.run('edit.toggleMode');
+      for (const id of [...ed.scene.objects.keys()]) ed.scene.remove(id);
+      const id = ed.addPrimitive('cube');
+      ed.frameSelected();
+      ed.scene.selection.clear();
+      ed.requestRender();
+      return { id, mode: ed.mode, selectedBefore: ed.scene.selection.size };
+    });
+    assert.equal(picked.selectedBefore, 0, 'the selection did not clear');
+    assert.equal(picked.mode, 'object', 'the editor was not in Object Mode');
+
+    await new Promise((r) => setTimeout(r, 250));
+    const box = await screenPoint(page, [0, 0, 0]);
+    const under = await page.evaluate(([x, y]) => {
+      const el = document.elementFromPoint(x, y);
+      return `${el?.tagName}.${el?.className}`;
+    }, [box.x, box.y]);
+    await page.mouse.click(box.x, box.y);
+    await new Promise((r) => setTimeout(r, 250));
+
+    const after = await page.evaluate(() => {
+      const ed = window.kline.editor;
+      const id = [...ed.scene.selection][0];
+      return {
+        selected: ed.scene.selection.size,
+        name: id === undefined ? '' : (ed.scene.get(id)?.name ?? ''),
+      };
+    });
+    assert.equal(after.selected, 1,
+      `clicking the object did not select it — the click landed on ${under}`);
+    assert.match(after.name, /Cube/i, `it selected "${after.name}"`);
+  });
+
+  test('26 · nothing logged an error along the whole journey', () => {
     const noise = app.consoleErrors.filter((m) => !/favicon|404/i.test(m));
     assert.deepEqual(noise, [], `the app logged: ${noise.join(' | ')}`);
   });

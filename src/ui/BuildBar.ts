@@ -2,9 +2,7 @@ import { Vec3 } from '../core/math';
 import { Editor } from '../editor/Editor';
 import { BuildOrigin, captureBaseline, describePlan, executePlan, recordProvenance } from '../build/plan';
 import { interpret, knownSubjects } from '../build/interpreter';
-import {
-  LLMConfig, PROVIDER_DEFAULTS, ProviderKind, generateProgram, loadConfig, probeProvider, saveConfig,
-} from '../build/llm';
+import { LLMConfig, generateProgram, loadConfig } from '../build/llm';
 import { DEFAULT_LIMITS, RunResult, runProgramSandboxed } from '../build/sandbox';
 import { generateProgram as writeProgram } from '../build/llm';
 import {
@@ -13,7 +11,7 @@ import {
 } from '../build/revise';
 import { assetFingerprint, assetRootFor, revisability } from '../editor/revision';
 import { SceneObject } from '../scene/Scene';
-import { button, clear, h, row, select } from './dom';
+import { button, h } from './dom';
 
 /**
  * Say what you want; get geometry.
@@ -45,12 +43,20 @@ export class BuildBar {
   codeArea = h('textarea', { class: 'code-area' });
   private codeLog = h('pre', { class: 'code-log' });
   private note = h('div', { class: 'build-note' });
-  private settings = h('div', { class: 'build-settings hidden' });
-  private statusChip = h('button', { class: 'build-chip', title: 'Local model settings' });
+  /**
+   * Somewhere to say what happened, and a way to put the panel away.
+   *
+   * The build panel sits over the viewport, and until now it could not be
+   * closed — so the thing you were building was permanently behind the thing
+   * that built it.
+   */
+  private statusChip = h('span', { class: 'build-chip' });
+  private closeButton = h('button', {
+    class: 'icon-btn build-close', text: '✕', title: 'Close (Shift+Cmd+B reopens it)',
+  });
   private config: LLMConfig = loadConfig();
   private modelReady = false;
   private running: AbortController | null = null;
-  private preferModel = false;
 
   constructor(private editor: Editor) {
     this.input.addEventListener('keydown', (e) => {
@@ -60,10 +66,7 @@ export class BuildBar {
       if (e.key === 'Enter') void this.run();
       if (e.key === 'Escape') this.input.blur();
     });
-    this.statusChip.addEventListener('click', () => {
-      this.settings.classList.toggle('hidden');
-      if (!this.settings.classList.contains('hidden')) this.buildSettings();
-    });
+    this.closeButton.addEventListener('click', () => this.hide());
 
     this.reviseButton.addEventListener('click', () => void this.revise());
     this.reviseCodeButton.addEventListener('click', () => void this.reviseFromCode());
@@ -79,13 +82,13 @@ export class BuildBar {
         this.reviseButton,
         button('Code', () => this.toggleCode(), { title: 'Show and edit the program that builds it' }),
         this.statusChip,
+        this.closeButton,
       ]),
       this.target,
       this.note,
       this.buildCodePanel(),
-      this.settings,
     );
-    this.setChip('offline recipes', 'idle');
+    this.setChip('', 'idle');
     this.showHint();
     editor.on('change', () => this.showTarget());
     editor.on('revision', () => this.showTarget());
@@ -293,16 +296,26 @@ export class BuildBar {
    * by itself teaches neither.
    */
   focus(prefill?: string): void {
+    this.root.classList.remove('hidden');
     if (prefill !== undefined) this.input.value = prefill;
     this.input.focus();
     this.input.select();
   }
 
+  /** Put it away. It covers the viewport, so it has to be dismissible. */
+  hide(): void {
+    this.root.classList.add('hidden');
+  }
+
+  toggle(): void {
+    if (this.root.classList.contains('hidden')) this.focus();
+    else this.hide();
+  }
+
   private showHint(): void {
     const subjects = knownSubjects();
-    this.note.textContent = this.modelReady
-      ? `${this.config.model} writes the program; press Code to read or edit it.`
-      : `Anything at all needs a model — press the chip to connect one. Without it: ${subjects.length} built-in subjects, shape arrangements, or your own code under Code.`;
+    this.note.textContent = `Type what you want — ${subjects.length} things are built in, `
+      + 'and arrangements of them. Press Code to read or edit the program that builds it.';
   }
 
   private buildCodePanel(): HTMLElement {
@@ -537,86 +550,4 @@ export class BuildBar {
     this.editor.setStatus(`Built "${prompt}" — ${plan.parts.length} parts`);
   }
 
-  // ---------------------------------------------------------------- settings
-
-  private buildSettings(): void {
-    clear(this.settings);
-    this.settings.appendChild(h('h3', { class: 'prop-heading', text: 'Local model (optional)' }));
-    this.settings.appendChild(h('p', { class: 'dim small' }, [
-      h('span', { text: 'Everything above works with no model at all. Connect one and The Culp Mixer can build things it has no recipe for. ' }),
-      h('b', { text: 'Ollama runs on this machine and is free forever' }),
-      h('span', { text: ' — install it, then `ollama pull llama3.2`. An OpenAI-compatible endpoint works too, including free tiers.' }),
-    ]));
-
-    this.settings.appendChild(row('Provider', select(
-      [{ value: 'ollama', label: 'Ollama (local, free)' }, { value: 'openai', label: 'OpenAI-compatible' }],
-      this.config.provider,
-      (v) => {
-        const provider = v as ProviderKind;
-        this.config = { provider, ...PROVIDER_DEFAULTS[provider] };
-        saveConfig(this.config);
-        this.modelReady = false;
-        this.setChip('offline recipes', 'idle');
-        this.buildSettings();
-      },
-    )));
-
-    const textField = (
-      label: string, value: string, placeholder: string, onChange: (v: string) => void,
-      password = false,
-    ): HTMLElement => {
-      const input = h('input', {
-        class: 'text-input', type: password ? 'password' : 'text', value, placeholder,
-      });
-      input.addEventListener('keydown', (e) => e.stopPropagation());
-      input.addEventListener('change', () => {
-        onChange(input.value.trim());
-        saveConfig(this.config);
-      });
-      return row(label, input);
-    };
-
-    this.settings.appendChild(textField('Server', this.config.baseUrl, 'http://127.0.0.1:11434',
-      (v) => { this.config.baseUrl = v || PROVIDER_DEFAULTS[this.config.provider].baseUrl; }));
-    this.settings.appendChild(textField('Model', this.config.model, 'llama3.2',
-      (v) => { this.config.model = v; }));
-    if (this.config.provider === 'openai') {
-      this.settings.appendChild(textField('API key', this.config.apiKey, 'only for hosted endpoints',
-        (v) => { this.config.apiKey = v; }, true));
-      this.settings.appendChild(h('p', { class: 'dim small', text: 'The key is kept in this browser only and sent to the endpoint you named, nowhere else.' }));
-    }
-
-    const preferBox = h('input', { type: 'checkbox', class: 'cb', checked: this.preferModel });
-    preferBox.addEventListener('change', () => { this.preferModel = preferBox.checked; });
-    this.settings.appendChild(h('label', { class: 'cb-row' }, [
-      preferBox, h('span', { text: 'Always ask the model, even when a recipe exists' }),
-    ]));
-
-    this.settings.appendChild(h('div', { class: 'btn-row' }, [
-      button('Connect', () => void this.checkModel()),
-      button('Close', () => this.settings.classList.add('hidden')),
-    ]));
-    this.settings.appendChild(h('p', { class: 'dim small build-model-note' }));
-  }
-
-  private async checkModel(): Promise<void> {
-    this.setChip('checking…', 'busy');
-    const detail = this.settings.querySelector('.build-model-note');
-    const result = await probeProvider(this.config);
-    this.modelReady = result.ok;
-    if (result.ok) {
-      this.setChip(this.config.model, 'ok');
-      this.showHint();
-      const known = result.models.includes(this.config.model);
-      if (detail) {
-        detail.textContent = known || result.models.length === 0
-          ? `Connected. ${result.detail}`
-          : `Connected, but "${this.config.model}" is not installed. Available: ${result.models.slice(0, 6).join(', ')}`;
-      }
-      if (!known && result.models.length) this.modelReady = false;
-    } else {
-      this.setChip('no model', 'bad');
-      if (detail) detail.textContent = result.detail;
-    }
-  }
 }
