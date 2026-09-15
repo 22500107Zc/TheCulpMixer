@@ -52,6 +52,7 @@
   "build": {
     "appId": "com.culpindustries.culpmixer",
     "productName": "The Culp Mixer",
+    "executableName": "CulpMixer",
     "copyright": "Copyright © 2026 The Culp Mixer contributors",
     "directories": {
       "output": "release",
