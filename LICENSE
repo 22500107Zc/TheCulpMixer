@@ -30,6 +30,13 @@ Having the source code changes none of this. The repository being readable is
 not permission. Cloning it, downloading a build, or being sent a copy by
 somebody else gives you the same thirty-three hours and nothing more.
 
+If you find the source anywhere — this repository, a mirror, a leak, a copy
+somebody handed you — and you use it beyond the free thirty-three hours without
+paying, that use costs USD $500. That is a flat fee for using the Software
+without a licence, per person and per copy, and it is on top of the ordinary
+$199-per-month price and anything else the Licensor is owed. Opening the source
+and using it is you agreeing to that fee.
+
 Everything you create with The Culp Mixer is yours and stays yours, for ever, including
 after you stop paying. The Software is the Licensor's. Your work is yours.
 That line does not move.
@@ -78,6 +85,17 @@ be excluded by agreement, you may not:
     licence key you were not issued;
 
 2.6 use the Software beyond the user count or period your licence states.
+
+2.7 Unauthorised use of the source. The source is published so that the
+    Licensor and licence holders can read and build it — not as a grant to
+    anyone else. If you obtain the source by any route, including finding this
+    repository or a copy of it, and you use it beyond the thirty-three (33)
+    hour evaluation without a valid paid licence, you owe the Licensor a fee of
+    USD $500 for that use, per person and per copy. This fee is a genuine
+    pre-estimate of the licence value taken, is in addition to the ordinary
+    subscription price and to every other remedy in this licence and at law,
+    and falls due the moment you use the source. Continuing to use it is your
+    acceptance of this fee.
 
 
 3. THIRD-PARTY COMPONENTS
