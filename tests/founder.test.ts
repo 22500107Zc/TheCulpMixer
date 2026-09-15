@@ -552,3 +552,32 @@ test('no password or password hash is ever committed to this repository', async 
     }
   }
 });
+
+
+test('a NUL byte in a password cannot forge a match - every hashing path', async () => {
+  // Found by an adversarial pass. A trailing NUL is absorbed into HMAC's key
+  // padding (and truncates a string password inside the scrypt binding), so
+  // the derived bits for "secret" and "secret" + NUL are identical - which
+  // would let "secret" + NUL + "anything" pass as "secret" everywhere a
+  // password is checked. Low severity, since the real password is still
+  // required as a prefix, but a check that accepts an infinite family of
+  // strings for one password is wrong, and all three hashing paths had it.
+  const { verifyHash, hashPassword } = await import('../api/_store');
+  const NUL = String.fromCharCode(0);
+
+  const stored = hashPassword('founder10082004');
+  assert.equal(verifyHash('founder10082004', stored), true, 'the real password stopped working');
+  assert.equal(verifyHash('founder10082004' + NUL, stored), false,
+    'the server accepted password + NUL');
+  assert.equal(verifyHash('founder10082004' + NUL + 'anything', stored), false,
+    'the server accepted password + NUL + junk');
+  assert.throws(() => hashPassword('x' + NUL), /NUL/, 'the server hashed a NUL password');
+
+  // The browser sealed-key path derives an AES-GCM key from the founder
+  // password; the same collision would unseal the owner key.
+  const { unsealOwnerKey } = await import('../src/licence/founder');
+  const real = await unsealOwnerKey('founder10082004');
+  assert.ok(typeof real === 'string' && real.length > 10, 'the real founder password stopped unsealing');
+  assert.equal(await unsealOwnerKey('founder10082004' + NUL), null,
+    'a NUL-suffixed founder password unsealed the owner key');
+});

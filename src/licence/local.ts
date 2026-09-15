@@ -74,10 +74,26 @@ const unhex = (text: string): Uint8Array =>
  * never sitting in storage in the clear, not because it is the thing holding
  * the gate shut.
  */
-async function hashPassword(password: string, salt?: Uint8Array): Promise<string> {
+/**
+ * The bytes of a password, or null if it is one no login form could produce.
+ *
+ * A trailing NUL byte is absorbed into HMAC's key padding, so PBKDF2 derives
+ * the same bits for "secret" and "secret\0" — which would let "secret\0junk"
+ * pass as "secret". No typed password contains a NUL, so it is refused here
+ * rather than hashed into a value the comparison then treats as equal. The
+ * server's scrypt path has the same hole for the same reason and the same fix.
+ */
+function passwordBytes(password: string): Uint8Array | null {
+  const bytes = new TextEncoder().encode(password);
+  return bytes.includes(0) ? null : bytes;
+}
+
+async function hashPassword(password: string, salt?: Uint8Array): Promise<string | null> {
+  const material = passwordBytes(password);
+  if (!material) return null;
   const use = salt ?? crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey(
-    'raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits'],
+    'raw', material as BufferSource, 'PBKDF2', false, ['deriveBits'],
   );
   const bits = await crypto.subtle.deriveBits(
     { name: 'PBKDF2', salt: use as BufferSource, iterations: 120000, hash: 'SHA-256' },
@@ -90,6 +106,7 @@ async function passwordMatches(password: string, stored: string): Promise<boolea
   const [scheme, salt, expected] = stored.split('$');
   if (scheme !== 'pbkdf2' || !salt || !expected) return false;
   const again = await hashPassword(password, unhex(salt));
+  if (!again) return false;
   // Constant time is not meaningful here — the attacker is already sitting at
   // the machine with the storage open — but comparing whole strings costs
   // nothing.
@@ -112,11 +129,15 @@ export async function localSignUp(
   if (all[key]) {
     return { ok: false, message: 'There is already an account with that email on this machine. Log in instead.' };
   }
+  const hashed = await hashPassword(password);
+  if (!hashed) {
+    return { ok: false, message: 'That password cannot be used. Choose one without control characters.' };
+  }
   const now = Date.now();
   const account: LocalAccount = {
     email: key,
     username,
-    password: await hashPassword(password),
+    password: hashed,
     // Counted once, from now. The clock belongs to the account, not to the
     // session — signing out does not buy another thirty-three hours.
     trialEndsAt: now + TRIAL_MS,

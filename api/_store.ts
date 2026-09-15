@@ -339,13 +339,31 @@ export function checkFounder(email: string, password: string): boolean {
   return given === wanted && passwordOk;
 }
 
+/**
+ * A NUL byte truncates a string password inside the scrypt binding, so
+ * "secret\0anything" hashes identically to "secret". That turns one password
+ * into an infinite family that all verify, which is not a thing a password
+ * check may allow. No legitimate password contains a NUL — it cannot be typed
+ * into a login form — so the honest move is to refuse it outright, in both the
+ * making and the checking of a hash, rather than to hash something the
+ * comparison will then treat as a different string than was stored.
+ */
+function passwordBytes(password: string): Buffer | null {
+  if (!password) return null;
+  const bytes = Buffer.from(password, 'utf8');
+  if (bytes.includes(0)) return null;
+  return bytes;
+}
+
 /** Compare a password against a stored scrypt hash, in constant time. */
 export function verifyHash(password: string, stored: string): boolean {
-  if (!stored || !password) return false;
+  if (!stored) return false;
+  const bytes = passwordBytes(password);
+  if (!bytes) return false;
   const [scheme, salt, expected] = stored.split('$');
   if (scheme !== 'scrypt' || !salt || !expected) return false;
   try {
-    const actual = scryptSync(password, Buffer.from(salt, 'hex'), 32);
+    const actual = scryptSync(bytes, Buffer.from(salt, 'hex'), 32);
     const wanted = Buffer.from(expected, 'hex');
     // Length-checked first: timingSafeEqual throws on a mismatch, and a throw
     // here would be a slower answer for a wrong-length password.
@@ -357,7 +375,9 @@ export function verifyHash(password: string, stored: string): boolean {
 
 /** Make a hash to store. Used by the tool, and by the tests. */
 export function hashPassword(password: string, salt = randomBytes(16)): string {
-  return `scrypt$${salt.toString('hex')}$${scryptSync(password, salt, 32).toString('hex')}`;
+  const bytes = passwordBytes(password);
+  if (!bytes) throw new Error('A password cannot contain a NUL byte.');
+  return `scrypt$${salt.toString('hex')}$${scryptSync(bytes, salt, 32).toString('hex')}`;
 }
 
 /**

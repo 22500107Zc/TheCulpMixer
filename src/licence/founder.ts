@@ -50,6 +50,11 @@ export const isFounderEmail = (email: string): boolean =>
  */
 export async function unsealOwnerKey(password: string): Promise<string | null> {
   if (!password) return null;
+  // A trailing NUL is absorbed into HMAC's key padding, so PBKDF2 derives the
+  // same key for "pw" and "pw\0" — which would let "pw\0junk" unseal what "pw"
+  // does. No typed password has a NUL, so refuse it rather than derive a key
+  // the ciphertext will then happily open.
+  if (new TextEncoder().encode(password).includes(0)) return null;
   try {
     const material = await crypto.subtle.importKey(
       'raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey'],
