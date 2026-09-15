@@ -129,3 +129,89 @@ export function wheelGesture(
   }
   return { kind: 'zoom', amount: clampAmount(-p.y / PIXELS_PER_ZOOM_STEP, 2) };
 }
+
+/* --------------------------------------------------------------- touch ---- */
+
+/**
+ * Turning fingers into camera gestures.
+ *
+ * Every mapping above needs a middle button or a modifier key, and a phone has
+ * neither — so on a touch screen navModeForPress returned null for every drag
+ * and the view could not be turned, slid or zoomed at all. The 3D was frozen,
+ * which is most of what "it does not work on mobile" meant.
+ *
+ * The idiom below is the one every 3D viewer on a phone already uses, so it
+ * needs no explaining: one finger turns, two fingers slide, and pinching
+ * zooms. Two fingers do both at once, because people pinch and drag in the
+ * same motion without noticing they are doing two things.
+ */
+
+/** How far a finger may wander before it is a drag and not a tap. */
+export const TOUCH_DRAG_SLOP = 6;
+
+/** Pixels of pinch travel that make one zoom step. Fingers move further than a wheel. */
+export const PIXELS_PER_TOUCH_PINCH_STEP = 60;
+
+export interface TouchPoint {
+  x: number;
+  y: number;
+}
+
+/** The midpoint of the fingers — what a two-finger slide is measured from. */
+export function touchCentre(points: TouchPoint[]): TouchPoint {
+  if (points.length === 0) return { x: 0, y: 0 };
+  let x = 0;
+  let y = 0;
+  for (const p of points) {
+    x += p.x;
+    y += p.y;
+  }
+  return { x: x / points.length, y: y / points.length };
+}
+
+/** How far apart the fingers are, for the pinch. */
+export function touchSpread(points: TouchPoint[]): number {
+  if (points.length < 2) return 0;
+  return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+}
+
+/**
+ * What a given number of fingers does while moving.
+ *
+ * One finger orbits rather than selecting, because selection happens on a tap
+ * that never became a drag — a finger that has travelled past the slop is
+ * asking to turn the view, not to pick something.
+ */
+export function touchNavMode(fingers: number): NavMode | null {
+  if (fingers === 1) return 'orbit';
+  if (fingers >= 2) return 'pan';
+  return null;
+}
+
+/**
+ * The gestures a two-finger move produces: a slide, and a zoom if the spread
+ * changed. Returned together because one motion legitimately does both.
+ */
+export function pinchGestures(
+  previous: TouchPoint[], current: TouchPoint[],
+): NavGesture[] {
+  const out: NavGesture[] = [];
+  if (previous.length < 2 || current.length < 2) return out;
+
+  const before = touchCentre(previous);
+  const after = touchCentre(current);
+  const dx = after.x - before.x;
+  const dy = after.y - before.y;
+  if (dx !== 0 || dy !== 0) out.push({ kind: 'pan', dx, dy });
+
+  const spreadBefore = touchSpread(previous);
+  const spreadAfter = touchSpread(current);
+  if (spreadBefore > 0 && spreadAfter > 0) {
+    const change = spreadAfter - spreadBefore;
+    // Fingers apart is closer in, the way it is everywhere else.
+    if (change !== 0) {
+      out.push({ kind: 'zoom', amount: clampAmount(change / PIXELS_PER_TOUCH_PINCH_STEP, 1) });
+    }
+  }
+  return out;
+}

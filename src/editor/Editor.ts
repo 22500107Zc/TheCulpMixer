@@ -16,7 +16,10 @@ import { ElementSelection, deriveSelection, elementCount, emptySelection } from 
 import { edgeRing, insetFaces, loopCut } from '../mesh/ops';
 import { ProportionalSettings, defaultProportional, influenceCircle, proportionalWeights } from './proportional';
 import { SnapSettings, defaultSnap, snapPointUnderCursor } from './snapping';
-import { NavGesture, NavMode, modifiersOf, navModeForPress, pressGesture, wheelGesture } from './navigation';
+import {
+  NavGesture, NavMode, TOUCH_DRAG_SLOP, TouchPoint, modifiersOf, navModeForPress, pinchGestures,
+  pressGesture, touchNavMode, wheelGesture,
+} from './navigation';
 import { SculptSettings, SculptStroke, defaultSculpt } from '../sculpt/sculpt';
 import { ChannelPath, cloneChannels, removeKey, setKey } from '../anim/animation';
 import { bevelEdges } from '../mesh/bevel';
@@ -214,6 +217,16 @@ export class Editor {
    * way to lose a careful selection was to navigate away from it.
    */
   private navMode: NavMode | null = null;
+  /**
+   * The fingers currently on the screen, in canvas coordinates.
+   *
+   * Kept in press order so the first two are the pinch pair. A phone has no
+   * middle button and no Option key, so without this the viewport could not be
+   * turned, slid or zoomed by any gesture at all.
+   */
+  private touches = new Map<number, TouchPoint>();
+  /** Where those fingers were on the previous move, to measure against. */
+  private lastTouches: TouchPoint[] = [];
   private keys = { shift: false, ctrl: false, alt: false };
   private hoverPreview: LineSegment[] = [];
 
@@ -2468,6 +2481,9 @@ export class Editor {
     c.addEventListener('pointerdown', (e) => this.onPointerDown(e));
     c.addEventListener('pointermove', (e) => this.onPointerMove(e));
     window.addEventListener('pointerup', (e) => this.onPointerUp(e));
+    // A touch the browser takes away (a system gesture, a call arriving) never
+    // sends pointerup, and a finger left in the map would orbit for ever.
+    window.addEventListener('pointercancel', (e) => this.onPointerUp(e));
     c.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
     c.addEventListener('contextmenu', (e) => e.preventDefault());
     new ResizeObserver(() => this.requestRender()).observe(c);
@@ -2498,6 +2514,14 @@ export class Editor {
       else if (e.button === 2) this.cancelModal();
       return;
     }
+    if (e.pointerType === 'touch') {
+      this.touches.set(e.pointerId, { x: p.x, y: p.y });
+      this.lastTouches = [...this.touches.values()];
+      // Not decided here. One finger is a tap until it travels far enough to
+      // be a drag, and deciding on press would make every tap orbit.
+      return;
+    }
+
     this.navMode = navModeForPress(e.button, modifiersOf(e));
     if (this.navMode) return;
 
@@ -2564,6 +2588,28 @@ export class Editor {
       }
     }
 
+    if (e.pointerType === 'touch' && this.touches.has(e.pointerId)) {
+      this.touches.set(e.pointerId, { x: p.x, y: p.y });
+      const now = [...this.touches.values()];
+      if (now.length >= 2) {
+        // Two fingers slide and pinch at once, which is one motion to the
+        // person making it.
+        for (const g of pinchGestures(this.lastTouches, now)) this.applyNavGesture(g);
+        this.pointer.dragging = true;
+      } else {
+        const travelled = Math.hypot(p.x - this.pointer.startX, p.y - this.pointer.startY);
+        if (travelled > TOUCH_DRAG_SLOP) {
+          // Past the slop this is a turn, not a tap. Marked as dragging so the
+          // release does not also select whatever is under the finger.
+          this.pointer.dragging = true;
+          const mode = touchNavMode(1);
+          if (mode) this.applyNavGesture(pressGesture(mode, dx, dy));
+        }
+      }
+      this.lastTouches = now;
+      return;
+    }
+
     if (!this.pointer.down) return;
     const moved = Math.hypot(p.x - this.pointer.startX, p.y - this.pointer.startY);
     if (moved > 3) this.pointer.dragging = true;
@@ -2582,6 +2628,13 @@ export class Editor {
   }
 
   private onPointerUp(e: PointerEvent): void {
+    // Lifting one of several fingers is not the end of the gesture: the rest
+    // carry on, re-based so the remaining fingers do not jump the camera by
+    // the distance to the one that left.
+    if (this.touches.delete(e.pointerId)) {
+      this.lastTouches = [...this.touches.values()];
+      if (this.touches.size > 0) return;
+    }
     const wasDown = this.pointer.down;
     const dragging = this.pointer.dragging;
     const consumed = this.pressConsumed;

@@ -2566,6 +2566,18 @@ button:disabled {
 }
 
 @media (max-width: 820px) {
+  /*
+   * The drawer is parked off the right edge when closed, and an absolutely
+   * positioned box sitting outside its parent still counts toward the page's
+   * scroll width. On a 390px phone that made the document 690px wide: the
+   * browser zoomed out to fit, so every control came back shrunken and the
+   * header ran off the screen. Containing the drawer here clips it instead.
+   */
+  .workspace {
+    position: relative;
+    overflow: hidden;
+  }
+
   /* The sidebar becomes a drawer over the viewport rather than vanishing.
      It used to be display:none here, which put the outliner and every
      properties tab out of reach with no way to open them. */
@@ -3308,4 +3320,126 @@ button:disabled {
   gap: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--edge);
+}
+
+/* ------------------------------------------------------- phones and tablets */
+
+/*
+ * A 390px screen cannot hold nine menu labels, a mode switch and eight view
+ * toggles across one bar. Sharing one row, the menu bar was squeezed to zero
+ * width: every label still had a position, so the code looked fine, but the
+ * mode switch was painted on top of all nine and took every tap. File, Add,
+ * Object, Mesh, Rig and Select were unreachable, which meant there was no way
+ * to add an object or run an operator on a phone at all.
+ *
+ * So the header becomes two rows — controls, then menus — and each scrolls
+ * sideways on its own. Nothing is squeezed and nothing overlaps.
+ */
+@media (max-width: 820px) {
+  /*
+   * The header row is a fixed 34px, which is exactly one row. A header that
+   * wraps to two needs the track to grow with it — without this the second
+   * row existed underneath the viewport, and the canvas painted over all nine
+   * menu labels. They were hittable by the code and covered by the 3D view.
+   */
+  #app {
+    grid-template-rows: auto 2px auto auto 1fr auto 24px;
+  }
+
+  .header {
+    height: auto;
+    flex-wrap: wrap;
+    align-items: stretch;
+    padding-left: 0;
+  }
+
+  /* Mode switch and view toggles first, on their own line. */
+  .header-right {
+    order: 1;
+    flex: 1 1 100%;
+    margin-left: 0;
+    min-width: 0;
+    padding: 5px 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .menu-bar {
+    order: 2;
+    flex: 1 1 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-top: 1px solid var(--edge);
+    scrollbar-width: none;
+  }
+
+  .header-right::-webkit-scrollbar,
+  .menu-bar::-webkit-scrollbar,
+  .timeline::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* No shrinking: a label that cannot be read is not a menu. */
+  .menu {
+    flex: 0 0 auto;
+    min-width: auto;
+  }
+
+  .menu-label {
+    overflow: visible;
+    min-width: auto;
+    padding: 0 13px;
+    line-height: 38px;
+  }
+
+  /*
+   * The dropdown becomes a sheet along the bottom of the screen.
+   *
+   * Anchored to the bottom rather than under its label for two reasons: the
+   * menu bar scrolls sideways, and a scrolling box clips an absolutely
+   * positioned child — the same way the whole menu system was clipped out of
+   * existence before. Fixed to the bottom it cannot be clipped by anything,
+   * and it puts the items where a thumb already is.
+   */
+  .menu-items {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: auto;
+    min-width: 0;
+    max-height: 62vh;
+    overflow-y: auto;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
+    border-radius: 12px 12px 0 0;
+    box-shadow: 0 -18px 40px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Rows a thumb can hit without aiming. */
+  .menu-item {
+    padding: 12px 16px;
+  }
+
+  /*
+   * The timeline ran off the right edge — thirteen of its controls sat past
+   * the screen. It scrolls rather than being cut off.
+   */
+  .timeline {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  /* The build panel took a third of the screen and still ran off the side. */
+  .build-bar {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-width: none;
+    transform: none;
+  }
 }
