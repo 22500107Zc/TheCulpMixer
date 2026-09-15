@@ -153,7 +153,7 @@ jobs:
         run: |
           set -euo pipefail
           fail=0
-          for app in release/mac-arm64/Kline.app release/mac/Kline.app release/mac-universal/Kline.app; do
+          for app in "release/mac-arm64/The Culp Mixer.app" "release/mac/The Culp Mixer.app" "release/mac-universal/The Culp Mixer.app"; do
             [ -d "$app" ] || continue
             echo "===================================================== $app"
 
@@ -228,7 +228,7 @@ jobs:
             if [ "${#visible[@]}" -ne 2 ]; then
               echo "    WRONG: ${#visible[@]} things in the window, expected exactly 2"; fail=1
             fi
-            [ -d "$mount/Kline.app" ] || { echo "    WRONG: no Kline.app to drag"; fail=1; }
+            [ -d "$mount/The Culp Mixer.app" ] || { echo "    WRONG: no The Culp Mixer.app to drag"; fail=1; }
             [ -L "$mount/Applications" ] || { echo "    WRONG: no Applications shortcut to drag onto"; fail=1; }
             target="$(readlink "$mount/Applications" 2>/dev/null || true)"
             [ "$target" = "/Applications" ] || { echo "    WRONG: Applications points at '$target'"; fail=1; }
