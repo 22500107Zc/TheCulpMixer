@@ -41,6 +41,7 @@ import {
   AccountState, forgetSession, hasSession, logIn as logInToAccount, refreshAccount,
   signUp as signUpForAccount,
 } from '../licence/account';
+import { FOUNDER_EMAIL, isFounderEmail, unsealOwnerKey } from '../licence/founder';
 import { RenderJob } from '../render/pathtrace/RenderJob';
 import { RenderSettings, defaultRenderSettings } from '../render/pathtrace/types';
 import { buildTraceScene, cameraFromObject, cameraFromViewport } from '../render/pathtrace/build';
@@ -716,9 +717,39 @@ export class Editor {
     return { ok: true, message: '' };
   }
 
-  /** Log back in, here or on any other machine. */
+  /**
+   * Log back in, here or on any other machine.
+   *
+   * The founder is tried first, and entirely locally. It is the one login
+   * that must never depend on a server being configured — the person who owns
+   * this has to be able to open it anywhere, including on a deployment that
+   * is half finished, which is exactly when they need to look at it.
+   */
   async logIn(email: string, password: string): Promise<{ ok: boolean; message: string }> {
     if (!email || !password) return { ok: false, message: 'Both the email and the password.' };
+
+    if (isFounderEmail(email)) {
+      const ownerKey = await unsealOwnerKey(password);
+      if (ownerKey) {
+        const applied = await this.applyLicenceKey(ownerKey);
+        if (applied.ok) {
+          this.account = {
+            status: 'paid',
+            username: 'Founder',
+            email: FOUNDER_EMAIL,
+            plan: 'Founder',
+            paidUntil: null,
+            founder: true,
+          };
+          this.emit('licence');
+          return { ok: true, message: '' };
+        }
+      }
+      // Wrong password on the founder address. Fall through rather than
+      // refusing outright: the address might also be an ordinary account, and
+      // being told "no" on your own email with a typo is a bad minute.
+    }
+
     const result = await logInToAccount(email, password);
     if (!result.ok) return { ok: false, message: result.message };
     this.account = result.account;

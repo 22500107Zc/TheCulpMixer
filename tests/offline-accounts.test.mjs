@@ -229,4 +229,78 @@ if (app.skip) {
     assert.equal(works.canUse, true, 'a valid key did not unlock it');
     assert.equal(works.added, 1, 'it said unlocked and still refused to work');
   });
+
+  test('8 · the founder logs in with their email and password, no server', async () => {
+    // The whole point of this one. The person who owns The Culp Mixer must be
+    // able to open it with the two things they know, on a deployment where
+    // nothing is answering at /api. Being locked out of your own product by a
+    // hosting setting is the failure this prevents.
+    const page = await app.browser.newContext().then((c) => c.newPage());
+    await page.goto(`${app.origin}/`, { waitUntil: 'networkidle' });
+    await page.waitForSelector('.home:not(.hidden)', { timeout: 10000 });
+
+    const result = await page.evaluate(async () => {
+      const ed = window.kline.editor;
+      const wrong = await ed.logIn('culpindustriesllc@gmail.com', 'not-the-password');
+      const right = await ed.logIn('culpindustriesllc@gmail.com', 'founder10082004');
+      return {
+        wrong: wrong.ok,
+        right: right.ok,
+        founder: ed.account?.founder,
+        status: ed.account?.status,
+        licence: ed.licence.status,
+        canUse: ed.canUse,
+      };
+    });
+
+    assert.equal(result.wrong, false, 'a wrong founder password got in');
+    assert.equal(result.right, true, 'the founder could not log in');
+    assert.equal(result.founder, true, 'they were not marked as the founder');
+    assert.equal(result.status, 'paid');
+    // And what they hold is a real signed owner licence, not a flag somebody
+    // could flip in the console.
+    assert.equal(result.licence, 'owner', `they hold a "${result.licence}" licence`);
+    assert.equal(result.canUse, true);
+
+    // The front door is gone and the console is one button away.
+    await page.waitForFunction(
+      () => document.querySelector('.home')?.classList.contains('hidden'),
+      { timeout: 5000 },
+    );
+    const chip = await page.textContent('.founder-chip');
+    assert.match(chip, /Founder console/i, 'no way through to the console');
+
+    // It survives a reload, because the key is stored and verified offline.
+    await page.reload({ waitUntil: 'networkidle' });
+    const after = await page.evaluate(() => ({
+      canUse: window.kline.editor.canUse,
+      licence: window.kline.editor.licence.status,
+      home: document.querySelector('.home')?.classList.contains('hidden'),
+    }));
+    assert.equal(after.canUse, true, 'the founder was locked out by a reload');
+    assert.equal(after.licence, 'owner');
+    assert.equal(after.home, true, 'the front door came back after a reload');
+    await page.context().close();
+  });
+
+  test('9 · the sealed key is useless without the password', async () => {
+    // The ciphertext ships to everybody. What must not be possible is getting
+    // a key out of it without knowing the password.
+    const page = await app.browser.newContext().then((c) => c.newPage());
+    await page.goto(`${app.origin}/`, { waitUntil: 'networkidle' });
+    const attempts = await page.evaluate(async () => {
+      const ed = window.kline.editor;
+      const tried = [];
+      for (const guess of ['', 'password', 'founder', 'Founder10082004', 'founder1008200']) {
+        const r = await ed.logIn('culpindustriesllc@gmail.com', guess);
+        tried.push({ guess, ok: r.ok, licence: ed.licence.status });
+      }
+      return tried;
+    });
+    for (const attempt of attempts) {
+      assert.equal(attempt.ok, false, `"${attempt.guess}" unsealed the owner key`);
+      assert.notEqual(attempt.licence, 'owner', `"${attempt.guess}" produced an owner licence`);
+    }
+    await page.context().close();
+  });
 }
