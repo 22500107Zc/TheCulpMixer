@@ -23,8 +23,9 @@
 
 import { createPrivateKey, sign } from 'node:crypto';
 import {
-  Account, TRIAL_MS, env, findAccount, hashPassword, kvConfigured, mintAccountSession,
-  readAccountSession, saveAccount, settings, signInAccount, standing, storeName,
+  Account, TRIAL_MS, checkFounder, env, findAccount, founderEmail, hashPassword, kvConfigured,
+  mintAccountSession, readAccountSession, saveAccount, settings, signInAccount, standing,
+  storeName,
 } from './_store';
 
 interface Req {
@@ -153,6 +154,44 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   const email = clean(body?.email, 200).toLowerCase();
   const password = typeof body?.password === 'string' ? body.password : '';
   const now = Date.now();
+
+  // The founder gets in through the ordinary login, with the ordinary form,
+  // before anything else is checked.
+  //
+  // Deliberately above the storage guard and reading nothing from the store:
+  // the person who owns this must be able to open their own application on a
+  // deployment that is half set up, which is exactly when they most need to
+  // get in and look. No database, no account row, no trial — just the two
+  // things they already know.
+  if ((action === 'signin' || action === 'refresh') && env('KLINE_FOUNDER_HASH')) {
+    const who = action === 'refresh'
+      ? readAccountSession(clean(body?.session, 500))
+      : '';
+    const isFounder = action === 'signin'
+      ? checkFounder(email, password)
+      : who === founderEmail();
+    if (isFounder) {
+      const expires = now + LEASE_MS;
+      res.status(200).json({
+        status: 'paid',
+        username: 'Founder',
+        email: founderEmail(),
+        plan: 'Founder',
+        paidUntil: null,
+        founder: true,
+        session: mintAccountSession(founderEmail()),
+        key: mint({
+          name: founderEmail(),
+          plan: 'Founder',
+          seats: 0,
+          issued: now,
+          expires,
+        }),
+        expires,
+      });
+      return;
+    }
+  }
 
   if (!kvConfigured()) {
     res.status(503).json({

@@ -3059,3 +3059,16 @@ button:disabled {
   line-height: 1.6;
   color: var(--ink-dim);
 }
+
+/* The founder's way into the console, from inside the application. */
+.trial-chip.founder-chip {
+  border-color: var(--edge);
+  background: var(--shell-raised);
+  color: var(--ink-dim);
+}
+
+.trial-chip.founder-chip:hover {
+  border-color: var(--ember-deep);
+  background: var(--ember-wash);
+  color: var(--ember);
+}

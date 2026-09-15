@@ -26,6 +26,8 @@ export interface AccountState {
   trialEndsAt?: number;
   trialEndedAt?: number;
   paidUntil?: number | null;
+  /** True when this is the owner signed in with the founder login. */
+  founder?: boolean;
   /** Where to send them to pay. Locked only. */
   paymentLink?: string;
   message?: string;
@@ -117,6 +119,7 @@ function adopt(body: Record<string, unknown>): AccountState | null {
       ? { paidUntil: body.paidUntil as number | null }
       : {}),
     ...(typeof body.paymentLink === 'string' ? { paymentLink: body.paymentLink } : {}),
+    ...(body.founder === true ? { founder: true } : {}),
     ...(typeof body.message === 'string' ? { message: body.message } : {}),
   };
 }

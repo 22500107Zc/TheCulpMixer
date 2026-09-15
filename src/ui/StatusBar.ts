@@ -75,6 +75,16 @@ export class StatusBar {
     // runs. A countdown somebody has to go looking for is a countdown they
     // find out about when the application stops.
     const account = ed.account;
+    // Signed in as the founder: the way into the console, in the application
+    // rather than a URL to remember.
+    if (account?.founder) {
+      this.left.append(h('button', {
+        class: 'trial-chip founder-chip',
+        title: 'Accounts, who has paid, and where people pay',
+        text: 'Founder console',
+        on: { click: () => window.open('./founder.html', '_blank', 'noopener') },
+      }));
+    }
     if (account?.status === 'trial' && account.trialEndsAt) {
       this.left.append(h('button', {
         class: 'trial-chip',

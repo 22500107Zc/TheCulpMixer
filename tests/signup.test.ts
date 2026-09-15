@@ -430,3 +430,61 @@ test('opening the endpoint in a browser says what is still missing', async () =>
   assert.equal(good.out.body.ready, true, JSON.stringify(good.out.body));
   assert.deepEqual(good.out.body.missing, []);
 });
+
+test('the founder logs in through the ordinary form, with no database at all', async () => {
+  // The point of this one: the person who owns The Culp Mixer must be able to
+  // open it on a deployment that is only half set up — which is exactly when
+  // they most need to get in and look at it. No store, no account row, no
+  // trial, just the two things they already know.
+  const kv = store();
+  const result = await run(account, {
+    action: 'signin', email: 'culpindustriesllc@gmail.com', password: FOUNDER,
+  }, kv, { KV_REST_API_URL: '', KV_REST_API_TOKEN: '' });
+
+  assert.equal(result.code, 200, JSON.stringify(result.body));
+  assert.equal(result.body.status, 'paid');
+  assert.equal(result.body.founder, true);
+  assert.equal(result.body.plan, 'Founder');
+  const parsed = await verifyKey(String(result.body.key), SPKI);
+  assert.ok(parsed, 'the founder was handed a key that does not verify');
+
+  // And the session keeps working on the next launch, still with no store.
+  const later = await run(account, {
+    action: 'refresh', session: String(result.body.session),
+  }, kv, { KV_REST_API_URL: '', KV_REST_API_TOKEN: '' });
+  assert.equal(later.body.status, 'paid');
+  assert.equal(later.body.founder, true);
+});
+
+test('the founder login is the founder password, and nothing else is', async () => {
+  const kv = store();
+  const attempts: [string, string][] = [
+    ['culpindustriesllc@gmail.com', 'wrong'],
+    ['culpindustriesllc@gmail.com', ''],
+    ['someone@else.com', FOUNDER],
+    ['', FOUNDER],
+  ];
+  for (const [email, password] of attempts) {
+    const result = await run(account, { action: 'signin', email, password }, kv);
+    assert.notEqual(result.body.founder, true, `"${email}" / "${password}" got the founder in`);
+  }
+});
+
+test('a customer cannot become the founder by signing up as that address', async () => {
+  // Signing up with the founder address must not mint a founder session: the
+  // founder branch is the password, not the email.
+  const kv = store();
+  const made = await run(account, {
+    action: 'signup', username: 'Impostor', email: 'culpindustriesllc@gmail.com',
+    password: 'not-the-founder-password',
+  }, kv);
+  assert.equal(made.code, 200);
+  assert.notEqual(made.body.founder, true, 'signing up as that address granted founder access');
+  assert.equal(made.body.status, 'trial', 'they got more than a trial');
+
+  // And the real founder password still wins on that address.
+  const real = await run(account, {
+    action: 'signin', email: 'culpindustriesllc@gmail.com', password: FOUNDER,
+  }, kv);
+  assert.equal(real.body.founder, true, 'the founder was locked out by a squatted row');
+});
