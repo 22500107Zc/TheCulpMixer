@@ -189,6 +189,9 @@ export class Editor {
     toggleLicence?: () => void;
     toggleIssue?: () => void;
   } = {};
+
+  /** Show the lock screen on demand, so the founder can see what a customer sees. */
+  previewLocked?: () => void;
   private pointer = { x: 0, y: 0, down: false, button: -1, startX: 0, startY: 0, dragging: false };
   /**
    * Set when a press has already been spent on something other than picking.

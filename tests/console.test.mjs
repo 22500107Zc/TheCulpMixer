@@ -473,7 +473,11 @@ if (app.skip) {
     assert.equal(locked.canUse, false, 'The Culp Mixer was still usable after the trial ended');
     assert.match(locked.text, /33 hours are up/i);
     assert.ok(locked.text.includes('$199/month'), `no price on the locked screen: ${locked.text}`);
-    assert.equal(locked.href, 'https://buy.example.com/The Culp Mixer', 'the pay button led nowhere');
+    // Percent-encoded, because the link is now put through URL before it is
+    // put on a button — which is what refuses a javascript: link, and which
+    // also encodes a raw space exactly as a browser would have anyway.
+    assert.equal(locked.href, 'https://buy.example.com/The%20Culp%20Mixer',
+      'the pay button led nowhere');
     assert.match(locked.text, /still on your disk, untouched/i);
     assert.match(locked.text, /One person runs The Culp Mixer/i);
   });

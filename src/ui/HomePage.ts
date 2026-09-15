@@ -1,5 +1,6 @@
 import { Editor } from '../editor/Editor';
 import { PRICE } from '../licence/licence';
+import { resolvePaymentLink } from '../licence/payment';
 
 /** The one address behind The Culp Mixer. */
 const CONTACT = 'culpindustriesllc@gmail.com';
@@ -35,6 +36,8 @@ export class HomePage {
   private email = field('email', 'you@example.com');
   private password = field('password', 'Password — 8 characters or more');
   private mode: 'signup' | 'signin' | 'founder' | 'locked' = 'signup';
+  /** Where people pay, from whichever source has one. Resolved, not guessed. */
+  private payTo: string | null = null;
   private busy = false;
 
   constructor(private editor: Editor) {
@@ -49,6 +52,22 @@ export class HomePage {
 
   get visible(): boolean {
     return !this.root.classList.contains('hidden');
+  }
+
+  /**
+   * Show the lock screen now, for the founder to look at.
+   *
+   * Checking what a customer sees at the worst moment of the relationship
+   * should not require waiting thirty-three hours or editing a clock.
+   */
+  preview(): void {
+    this.mode = 'locked';
+    void resolvePaymentLink(this.editor.account?.paymentLink).then((link) => {
+      this.payTo = link;
+      this.render();
+    });
+    this.render();
+    this.root.classList.remove('hidden');
   }
 
   /** Show or hide according to where the account stands. Never guesses. */
@@ -69,6 +88,17 @@ export class HomePage {
       if (account?.status === 'locked') this.mode = 'locked';
       this.render();
       this.root.classList.remove('hidden');
+      // The link can come from the account service, from a file served next to
+      // the application, or from the founder's own machine. Looked up rather
+      // than read off the account, and re-rendered when the answer lands so a
+      // slow lookup never leaves somebody on a screen with no way to pay.
+      if (this.mode === 'locked') {
+        void resolvePaymentLink(account?.paymentLink).then((link) => {
+          if (link === this.payTo) return;
+          this.payTo = link;
+          if (this.visible && this.mode === 'locked') this.render();
+        });
+      }
     } else {
       this.root.classList.add('hidden');
     }
@@ -180,9 +210,10 @@ export class HomePage {
       }),
     );
 
-    if (account.paymentLink) {
+    const payTo = this.payTo ?? account.paymentLink ?? null;
+    if (payTo) {
       this.card.append(h('div', { class: 'home-actions' }, [
-        payLink(`Pay — ${PRICE}`, account.paymentLink),
+        payLink(`Pay — ${PRICE}`, payTo),
       ]));
       this.card.append(h('ol', { class: 'home-steps' }, [
         h('li', { text: 'Pay through the link.' }),

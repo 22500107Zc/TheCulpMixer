@@ -3975,6 +3975,76 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     });
   });
 
+  test('the founder sets where people pay, and the locked screen sends them there', async () => {
+    // The whole point of the trial ending. A customer who hits the wall and
+    // finds no way to pay is a customer who does not pay, so the link behind
+    // that button is the founder's to set from inside the application — not a
+    // thing to be edited in code and redeployed.
+    await resetScene(page);
+    await page.evaluate(() => {
+      const ed = window.kline.editor;
+      ed.licence = {
+        status: 'owner',
+        licence: { name: 'x', plan: 'x', seats: 0, issued: 0, expires: null, owner: true },
+      };
+      document.querySelector('.issue-panel')?.classList.add('hidden');
+      ed.panels.toggleIssue?.();
+    });
+    await page.waitForTimeout(200);
+    const field = await page.$('.issue-pay input[type=url]');
+    assert.ok(field, 'the founder has nowhere to put a payment link');
+
+    // A link people click has to be a link, so this one is refused outright.
+    await field.fill('javascript:alert(1)');
+    await page.click('.issue-pay .issue-go');
+    await page.waitForTimeout(200);
+    const refused = await page.$eval('.issue-pay .issue-note', (e) => e.textContent);
+    assert.match(refused, /not a link people can pay through/,
+      `a javascript: link was accepted: ${refused}`);
+
+    await field.fill('https://buy.stripe.com/test_culp199');
+    await page.click('.issue-pay .issue-go');
+    await page.waitForTimeout(250);
+    const how = await page.$eval('.issue-pay .issue-out', (e) => e.textContent);
+    assert.match(how, /KLINE_PAYMENT_LINK/, 'it does not say how to publish the link');
+    assert.match(how, /pay\.json/, 'it does not offer the no-backend way to publish it');
+
+    // And the screen a customer actually meets when their time is up.
+    const seen = await page.evaluate(async () => {
+      const ed = window.kline.editor;
+      ed.account = { status: 'locked', username: 'Dana', email: 'd@e.co', plan: 'Trial' };
+      ed.previewLocked();
+      await new Promise((done) => setTimeout(done, 600));
+      const link = document.querySelector('.home-go[href]');
+      return {
+        title: (document.querySelector('.home-locked-title')?.textContent || '').trim(),
+        label: (link?.textContent || '').trim(),
+        href: link?.getAttribute('href') || null,
+        newTab: link?.getAttribute('target') === '_blank',
+      };
+    });
+    assert.match(seen.title, /33 hours are up/);
+    assert.equal(seen.href, 'https://buy.stripe.com/test_culp199',
+      `the pay button went to ${seen.href}`);
+    assert.match(seen.label, /Pay/);
+    assert.equal(seen.newTab, true, 'paying should not navigate away from their work');
+
+    // Put it back so nothing after this meets a lock screen.
+    await page.evaluate(() => {
+      try { localStorage.removeItem('kline.payment.link'); } catch { /* ignore */ }
+      document.querySelector('.home')?.classList.add('hidden');
+      document.querySelector('.issue-panel')?.classList.add('hidden');
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForFunction(() => !!window.kline?.editor?.renderer, null, { timeout: 30_000 });
+    await page.waitForTimeout(400);
+    await page.evaluate(() => {
+      const ed = window.kline.editor;
+      ed.applyPreferences({ ...ed.preferences, showGuideOnStart: false });
+      document.querySelector('.setup-guide')?.classList.add('hidden');
+    });
+  });
+
   test('nothing logged an error to the console along the way', () => {
     assert.deepEqual(app.consoleErrors, [], `the app logged: ${app.consoleErrors.join(' | ')}`);
   });

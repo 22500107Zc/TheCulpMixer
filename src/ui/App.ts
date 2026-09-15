@@ -180,6 +180,7 @@ export class App {
     this.watchForUpdates();
     this.editor.panels.toggleLicence = () => this.licencePanel.toggle();
     this.editor.panels.toggleIssue = () => this.issuePanel.toggle();
+    this.editor.previewLocked = () => this.homePage.preview();
     // Whenever The Culp Mixer is locked, the wall goes up — at startup and again on any
     // refused command. Registered before the first check runs, so a build that
     // is already past its trial never gets a frame of the editor.

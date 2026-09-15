@@ -3292,3 +3292,20 @@ button:disabled {
   font-size: 11px;
   color: var(--ink-faint);
 }
+
+.issue-heading {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.issue-pay {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--edge);
+}

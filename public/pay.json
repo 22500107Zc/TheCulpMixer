@@ -1,0 +1,4 @@
+{
+  "_comment": "Where people pay when their 33 hours are up. Put your link in below, commit, and it is live on the next deploy. Stripe payment link, PayPal, an invoice page — anything that takes money. Leave it empty and the lock screen falls back to emailing the founder, which still works.",
+  "paymentLink": ""
+}

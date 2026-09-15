@@ -1,6 +1,7 @@
 import { Editor } from '../editor/Editor';
 import { PRICE } from '../licence/licence';
 import { forgetSigningKey, handoutFor, hasSigningKey, issueKey, rememberSigningKey } from '../licence/issue';
+import { localPaymentLink, setLocalPaymentLink } from '../licence/payment';
 import { button, clear, h } from './dom';
 
 /**
@@ -35,6 +36,9 @@ export class IssuePanel {
     placeholder: '-----BEGIN PRIVATE KEY-----',
   }) as HTMLTextAreaElement;
   private out = h('pre', { class: 'issue-out hidden' });
+  private payLink = field('url', 'https://buy.stripe.com/…');
+  private payNote = h('p', { class: 'dim small issue-note' });
+  private payOut = h('pre', { class: 'issue-out hidden' });
   private busy = false;
 
   constructor(private editor: Editor) {
@@ -49,7 +53,7 @@ export class IssuePanel {
     });
     this.root.append(
       h('div', { class: 'overlay-head' }, [
-        h('h2', { text: 'Issue a licence' }),
+        h('h2', { text: 'Founder settings' }),
         button('Close', () => this.hide(), { class: 'icon-btn' }),
       ]),
       this.body,
@@ -88,6 +92,11 @@ export class IssuePanel {
 
     if (!hasSigningKey()) {
       this.renderSetup();
+      // Where people pay has nothing to do with whether this machine can sign
+      // keys, and gating it behind the signing key meant the founder could not
+      // set the payment link until after they had pasted a private key. Two
+      // unrelated things; both belong to the owner and both are here.
+      this.body.append(this.paymentSection());
       return;
     }
 
@@ -108,6 +117,7 @@ export class IssuePanel {
       ]),
       this.note,
       this.out,
+      this.paymentSection(),
       h('details', { class: 'issue-advanced' }, [
         h('summary', { text: 'The signing key on this machine' }),
         h('p', {
@@ -124,6 +134,75 @@ export class IssuePanel {
         ]),
       ]),
     );
+  }
+
+  /**
+   * Where people pay, set here rather than in code.
+   *
+   * Typing it takes effect immediately on this machine, so the lock screen can
+   * be looked at before a customer ever sees it. Publishing it to everybody is
+   * a separate step and says so plainly: a browser cannot hand a value to
+   * other browsers, so it has to be served from somewhere. The panel writes
+   * out exactly what to paste and where.
+   */
+  private paymentSection(): HTMLElement {
+    const current = localPaymentLink();
+    if (current) this.payLink.value = current;
+    // Not folded away in a <details>. This is the setting that decides whether
+    // a customer who has hit the wall can hand over money, so it is on screen.
+    const section = h('div', { class: 'issue-pay' }, [
+      h('h3', { class: 'issue-heading', text: 'Where people pay when their 33 hours are up' }),
+      h('p', {
+        class: 'dim small',
+        text: 'The button on the lock screen goes here. Stripe payment link, PayPal, an '
+          + 'invoice page — anything that takes money. Leave it empty and they are given '
+          + 'your email instead, which still works.',
+      }),
+      labelled('Payment link', this.payLink),
+      h('div', { class: 'issue-actions' }, [
+        button('Save', () => this.savePayment(), { class: 'primary issue-go' }),
+        button('Show the lock screen', () => {
+          this.hide();
+          this.editor.previewLocked?.();
+        }, { class: 'issue-preview' }),
+      ]),
+      this.payNote,
+      this.payOut,
+    ]);
+    return section;
+  }
+
+  private savePayment(): void {
+    const result = setLocalPaymentLink(this.payLink.value);
+    if (!result.ok) {
+      this.payNote.textContent = result.message;
+      this.payNote.classList.add('issue-bad');
+      return;
+    }
+    this.payNote.classList.remove('issue-bad');
+    if (!result.link) {
+      this.payNote.textContent = 'Cleared. The lock screen offers your email instead.';
+      this.payOut.classList.add('hidden');
+      return;
+    }
+    this.payNote.textContent = 'Saved, and live on this machine. To publish it to everybody, '
+      + 'do one of the two below.';
+    this.payOut.textContent = [
+      'Either — put this one line in Vercel and redeploy.',
+      '  Settings > Environment Variables > Production',
+      '',
+      '    KLINE_PAYMENT_LINK',
+      `    ${result.link}`,
+      '',
+      'Or — edit public/pay.json in the repository so it reads:',
+      '',
+      '    {',
+      `      "paymentLink": "${result.link}"`,
+      '    }',
+      '',
+      'Either one, and every customer past their 33 hours is sent there.',
+    ].join('\n');
+    this.payOut.classList.remove('hidden');
   }
 
   /** First run on a machine: the key has to get here once. */

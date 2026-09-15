@@ -389,3 +389,65 @@ test('a bad signing key is refused before it can mint anything', async () => {
   const noEmail = await issueKey({ name: '', email: 'nonsense', months: 1 }, pem);
   assert.equal(noEmail.ok, false, 'it issued a licence to something that is not an address');
 });
+
+test('a payment link is taken from the right place and refuses a dangerous one', async () => {
+  // The lock screen is the one screen that has to work perfectly, because it
+  // is the only one standing between a customer and paying. The link behind
+  // its button is the founder's to choose and must not mean editing code.
+  //
+  // The order matters and is asserted rather than assumed: the account service
+  // outranks everything because it is the one source that is the same for
+  // every customer; then the file served next to the application, which needs
+  // no backend at all; then this browser, which is the founder's own machine
+  // and reaches nobody else — which is exactly why it is last.
+  const { safePaymentLink, resolvePaymentLink, forgetPublishedPaymentLink } =
+    await import('../src/licence/payment');
+
+  assert.equal(safePaymentLink('https://buy.stripe.com/abc'), 'https://buy.stripe.com/abc');
+  assert.equal(safePaymentLink('  https://paypal.me/zach  '), 'https://paypal.me/zach');
+  assert.equal(safePaymentLink('mailto:a@b.co'), 'mailto:a@b.co');
+
+  // A link on the lock screen is a link people click, so these are refused
+  // outright rather than cleaned up. There is no version of them that belongs
+  // on a payment button.
+  for (const bad of ['javascript:alert(1)', 'data:text/html,<script>', '', '   ', 'not a url']) {
+    assert.equal(safePaymentLink(bad), null, `"${bad}" was accepted as a payment link`);
+  }
+
+  // The service wins when it has one.
+  forgetPublishedPaymentLink();
+  globalThis.fetch = (async () => ({
+    ok: true, json: async () => ({ paymentLink: 'https://pay.example/file' }),
+  })) as unknown as typeof fetch;
+  assert.equal(
+    await resolvePaymentLink('https://pay.example/service'),
+    'https://pay.example/service',
+    'the served file overruled the account service',
+  );
+
+  // And the file is used when the service has nothing.
+  forgetPublishedPaymentLink();
+  assert.equal(await resolvePaymentLink(null), 'https://pay.example/file');
+  forgetPublishedPaymentLink();
+  assert.equal(await resolvePaymentLink(''), 'https://pay.example/file');
+
+  // A service that answers with something dangerous does not get to set it.
+  forgetPublishedPaymentLink();
+  assert.equal(await resolvePaymentLink('javascript:alert(1)'), 'https://pay.example/file',
+    'a javascript: link from the service was used');
+
+  // A missing file is the ordinary state of a fresh deployment, not an error.
+  forgetPublishedPaymentLink();
+  globalThis.fetch = (async () => ({ ok: false })) as unknown as typeof fetch;
+  assert.equal(await resolvePaymentLink(null), null);
+});
+
+test('the payment link file ships with the build and is shaped right', async () => {
+  // It is fetched at runtime by the locked screen, so a rename or a bad edit
+  // would take the pay button off the one screen that needs it.
+  const { readFileSync, existsSync } = await import('node:fs');
+  assert.ok(existsSync('public/pay.json'), 'public/pay.json is missing');
+  const file = JSON.parse(readFileSync('public/pay.json', 'utf8'));
+  assert.ok('paymentLink' in file, 'pay.json has no paymentLink field');
+  assert.equal(typeof file.paymentLink, 'string', 'paymentLink must be a string');
+});
