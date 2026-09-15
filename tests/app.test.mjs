@@ -4045,6 +4045,46 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     });
   });
 
+  test('a refusal always says why, whether it is the key or the account', async () => {
+    // Two silent failures found by driving the real thing rather than by any
+    // test. Both are the same shape, and it is the shape that made the whole
+    // application feel broken: press something, nothing happens, nothing said.
+    //
+    // 1. A command id that does not exist returned in silence, so a generated
+    //    program naming one did nothing and reported success.
+    // 2. whyBlocked reads the licence, but the block can come from the
+    //    account — a locked account usually still carries an ordinary offline
+    //    trial licence, so it returned '' and every refusal after the trial
+    //    ended was mute.
+    await resetScene(page);
+    const unknown = await page.evaluate(() => {
+      const ed = window.kline.editor;
+      ed.setStatus('');
+      window.kline.run('add.thisIsNotACommand');
+      return ed.statusMessage;
+    });
+    assert.match(unknown, /no command called/i,
+      `an unknown command said: "${unknown}"`);
+
+    const locked = await page.evaluate(() => {
+      const ed = window.kline.editor;
+      const wasAccount = ed.account;
+      ed.account = { status: 'locked', username: 'x', email: 'x@y.co', plan: 'Trial' };
+      const message = ed.licenceBlockedMessage;
+      ed.setStatus('');
+      const before = ed.scene.objects.size;
+      window.kline.run('add.cube');
+      const out = { message, said: ed.statusMessage, added: ed.scene.objects.size - before };
+      ed.account = wasAccount;
+      return out;
+    });
+    assert.equal(locked.added, 0, 'a locked account could still add geometry');
+    assert.match(locked.message, /33-hour free trial has ended/,
+      `a locked account explained itself as: "${locked.message}"`);
+    assert.match(locked.message, /\$199/, 'the refusal does not say what it costs');
+    assert.equal(locked.said, locked.message, 'the refusal was not put on screen');
+  });
+
   test('nothing logged an error to the console along the way', () => {
     assert.deepEqual(app.consoleErrors, [], `the app logged: ${app.consoleErrors.join(' | ')}`);
   });

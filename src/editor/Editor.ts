@@ -31,7 +31,7 @@ import { SceneTexture } from '../scene/Texture';
 import { transferUV } from '../uv/transfer';
 import { forgetSaveTargets } from '../io/files';
 import {
-  LicenceState, canUse as licenceAllowsUse, clearLicence, describeLicence, licenceState,
+  LicenceState, PRICE, canUse as licenceAllowsUse, clearLicence, describeLicence, licenceState,
   storeLicence, verifyKey, whyBlocked,
 } from '../licence/licence';
 import {
@@ -881,7 +881,21 @@ export class Editor {
   }
 
   get licenceBlockedMessage(): string {
-    return whyBlocked(this.licence);
+    const said = whyBlocked(this.licence);
+    if (said) return said;
+    // The block can come from the account rather than from the key, and that
+    // case had nothing to say. whyBlocked reads the licence, and a locked
+    // account usually still carries an ordinary offline trial licence — so it
+    // returned an empty string, runCommand set an empty status, and every
+    // refusal after the trial ended was silent. Somebody presses a button,
+    // nothing happens, nothing is said. That is the exact thing that makes an
+    // application feel broken rather than closed.
+    if (this.account?.status === 'locked') {
+      return `Your 33-hour free trial has ended, so The Culp Mixer is locked. It is ${PRICE} to `
+        + 'keep using it. Every file you have made is still on your disk, untouched, and a '
+        + 'licence key unlocks everything immediately.';
+    }
+    return '';
   }
 
   /**

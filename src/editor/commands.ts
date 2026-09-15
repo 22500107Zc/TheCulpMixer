@@ -1596,7 +1596,16 @@ const MODE_NAMES: Record<string, string> = {
 
 export function runCommand(editor: Editor, id: string): void {
   const cmd = COMMANDS_BY_ID.get(id);
-  if (!cmd) return;
+  if (!cmd) {
+    // Every other refusal below says what happened. This one returned in
+    // silence, which is the worst of the set: a generated program naming a
+    // command that does not exist did nothing at all and reported success,
+    // and so did anything driving the scripting handle with a typo. Nothing
+    // is thrown — a wrong name is an ordinary mistake, not a crash — but it
+    // is said out loud.
+    editor.setStatus(`There is no command called "${id}"`);
+    return;
+  }
   // Every mutating operator calls beginUndo, which refuses on its own while a
   // revision is pending — but File actions do not, and "save the document"
   // during a review would write a proposal into the file as though it were the
