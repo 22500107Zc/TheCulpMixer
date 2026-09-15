@@ -1,5 +1,8 @@
 import { Editor } from '../editor/Editor';
 import { PRICE } from '../licence/licence';
+
+/** The one address behind The Culp Mixer. */
+const CONTACT = 'culpindustriesllc@gmail.com';
 import { button, clear, h } from './dom';
 
 /**
@@ -57,10 +60,7 @@ export class HomePage {
     // treating it as unlocked made the door open and shut on every load.
     const byKey = this.editor.licence.status === 'owner'
       || this.editor.licence.status === 'licensed';
-    // Nothing behind the door: an offline desktop build, a host that has not
-    // deployed the functions, or a deployment with no store. A sign-up form
-    // nobody can complete is worse than no form.
-    if (byKey || (!this.editor.accountsAvailable && !account)) {
+    if (byKey) {
       this.root.classList.add('hidden');
       return;
     }
@@ -130,9 +130,13 @@ export class HomePage {
     if (this.mode === 'signup') {
       this.card.append(h('p', {
         class: 'home-small',
-        text: 'No confirmation email and nothing to click — you are in as soon as you press '
-          + 'the button. Remember what you typed: it is how you get back in, on this machine '
-          + 'and on any other.',
+        text: this.editor.accountsAvailable
+          ? 'No confirmation email and nothing to click — you are in as soon as you press '
+            + 'the button. Remember what you typed: it is how you get back in, on this '
+            + 'machine and on any other.'
+          : 'No confirmation email and nothing to click — you are in as soon as you press '
+            + 'the button. Remember what you typed. This account is kept on this machine, '
+            + 'so use the same browser to come back to it.',
       }));
     }
 
@@ -156,19 +160,28 @@ export class HomePage {
       this.card.append(h('div', { class: 'home-actions' }, [
         payLink(`Pay — ${PRICE}`, account.paymentLink),
       ]));
+      this.card.append(h('ol', { class: 'home-steps' }, [
+        h('li', { text: 'Pay through the link.' }),
+        h('li', { text: `Email ${CONTACT} saying which address you paid from.` }),
+        h('li', { text: 'Your account is switched on by hand, and you carry on here.' }),
+      ]));
     } else {
-      this.card.append(h('p', {
-        class: 'home-small',
-        text: 'The payment link has not been set up yet. Get in touch and it will be sorted.',
-      }));
+      // No link configured. Not a dead end: the address that answers is on
+      // the screen, which is a working way to buy something from one person.
+      this.card.append(h('div', { class: 'home-actions' }, [
+        payLink(`Email to pay — ${PRICE}`, `mailto:${CONTACT}`
+          + '?subject=The%20Culp%20Mixer%20-%20I%20would%20like%20to%20subscribe'
+          + '&body=My%20trial%20has%20ended%20and%20I%20would%20like%20to%20pay%20for%20'
+          + 'The%20Culp%20Mixer%20at%20%24199%2Fmonth.'),
+      ]));
+      this.card.append(h('ol', { class: 'home-steps' }, [
+        h('li', { text: `Email ${CONTACT} and you will be sent a way to pay.` }),
+        h('li', { text: 'Once you have, you are sent a key.' }),
+        h('li', { text: 'Paste it below under "Have a licence key?" and carry on.' }),
+      ]));
     }
 
     this.card.append(
-      h('ol', { class: 'home-steps' }, [
-        h('li', { text: 'Pay through the link.' }),
-        h('li', { text: 'Send a note saying which email you paid with.' }),
-        h('li', { text: 'Your account is switched on by hand, and you log back in here.' }),
-      ]),
       h('p', {
         class: 'home-small',
         text: `Paid from a different address? That is fine — say so and the address that paid `
@@ -182,6 +195,7 @@ export class HomePage {
         }),
       ]),
       this.note,
+      this.keyBox(),
       this.founderNote(),
     );
   }
@@ -196,8 +210,11 @@ export class HomePage {
    * application they paid for.
    */
   private keyBox(): HTMLElement {
+    // Deliberately not .code-area: that class belongs to the program editor,
+    // and this box is in the DOM whenever the front door is, so sharing it
+    // made every selector for the editor match twice.
     const box = h('textarea', {
-      class: 'code-area home-key',
+      class: 'home-key',
       placeholder: 'Paste a licence key',
     }) as HTMLTextAreaElement;
     return h('details', { class: 'home-advanced' }, [

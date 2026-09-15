@@ -827,6 +827,11 @@ export class Editor {
    * thirty-three — which is every customer, for ever, and no revenue.
    */
   get canUse(): boolean {
+    // A signed key outranks everything, including a locked account. It is
+    // what is issued *after* somebody pays, so if it did not win, the
+    // customer who just paid would still be staring at the wall — which is
+    // precisely the moment the application must not get this wrong.
+    if (this.licence.status === 'owner' || this.licence.status === 'licensed') return true;
     if (this.account) return this.account.status !== 'locked';
     return licenceAllowsUse(this.licence);
   }

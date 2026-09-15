@@ -1,4 +1,5 @@
 import { clearLicence, storeLicence } from './licence';
+import { LocalAccount, localCurrent, localLogIn, localSignOut, localSignUp } from './local';
 
 /**
  * The customer's account, from the application's side.
@@ -28,6 +29,14 @@ export interface AccountState {
   paidUntil?: number | null;
   /** True when this is the owner signed in with the founder login. */
   founder?: boolean;
+  /**
+   * True when this account lives only in this browser.
+   *
+   * Said out loud in the interface rather than hidden: it is the difference
+   * between an account that follows somebody to their laptop and one that
+   * does not, and somebody should know which they have.
+   */
+  local?: boolean;
   /** Where to send them to pay. Locked only. */
   paymentLink?: string;
   message?: string;
@@ -65,7 +74,33 @@ export function forgetSession(): void {
   } catch {
     /* nothing to do */
   }
+  localSignOut();
   clearLicence();
+}
+
+/** Turn a browser-held account into the state the application renders. */
+function fromLocal(account: LocalAccount): AccountState {
+  const now = Date.now();
+  if (now < account.trialEndsAt) {
+    return {
+      status: 'trial',
+      username: account.username,
+      email: account.email,
+      plan: 'Trial',
+      trialEndsAt: account.trialEndsAt,
+      local: true,
+    };
+  }
+  return {
+    status: 'locked',
+    username: account.username,
+    email: account.email,
+    plan: 'Trial',
+    trialEndedAt: account.trialEndsAt,
+    local: true,
+    message: 'Your 33 hours are up. The Culp Mixer is $199/month. One person runs it, so '
+      + 'access is switched on by hand once you have paid.',
+  };
 }
 
 async function post(
@@ -134,8 +169,6 @@ export type AccountResult =
   | { ok: true; account: AccountState }
   | { ok: false; message: string };
 
-const OFFLINE = 'Could not reach The Culp Mixer just now. Check the connection and try again.';
-
 /**
  * Turn a failed answer into a sentence that says what is actually wrong.
  *
@@ -168,7 +201,16 @@ export async function signUp(
   username: string, email: string, password: string,
 ): Promise<AccountResult> {
   const { reached, ok, body } = await post({ action: 'signup', username, email, password });
-  if (!reached) return { ok: false, message: OFFLINE };
+  // No account service here. Rather than telling somebody to come back when
+  // the hosting is sorted out, the account is made in this browser and the
+  // thirty-three hours start now. They can work, and the lock at the end is
+  // the same lock.
+  if (!reached) {
+    const made = await localSignUp(username, email, password);
+    return made.ok
+      ? { ok: true, account: fromLocal(made.account) }
+      : { ok: false, message: made.message };
+  }
   if (!ok || !body) return { ok: false, message: explain(body) };
   const account = adopt(body);
   return account ? { ok: true, account } : { ok: false, message: 'Could not make that account.' };
@@ -176,7 +218,12 @@ export async function signUp(
 
 export async function logIn(email: string, password: string): Promise<AccountResult> {
   const { reached, ok, body } = await post({ action: 'signin', email, password });
-  if (!reached) return { ok: false, message: OFFLINE };
+  if (!reached) {
+    const back = await localLogIn(email, password);
+    return back.ok
+      ? { ok: true, account: fromLocal(back.account) }
+      : { ok: false, message: back.message };
+  }
   if (!ok || !body) return { ok: false, message: explain(body) };
   const account = adopt(body);
   return account ? { ok: true, account } : { ok: false, message: 'Could not log you in.' };
@@ -200,7 +247,12 @@ export async function refreshAccount(): Promise<{
   // store, must not show a form that can never be completed.
   const session = read(SESSION_KEY) ?? '';
   const { reached, ok, body } = await post({ action: 'refresh', session });
-  if (!reached) return { reached: false, account: null };
+  if (!reached) {
+    // No service. Whoever is signed in here still is, and their clock keeps
+    // running — including past the end of it.
+    const here = localCurrent();
+    return { reached: false, account: here ? fromLocal(here) : null };
+  }
   if (!ok || !body) {
     if (body?.error === 'sign-in-again') forgetSession();
     // A deployment with no storage cannot hold accounts, so there is nothing
