@@ -3903,6 +3903,78 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     for (const m of modes) assert.ok(m.onScreen, `"${m.label}" was pushed off the window`);
   });
 
+  test('licence issuing is not sitting out on the dashboard for a customer', async () => {
+    // The thing being protected is not the panel, it is the ability to mint
+    // licences for other people. Four ways in are checked, because "the button
+    // is hidden" is not a security property on its own.
+    await resetScene(page);
+    const asCustomer = await page.evaluate(() => ({
+      licence: window.kline.editor.licence.status,
+      button: !!document.querySelector('.issue-chip'),
+    }));
+    assert.equal(asCustomer.licence, 'trial', 'the harness user should be an ordinary trial');
+    assert.equal(asCustomer.button, false, 'a trial user can see the issuing button');
+
+    // Opening the panel by hand from the console gets a refusal, not a form.
+    const forced = await page.evaluate(() => {
+      window.kline.editor.panels.toggleIssue?.();
+      const panel = document.querySelector('.issue-panel');
+      return {
+        open: panel ? !panel.classList.contains('hidden') : false,
+        text: (panel?.textContent || '').replace(/\s+/g, ' '),
+        form: !!document.querySelector('.issue-field[type=email]'),
+        pem: !!document.querySelector('.issue-pem'),
+      };
+    });
+    assert.equal(forced.form, false, 'the issuing form was reachable without an owner licence');
+    assert.equal(forced.pem, false, 'the signing-key box was reachable without an owner licence');
+    assert.match(forced.text, /Only the founder issues licences/);
+
+    // The signer is not hung off the page object for anybody to call.
+    const reachable = await page.evaluate(() => !!window.kline.__issue || !!window.issueKey);
+    assert.equal(reachable, false, 'the signing function is exposed on the page');
+
+    // And the honest case: somebody edits licence.status in devtools. They
+    // reach the setup screen — which asks them for the signing key, the one
+    // thing that is never shipped — and can mint nothing without it.
+    const flipped = await page.evaluate(async () => {
+      window.kline.editor.licence = {
+        status: 'owner',
+        licence: { name: 'x', plan: 'x', seats: 0, issued: 0, expires: null, owner: true },
+      };
+      document.querySelector('.issue-panel')?.classList.add('hidden');
+      window.kline.editor.panels.toggleIssue?.();
+      document.querySelector('.issue-go')?.click();
+      await new Promise((done) => setTimeout(done, 400));
+      const out = document.querySelector('.issue-out');
+      return {
+        asksForAKey: !!document.querySelector('.issue-pem'),
+        note: document.querySelector('.issue-note')?.textContent || '',
+        minted: !!out && !out.classList.contains('hidden'),
+      };
+    });
+    assert.equal(flipped.asksForAKey, true, 'it offered to issue without asking for a key');
+    assert.equal(flipped.minted, false, 'a flipped licence minted a key with no signing key');
+    assert.match(flipped.note, /not a P-256 private key/);
+
+    // The flip does not outlive the page: the real state is recomputed from a
+    // stored signature at startup, so it is gone on the next load.
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForFunction(() => !!window.kline?.editor?.renderer, null, { timeout: 30_000 });
+    await page.waitForTimeout(500);
+    const afterReload = await page.evaluate(() => ({
+      licence: window.kline.editor.licence.status,
+      button: !!document.querySelector('.issue-chip'),
+    }));
+    assert.notEqual(afterReload.licence, 'owner', 'an edited licence survived a reload');
+    assert.equal(afterReload.button, false, 'the issuing button came back after a reload');
+    await page.evaluate(() => {
+      const ed = window.kline.editor;
+      ed.applyPreferences({ ...ed.preferences, showGuideOnStart: false });
+      document.querySelector('.setup-guide')?.classList.add('hidden');
+    });
+  });
+
   test('nothing logged an error to the console along the way', () => {
     assert.deepEqual(app.consoleErrors, [], `the app logged: ${app.consoleErrors.join(' | ')}`);
   });
