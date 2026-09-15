@@ -3826,6 +3826,83 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       `Unwrap in Edit Mode should still unwrap, but said: ${said.inEditMode}`);
   });
 
+  test('every menu opens to something a person can actually see and click', async () => {
+    // The one that made the whole application look dead.
+    //
+    // .menu-bar carried `overflow: hidden` so it could shrink at a narrow
+    // window without shoving the mode switch off the right-hand edge. But
+    // overflow clips both axes, and that bar is 33px tall while every dropdown
+    // hangs below it — so all nine menus opened to nothing. The label lit up,
+    // the panel was display:block and 848px tall, and the screen showed an
+    // empty viewport. 108 items, every one of them invisible and unclickable:
+    // File, Add, Object, Mesh, Rig, Select, View, Help.
+    //
+    // Nothing in the unit suite could see it. The commands all worked; it was
+    // only the way in that was gone. So the check is the one a person makes:
+    // open it, and is the thing under the cursor the item itself.
+    await resetScene(page);
+    const broken = [];
+    for (const name of ['File', 'Add', 'Object', 'Mesh', 'Rig', 'Select', 'View', 'Help']) {
+      await page.click(`.menu-label:text-is("${name}")`);
+      await page.waitForTimeout(120);
+      const bad = await page.evaluate(() => {
+        const drop = document.querySelector('.menu.open .menu-items');
+        if (!drop) return ['the menu did not open'];
+        const out = [];
+        for (const item of drop.querySelectorAll('.menu-item')) {
+          const box = item.getBoundingClientRect();
+          if (!box.width) continue;
+          // A long menu is allowed to scroll; what it may not do is put an
+          // item where nothing can ever reach it.
+          item.scrollIntoView({ block: 'nearest' });
+          const r = item.getBoundingClientRect();
+          const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          if (hit !== item && !item.contains(hit)) {
+            out.push(`${item.textContent.trim().slice(0, 24)} (${hit ? hit.className || hit.tagName : 'off screen'})`);
+          }
+        }
+        return out;
+      });
+      if (bad.length) broken.push(`${name}: ${bad.join(', ')}`);
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(60);
+    }
+    assert.deepEqual(broken, [], `menu items nobody can click — ${broken.join(' | ')}`);
+  });
+
+  test('a menu item does its work from a real click', async () => {
+    // Not k.run(): the point is the path from the cursor to the operator,
+    // which is exactly the part that was severed.
+    await resetScene(page);
+    await page.evaluate(() => window.kline.run('add.cube'));
+    await page.waitForTimeout(150);
+    const before = await page.evaluate(() => window.kline.editor.scene.objects.size);
+    await page.click('.menu-label:text-is("Object")');
+    await page.waitForTimeout(120);
+    await page.click('.menu-item:has-text("Duplicate")');
+    await page.waitForTimeout(250);
+    const after = await page.evaluate(() => window.kline.editor.scene.objects.size);
+    assert.equal(after, before + 1,
+      `clicking Object > Duplicate went from ${before} objects to ${after}`);
+  });
+
+  test('the menu bar still gives way first at a narrow window', async () => {
+    // The rule that broke the menus was protecting something real: the nine
+    // labels held their full width and pushed Object/Edit/Sculpt and the view
+    // controls off the screen. Clipping moved onto the labels themselves, so
+    // this has to keep holding.
+    await page.setViewportSize({ width: 760, height: 800 });
+    await page.waitForTimeout(250);
+    const modes = await page.evaluate(() => [...document.querySelectorAll('.mode-opt')].map((e) => {
+      const r = e.getBoundingClientRect();
+      return { label: e.textContent.trim(), onScreen: r.left >= 0 && r.right <= innerWidth };
+    }));
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await page.waitForTimeout(250);
+    assert.ok(modes.length >= 3, 'the mode switch went missing entirely');
+    for (const m of modes) assert.ok(m.onScreen, `"${m.label}" was pushed off the window`);
+  });
+
   test('nothing logged an error to the console along the way', () => {
     assert.deepEqual(app.consoleErrors, [], `the app logged: ${app.consoleErrors.join(' | ')}`);
   });

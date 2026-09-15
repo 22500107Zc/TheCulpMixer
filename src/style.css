@@ -191,20 +191,36 @@ button:disabled {
    * Whatever the width, Object/Edit/Sculpt and the view controls stay on
    * screen; the menus are also reachable from the keyboard and, in the
    * desktop build, from the real menu bar.
+   *
+   * The clipping belongs on the labels, NOT on this bar. `overflow: hidden`
+   * here clips both axes, and this bar is 33px tall while every dropdown
+   * hangs below it — so all nine menus opened to nothing at all. The label
+   * was highlighted, the panel was display:block and 848px tall, and the
+   * screen showed an empty viewport. That is what "none of the buttons work"
+   * was: File, Add, Object, Mesh, Rig, Select, View and Help, 108 items,
+   * invisible and unclickable, for as long as the rule was here.
    */
   min-width: 0;
-  overflow: hidden;
 }
 
 .menu {
   position: relative;
   display: flex;
+  /* So a label may shrink below its own text; the bar shrinking is no use
+     if the things inside it refuse to. */
+  min-width: 0;
 }
 
 .menu-label {
   padding: 0 10px;
   color: var(--ink-dim);
   letter-spacing: 0.01em;
+  /* Here is where text is allowed to be cut off at a narrow window. It is
+     safe here and only here: a label is one line inside the bar, so clipping
+     it takes nothing else with it. */
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .menu-label:hover,
@@ -218,8 +234,27 @@ button:disabled {
   position: absolute;
   top: 100%;
   left: 0;
-  z-index: 40;
+  /*
+   * Above every floating panel, below every dialog.
+   *
+   * At 40 this tied with .render-window and .setup-guide, and a tie is
+   * settled by document order — both of those come after the header, so they
+   * won, and opening a render took the File menu away with it. A menu is how
+   * you get out of a state, so it cannot be the thing that a panel buries.
+   * 42 clears the panel layer (20-40) and stays under the sidebar scrim (43)
+   * and the dialogs above it, which should cover a menu.
+   */
+  z-index: 42;
   min-width: 234px;
+  /*
+   * A menu taller than the window keeps the rest of itself, rather than
+   * hanging the last items off the bottom edge where nothing can reach them.
+   * View is 33 items and ran 917px into a 900px window: Stop Animation
+   * Render and Cancel Render were simply not on the screen. Scrolling here is
+   * safe — this box clips its own contents and nothing else.
+   */
+  max-height: calc(100vh - 44px);
+  overflow-y: auto;
   padding: 4px;
   background: var(--shell-raised);
   border: 1px solid var(--edge);
