@@ -86,7 +86,13 @@ async function post(
     } catch {
       /* Not JSON is the same as nothing here. */
     }
-    return { reached: true, ok: response.ok, body };
+    // "Reached" means the account service answered *as itself*, not that some
+    // HTTP response came back. A 404 page from a host that has not deployed
+    // the functions is not this service, and treating it as one was the whole
+    // bug: the front door went up because something replied, and nothing
+    // behind that door could ever succeed. Locked out of your own
+    // application by a hosting setting is the wrong way round.
+    return { reached: body !== null, ok: response.ok, body };
   } catch {
     return { reached: false, ok: false, body: null };
   } finally {

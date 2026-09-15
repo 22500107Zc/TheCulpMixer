@@ -51,10 +51,16 @@ export class HomePage {
   /** Show or hide according to where the account stands. Never guesses. */
   refresh(): void {
     const account = this.editor.account;
-    // Nothing behind the door: an offline desktop build, or a deployment with
-    // no store. Showing a sign-up form nobody could complete would be the
-    // worst of both.
-    if (!this.editor.accountsAvailable && !account) {
+    // A key already unlocks this copy — the owner's own, or one issued by
+    // hand. That is settled without a server, so there is nothing to ask.
+    // Not 'source': that is the value before the real answer has arrived, so
+    // treating it as unlocked made the door open and shut on every load.
+    const byKey = this.editor.licence.status === 'owner'
+      || this.editor.licence.status === 'licensed';
+    // Nothing behind the door: an offline desktop build, a host that has not
+    // deployed the functions, or a deployment with no store. A sign-up form
+    // nobody can complete is worse than no form.
+    if (byKey || (!this.editor.accountsAvailable && !account)) {
       this.root.classList.add('hidden');
       return;
     }
@@ -130,7 +136,7 @@ export class HomePage {
       }));
     }
 
-    this.card.append(this.founderNote());
+    this.card.append(this.keyBox(), this.founderNote());
     window.setTimeout(() => fields[0]?.focus(), 0);
   }
 
@@ -178,6 +184,38 @@ export class HomePage {
       this.note,
       this.founderNote(),
     );
+  }
+
+  /**
+   * A licence key, folded away.
+   *
+   * The way in that needs no server at all: it is verified here, against the
+   * public key built into this copy. The owner's own key lives here, and so
+   * does anyone issued one by hand — so a host that is misconfigured, or a
+   * laptop with no network, is never the reason somebody cannot open the
+   * application they paid for.
+   */
+  private keyBox(): HTMLElement {
+    const box = h('textarea', {
+      class: 'code-area home-key',
+      placeholder: 'Paste a licence key',
+    }) as HTMLTextAreaElement;
+    return h('details', { class: 'home-advanced' }, [
+      h('summary', { text: 'Have a licence key?' }),
+      box,
+      h('div', { class: 'home-actions' }, [
+        // Deliberately not .home-go: that class is the one primary action on
+        // the page, and two of them is both a design mistake and a selector
+        // that matches twice.
+        button('Apply key', () => void this.applyKey(box.value), { class: 'home-key-apply' }),
+      ]),
+    ]);
+  }
+
+  private async applyKey(key: string): Promise<void> {
+    const result = await this.editor.applyLicenceKey(key);
+    this.say(result.message, !result.ok);
+    if (result.ok) this.refresh();
   }
 
   /**

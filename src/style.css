@@ -3072,3 +3072,47 @@ button:disabled {
   background: var(--ember-wash);
   color: var(--ember);
 }
+
+/* The no-server way in, on the front door. */
+.home-advanced {
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--edge-soft);
+}
+
+.home-advanced summary {
+  cursor: pointer;
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.home-advanced summary:hover {
+  color: var(--ink-dim);
+}
+
+.home-key {
+  width: 100%;
+  min-height: 72px;
+  margin-top: 8px;
+  padding: 9px 11px;
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--shell-sunk);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 11px;
+  resize: vertical;
+}
+
+.home-key:focus {
+  outline: none;
+  border-color: var(--ember-deep);
+}
+
+.home-key-apply {
+  height: auto;
+  min-height: 34px;
+  padding: 8px 14px;
+  font-size: 12px;
+  white-space: normal;
+}

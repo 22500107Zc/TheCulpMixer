@@ -488,3 +488,36 @@ test('a customer cannot become the founder by signing up as that address', async
   }, kv);
   assert.equal(real.body.founder, true, 'the founder was locked out by a squatted row');
 });
+
+test('a host that has not deployed the functions is not an account service', async () => {
+  // The fault this is here for: a 404 page came back, the application took
+  // that as "the service answered", put the front door up, and then nothing
+  // behind that door could ever succeed. Locked out of your own application
+  // by a hosting setting.
+  const { refreshAccount } = await import('../src/licence/account');
+  const previousFetch = globalThis.fetch;
+  const store = new Map<string, string>();
+  (globalThis as { localStorage?: unknown }).localStorage = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => void store.set(k, v),
+    removeItem: (k: string) => void store.delete(k),
+  };
+  try {
+    // A stock 404 page: HTML, not JSON.
+    globalThis.fetch = (async () => new Response('<!doctype html><h1>404</h1>', {
+      status: 404, headers: { 'Content-Type': 'text/html' },
+    })) as typeof fetch;
+    const missing = await refreshAccount();
+    assert.equal(missing.reached, false, 'a 404 page was taken for the account service');
+
+    // A real answer, even a refusal, is the service.
+    globalThis.fetch = (async () => new Response(JSON.stringify({ error: 'sign-in-again' }), {
+      status: 401, headers: { 'Content-Type': 'application/json' },
+    })) as typeof fetch;
+    const real = await refreshAccount();
+    assert.equal(real.reached, true, 'a genuine refusal was taken for a missing service');
+  } finally {
+    globalThis.fetch = previousFetch;
+    delete (globalThis as { localStorage?: unknown }).localStorage;
+  }
+});
