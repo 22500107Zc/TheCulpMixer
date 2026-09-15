@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Mint Kline licence keys.
+ * Mint The Culp Mixer licence keys.
  *
  * You hold the private key; the application holds the public one. That is the
  * whole system. There is no server, no account and no payment code anywhere

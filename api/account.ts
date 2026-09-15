@@ -7,10 +7,10 @@
  *   confirmation email, no verification link — they are asked to remember
  *   their login and that is the whole of it. From that moment they have
  *   thirty-three hours, counted from sign-up and shown to them as it runs
- *   down. When it runs out, Kline locks and offers them the link to pay.
+ *   down. When it runs out, The Culp Mixer locks and offers them the link to pay.
  *
  *   They pay. The founder sees it, opens the console, and turns their account
- *   on. There is no payment API here on purpose: one person runs Kline, and
+ *   on. There is no payment API here on purpose: one person runs The Culp Mixer, and
  *   approving somebody by hand is a thing one person can actually do.
  *
  *   If they paid from a different address than they signed up with, the
@@ -84,7 +84,7 @@ async function describe(account: Account, now: number): Promise<Record<string, u
       paymentLink,
       // Said here rather than only in the interface, so it is the same
       // sentence wherever somebody meets it.
-      message: 'Your 33 hours are up. Kline is $199/month. One person runs Kline, '
+      message: 'Your 33 hours are up. The Culp Mixer is $199/month. One person runs The Culp Mixer, '
         + 'so access is switched on by hand once you have paid — usually quickly.',
     };
   }
@@ -133,7 +133,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   if (!kvConfigured()) {
     res.status(503).json({
       error: 'no-storage',
-      detail: 'Kline cannot take accounts until Supabase is connected. Set SUPABASE_URL and '
+      detail: 'The Culp Mixer cannot take accounts until Supabase is connected. Set SUPABASE_URL and '
         + 'SUPABASE_SERVICE_ROLE_KEY in Vercel and make the kline_kv table.',
     });
     return;

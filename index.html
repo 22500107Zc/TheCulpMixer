@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-    <title>Kline — 3D modelling</title>
-    <meta name="description" content="Kline is a proprietary 3D modelling application that runs in the browser and on your desktop: mesh editing, sculpting, rigging, animation, materials and glTF export. 33-hour free trial, then $199/month." />
+    <title>The Culp Mixer — 3D modelling</title>
+    <meta name="description" content="The Culp Mixer is a proprietary 3D modelling application that runs in the browser and on your desktop: mesh editing, sculpting, rigging, animation, materials and glTF export. 33-hour free trial, then $199/month." />
     <!--
       The browser-level half of the sandbox.
 
@@ -25,7 +25,7 @@
       moment the file opened. That is filtered where the document is parsed,
       which is the real fix; this stops anything that ever gets past it.
 
-      connect-src is left open on purpose. Kline talks to whatever local model
+      connect-src is left open on purpose. The Culp Mixer talks to whatever local model
       endpoint the person configures — often http://localhost:11434 — and
       narrowing it here would break that without protecting the sandbox, whose
       own reach is already gone.
@@ -39,7 +39,7 @@
   </head>
   <body>
     <div id="app"></div>
-    <noscript>Kline is an interactive 3D application and needs JavaScript enabled.</noscript>
+    <noscript>The Culp Mixer is an interactive 3D application and needs JavaScript enabled.</noscript>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -703,7 +703,7 @@ export class CreatePanel {
     section.appendChild(this.aiNote);
     if (!this.aiChecked && !this.aiRunning) {
       this.aiNote.textContent =
-        'Optional. Point this at a local image-to-3D server — tools/kline-ai-server.py in the repo is a working example. Everything above works without it.';
+        'Optional. Point this at a local image-to-3D server — tools/The Culp Mixer-ai-server.py in the repo is a working example. Everything above works without it.';
     }
     return section;
   }

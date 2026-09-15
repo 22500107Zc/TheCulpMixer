@@ -1,9 +1,9 @@
 /*
- * Kline desktop shell.
+ * The Culp Mixer desktop shell.
  *
  * A thin Electron host around the same static bundle the web build ships.
  * It adds the three things a browser tab cannot: a real application window,
- * a native menu bar driven by Kline's own command registry, and native file
+ * a native menu bar driven by The Culp Mixer's own command registry, and native file
  * dialogs for opening and saving scenes.
  */
 
@@ -19,7 +19,7 @@ const STATE_FILE = path.join(app.getPath('userData'), 'window-state.json');
 // A privileged custom scheme, because ES modules and service workers are both
 // blocked on file:// — this gives the bundle a proper secure origin.
 protocol.registerSchemesAsPrivileged([{
-  scheme: 'kline',
+  scheme: 'The Culp Mixer',
   privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, codeCache: true },
 }]);
 
@@ -72,7 +72,7 @@ const CONTENT_TYPES = {
 };
 
 function serveBundle() {
-  protocol.handle('kline', async (request) => {
+  protocol.handle('The Culp Mixer', async (request) => {
     const url = new URL(request.url);
     let pathname = decodeURIComponent(url.pathname);
     if (pathname === '' || pathname === '/') pathname = '/index.html';
@@ -98,7 +98,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#131214',
-    title: 'Kline',
+    title: 'The Culp Mixer',
     show: false,
     autoHideMenuBar: false,
     titleBarStyle: IS_MAC ? 'hiddenInset' : 'default',
@@ -149,7 +149,7 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  mainWindow.loadURL('kline://app/');
+  mainWindow.loadURL('The Culp Mixer://app/');
 
   // Smoke-test hook: `KLINE_SMOKE=<png path> electron .` boots the shell, puts
   // it through a short piece of real work, saves a screenshot and exits — so
@@ -201,7 +201,7 @@ function createWindow() {
 const SMOKE_SCRIPT = `(() => {
   try {
     const k = window.kline;
-    if (!k) return { ok: false, error: 'Kline did not start: window.kline is missing' };
+    if (!k) return { ok: false, error: 'The Culp Mixer did not start: window.kline is missing' };
     const ed = k.editor;
     const notes = {};
 
@@ -272,7 +272,7 @@ const SMOKE_SCRIPT = `(() => {
   }
 })()`;
 
-/** Turn Kline's own shortcut strings into Electron accelerators. */
+/** Turn The Culp Mixer's own shortcut strings into Electron accelerators. */
 function toAccelerator(shortcut) {
   if (!shortcut || !/ctrl\+/i.test(shortcut)) return undefined; // single keys stay with the canvas
   if (/numpad/i.test(shortcut)) return undefined;
@@ -294,7 +294,7 @@ function buildMenu(commands) {
 
   if (IS_MAC) {
     template.push({
-      label: 'Kline',
+      label: 'The Culp Mixer',
       submenu: [
         { role: 'about' }, { type: 'separator' },
         { role: 'services' }, { type: 'separator' },
@@ -332,7 +332,7 @@ function buildMenu(commands) {
       { label: 'Keyboard Shortcuts', click: () => mainWindow?.webContents.send('kline:shortcuts') },
       { type: 'separator' },
       {
-        label: 'Kline on GitHub',
+        label: 'The Culp Mixer on GitHub',
         click: () => shell.openExternal('https://github.com/22500107Zc/Kline'),
       },
     ],
@@ -342,7 +342,7 @@ function buildMenu(commands) {
 }
 
 function queueOpen(filePath) {
-  if (!filePath || !/\.(kline|kiln)$/.test(filePath)) return;
+  if (!filePath || !/\.(The Culp Mixer|kiln)$/.test(filePath)) return;
   if (mainWindow) mainWindow.webContents.send('kline:open-file', readScene(filePath));
   else pendingOpen = filePath;
 }
@@ -364,7 +364,7 @@ if (!app.requestSingleInstanceLock()) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
     }
-    queueOpen(argv.find((a) => /\.(kline|kiln)$/.test(a)));
+    queueOpen(argv.find((a) => /\.(The Culp Mixer|kiln)$/.test(a)));
   });
 
   app.on('open-file', (event, filePath) => {
@@ -376,7 +376,7 @@ if (!app.requestSingleInstanceLock()) {
     serveBundle();
     buildMenu([]);
     createWindow();
-    queueOpen(process.argv.find((a) => /\.(kline|kiln)$/.test(a)));
+    queueOpen(process.argv.find((a) => /\.(The Culp Mixer|kiln)$/.test(a)));
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -398,7 +398,7 @@ ipcMain.on('kline:register-commands', (_event, commands) => {
 });
 
 const FILTERS = {
-  kline: { name: 'Kline Scene', extensions: ['kline'] },
+  The Culp Mixer: { name: 'The Culp Mixer Scene', extensions: ['The Culp Mixer'] },
   obj: { name: 'Wavefront OBJ', extensions: ['obj'] },
   mtl: { name: 'Material Library', extensions: ['mtl'] },
   stl: { name: 'STL', extensions: ['stl'] },
@@ -490,7 +490,7 @@ ipcMain.handle('kline:open-scene', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
     title: 'Open Scene',
     properties: ['openFile'],
-    filters: [{ name: 'Kline Scene', extensions: ['kline', 'kiln'] }],
+    filters: [{ name: 'The Culp Mixer Scene', extensions: ['The Culp Mixer', 'kiln'] }],
   });
   if (canceled || filePaths.length === 0) return null;
   return readScene(filePaths[0]);

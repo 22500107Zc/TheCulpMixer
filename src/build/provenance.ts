@@ -450,7 +450,7 @@ export function regenerability(p: Provenance | null): { can: boolean; why: strin
     };
   }
   if (p.schema > PROVENANCE_SCHEMA) {
-    return { can: false, why: 'This object was made by a newer version of Kline than this one.' };
+    return { can: false, why: 'This object was made by a newer version of The Culp Mixer than this one.' };
   }
   switch (p.source) {
     case 'recipe':

@@ -685,7 +685,7 @@ test('modifier and animation edits block a silent removal too', () => {
 
 test('a baseline too old to prove anything refuses to delete on a guess', () => {
   const { scene, root } = build('a staircase with 20 steps');
-  // An asset recorded before Kline stored materials, modifiers or animation.
+  // An asset recorded before The Culp Mixer stored materials, modifiers or animation.
   const prov = root.provenance!;
   prov.baseline.version = 1;
   for (const part of prov.baseline.parts!) {

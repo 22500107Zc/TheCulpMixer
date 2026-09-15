@@ -831,12 +831,12 @@ export const COMMANDS: Command[] = [
   },
   {
     id: 'help.guideOnStart',
-    label: 'Show The Guide When Kline Opens',
+    label: 'Show The Guide When The Culp Mixer Opens',
     category: 'Help',
     run: (ed) => {
       const on = !ed.preferences.showGuideOnStart;
       ed.applyPreferences({ ...ed.preferences, showGuideOnStart: on });
-      ed.setStatus(on ? 'The guide will open with Kline' : 'The guide will stay closed on start');
+      ed.setStatus(on ? 'The guide will open with The Culp Mixer' : 'The guide will stay closed on start');
     },
   },
   {
@@ -1578,9 +1578,9 @@ function heldDuringRevision(id: string): boolean {
 }
 
 /**
- * The handful of commands that still work once Kline is locked.
+ * The handful of commands that still work once The Culp Mixer is locked.
  *
- * After the trial, Kline is locked — not restricted, locked. These four are
+ * After the trial, The Culp Mixer is locked — not restricted, locked. These four are
  * the exceptions and each one exists so the lock cannot trap somebody: the
  * licence panel is how you unlock it, Help and the guide explain why it is
  * locked, and Save lets whatever is on screen right now reach the disk before

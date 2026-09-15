@@ -5,7 +5,7 @@
  *
  * This is not about Gatekeeper warnings. On arm64 macOS the kernel refuses to
  * execute a binary carrying no signature at all — the app does not start, and
- * the dialog says "Kline is damaged and can't be opened. You should move it to
+ * the dialog says "The Culp Mixer is damaged and can't be opened. You should move it to
  * the Trash." Right-click -> Open does not clear that, because it is not a
  * Gatekeeper prompt: it is the loader rejecting an unsigned arm64 executable.
  *

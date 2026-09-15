@@ -2,7 +2,7 @@
   "name": "kline",
   "version": "0.11.0",
   "private": false,
-  "description": "Kline — a proprietary 3D modelling application. 33-hour free trial, then $199/month. Runs in a browser tab or as a desktop app.",
+  "description": "The Culp Mixer — a proprietary 3D modelling application. 33-hour free trial, then $199/month. Runs in a browser tab or as a desktop app.",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "scripts": {
@@ -50,9 +50,9 @@
   },
   "main": "electron/main.cjs",
   "build": {
-    "appId": "org.kline.app",
-    "productName": "Kline",
-    "copyright": "Copyright © 2026 Kline contributors",
+    "appId": "com.culpindustries.culpmixer",
+    "productName": "The Culp Mixer",
+    "copyright": "Copyright © 2026 The Culp Mixer contributors",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -71,22 +71,22 @@
     "fileAssociations": [
       {
         "ext": "kline",
-        "name": "Kline Scene",
-        "description": "Kline 3D scene",
+        "name": "The Culp Mixer Scene",
+        "description": "The Culp Mixer 3D scene",
         "role": "Editor",
         "icon": "build/icon.png"
       },
       {
         "ext": "kiln",
-        "name": "Kline Scene (legacy)",
-        "description": "Kline 3D scene saved before the rename",
+        "name": "The Culp Mixer Scene (legacy)",
+        "description": "The Culp Mixer 3D scene saved before the rename",
         "role": "Editor",
         "icon": "build/icon-kiln.png"
       }
     ],
     "mac": {
       "category": "public.app-category.graphics-design",
-      "artifactName": "${productName}-${arch}.${ext}",
+      "artifactName": "CulpMixer-${arch}.${ext}",
       "target": [
         {
           "target": "pkg",
@@ -113,8 +113,8 @@
       "darkModeSupport": true
     },
     "dmg": {
-      "title": "Kline ${arch}",
-      "artifactName": "${productName}-${arch}.${ext}",
+      "title": "The Culp Mixer ${arch}",
+      "artifactName": "CulpMixer-${arch}.${ext}",
       "iconSize": 128,
       "window": {
         "width": 560,
@@ -152,15 +152,15 @@
       "icon": "build/icon.png"
     },
     "portable": {
-      "artifactName": "${productName}-portable.${ext}"
+      "artifactName": "CulpMixer-portable.${ext}"
     },
     "nsis": {
-      "artifactName": "${productName}-Setup.${ext}",
+      "artifactName": "CulpMixer-Setup.${ext}",
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "Kline"
+      "shortcutName": "The Culp Mixer"
     },
     "linux": {
       "target": [
@@ -169,11 +169,11 @@
       ],
       "category": "Graphics",
       "icon": "build/icon.png",
-      "artifactName": "${productName}.${ext}",
+      "artifactName": "CulpMixer.${ext}",
       "desktop": {
-        "StartupWMClass": "Kline"
+        "StartupWMClass": "The Culp Mixer"
       },
-      "maintainer": "Kline contributors <noreply@users.noreply.github.com>"
+      "maintainer": "The Culp Mixer contributors <noreply@users.noreply.github.com>"
     },
     "pkg": {
       "installLocation": "/Applications",
@@ -184,7 +184,7 @@
     }
   },
   "author": {
-    "name": "Kline contributors",
+    "name": "The Culp Mixer contributors",
     "email": "noreply@users.noreply.github.com"
   },
   "dependencies": {

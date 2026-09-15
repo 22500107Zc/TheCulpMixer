@@ -80,7 +80,7 @@ test('the app opens offline after a single visit', { skip: app.skip }, async () 
   const { context, page } = await freshVisit();
   try {
     const [name] = await cacheNames(page);
-    assert.match(name ?? '', /^kline-shell-/, 'no shell cache was written during install');
+    assert.match(name ?? '', /^The Culp Mixer-shell-/, 'no shell cache was written during install');
     const held = await page.evaluate(async (n) => {
       const keys = await (await caches.open(n)).keys();
       return keys.map((r) => new URL(r.url).pathname);
@@ -101,13 +101,13 @@ test('the cache is named for the build', { skip: app.skip }, async () => {
   const { context, page } = await freshVisit();
   try {
     const [name] = await cacheNames(page);
-    assert.match(name, /^kline-shell-[0-9a-f]{8,}$/, `cache name "${name}" is not keyed to a build`);
+    assert.match(name, /^The Culp Mixer-shell-[0-9a-f]{8,}$/, `cache name "${name}" is not keyed to a build`);
   } finally {
     await context.close();
   }
 });
 
-test('an update clears Kline’s old caches and nothing else', { skip: app.skip }, async () => {
+test('an update clears The Culp Mixer’s old caches and nothing else', { skip: app.skip }, async () => {
   const { context, page } = await freshVisit();
   try {
     const before = (await cacheNames(page))[0];
@@ -117,8 +117,8 @@ test('an update clears Kline’s old caches and nothing else', { skip: app.skip 
     // recognise, which on a shared host is somebody else's application.
     await page.evaluate(async () => {
       await caches.open('someone-elses-app-v3');
-      await caches.open('kline-large-v1');
-      const stale = await caches.open('kline-shell-0000000000000000');
+      await caches.open('The Culp Mixer-large-v1');
+      const stale = await caches.open('The Culp Mixer-shell-0000000000000000');
       await stale.put('/stale', new Response('old'));
     });
 
@@ -136,18 +136,18 @@ test('an update clears Kline’s old caches and nothing else', { skip: app.skip 
     const after = await waitForCaches(
       page,
       'the new build never took over',
-      (names) => names.some((n) => n.startsWith('kline-shell-') && n !== before
-        && n !== 'kline-shell-0000000000000000')
+      (names) => names.some((n) => n.startsWith('The Culp Mixer-shell-') && n !== before
+        && n !== 'The Culp Mixer-shell-0000000000000000')
         && !names.includes(before),
       30000,
       release,
     );
     assert.ok(after.includes('someone-elses-app-v3'), 'the update deleted an unrelated cache');
-    assert.ok(after.includes('kline-large-v1'),
+    assert.ok(after.includes('The Culp Mixer-large-v1'),
       'the update threw away the forty megabytes of depth model');
-    assert.ok(!after.includes('kline-shell-0000000000000000'),
+    assert.ok(!after.includes('The Culp Mixer-shell-0000000000000000'),
       `a stale build cache was left behind: ${after.join(', ')}`);
-    assert.equal(after.filter((n) => n.startsWith('kline-shell-')).length, 1,
+    assert.equal(after.filter((n) => n.startsWith('The Culp Mixer-shell-')).length, 1,
       `shell caches accumulated: ${after.join(', ')}`);
 
     // And the new build is still usable without a network.
@@ -185,7 +185,7 @@ test('a waiting update is offered to the creator, not forced on them', { skip: a
     await page.locator('.update-bar .btn.primary').click();
     await page.waitForFunction(() => !!window.kline, null, { timeout: 25000 });
     await waitForCaches(page, 'the reload did not land on the new build',
-      (names) => !names.includes(before) && names.some((n) => n.startsWith('kline-shell-')));
+      (names) => !names.includes(before) && names.some((n) => n.startsWith('The Culp Mixer-shell-')));
   } finally {
     await context.close();
   }

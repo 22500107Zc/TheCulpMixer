@@ -656,7 +656,7 @@ export class Scene {
    */
   toJSON(meshes?: { serialize(m: Mesh): ReturnType<Mesh['toJSON']> }): SerializedScene {
     return {
-      format: 'kline-scene',
+      format: 'The Culp Mixer-scene',
       version: 1,
       nextId: this.nextId,
       world: { ...this.world, background: [...this.world.background] as [number, number, number] },

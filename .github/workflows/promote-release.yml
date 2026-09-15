@@ -49,7 +49,7 @@ jobs:
             --json assets --jq '[.assets[].name] | join(" ")')
           echo "attached: ${assets:-<nothing>}"
           missing=0
-          for want in Kline-Setup.exe Kline.AppImage Kline-arm64.dmg Kline-x64.dmg; do
+          for want in CulpMixer-Setup.exe CulpMixer.AppImage CulpMixer-arm64.dmg CulpMixer-x64.dmg; do
             case " $assets " in
               *" $want "*) ;;
               *) echo "MISSING $want"; missing=1 ;;

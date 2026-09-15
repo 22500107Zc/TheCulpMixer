@@ -5,7 +5,7 @@ import { button, clear, h } from './dom';
 /**
  * The front door.
  *
- * The first thing anybody sees at the link: what Kline is, what it costs, who
+ * The first thing anybody sees at the link: what The Culp Mixer is, what it costs, who
  * is behind it, and two boxes to make an account. It covers the whole window
  * until they are signed in, and it comes back the moment their thirty-three
  * hours run out — at which point the only thing on it is the way to pay.
@@ -20,7 +20,7 @@ import { button, clear, h } from './dom';
  * 2. **The countdown is on this page.** Somebody who is going to be asked for
  *    money in thirty-three hours should be able to see that from the first
  *    minute, not discover it when the application stops.
- * 3. **It says one person runs Kline.** That is why approval is by hand, why
+ * 3. **It says one person runs The Culp Mixer.** That is why approval is by hand, why
  *    it may take a moment, and why paying from a different address is fine.
  *    Saying it up front turns a support complaint into an expectation.
  */
@@ -74,7 +74,7 @@ export class HomePage {
 
     this.card.append(
       h('div', { class: 'home-brand' }, [
-        h('h1', { class: 'home-title', text: 'Kline' }),
+        h('h1', { class: 'home-title', text: 'The Culp Mixer' }),
         h('p', {
           class: 'home-tagline',
           text: 'A 3D modelling application that runs on your machine. Mesh editing, '
@@ -189,7 +189,7 @@ export class HomePage {
    */
   private founderNote(): HTMLElement {
     return h('p', { class: 'home-founder' }, [
-      h('strong', { text: 'One person runs Kline.' }),
+      h('strong', { text: 'One person runs The Culp Mixer.' }),
       h('span', {
         text: ' Not a company, not a team — one founder, who wrote it and answers the email. '
           + 'That is why accounts are switched on by hand after you pay, and why it is worth '

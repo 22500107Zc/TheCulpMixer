@@ -27,7 +27,7 @@ test('OBJ export writes transformed, Y-up geometry', () => {
   assert.equal(text.split('\n').filter((l) => l.startsWith('f ')).length, 6);
   assert.match(text, /^o Cube$/m);
   assert.match(text, /^usemtl Clay$/m);
-  // Kline's +Z (up) becomes OBJ's +Y, so every vertex sits at y = 0 or y = 2.
+  // The Culp Mixer's +Z (up) becomes OBJ's +Y, so every vertex sits at y = 0 or y = 2.
   for (const line of verts) {
     const y = parseFloat(line.split(/\s+/)[2]);
     assert.ok(Math.abs(y) < 1e-6 || Math.abs(y - 2) < 1e-6, `unexpected y ${y}`);
@@ -102,7 +102,7 @@ test('glTF export honours the selection filter', () => {
 
 /**
  * OBJ arrives from everywhere — other applications, half-finished exports,
- * downloads that stopped early — so the importer is the one place in Kline
+ * downloads that stopped early — so the importer is the one place in The Culp Mixer
  * where the input was written by a stranger. It gets to return an empty list
  * or a smaller model, but never a mesh the rest of the app cannot draw.
  */
@@ -214,8 +214,8 @@ test('an exported OBJ points at its material file and its texture', () => {
   assert.equal(texturesForMTL(scene).length, 1, 'an unreferenced texture was written out anyway');
 });
 
-test('OBJ survives a round trip through Kline with its coordinates', () => {
-  // Kline read back its own export and dropped the texture coordinates every
+test('OBJ survives a round trip through The Culp Mixer with its coordinates', () => {
+  // The Culp Mixer read back its own export and dropped the texture coordinates every
   // time: the file had them written in it and the importer walked past them.
   const { scene } = texturedPhotoScene();
   const original = [...scene.objects.values()][0].mesh!;
@@ -424,7 +424,7 @@ function readAccessor(doc: any, index: number): number[] {
 }
 
 test('unused skin slots do not become joint 65535', () => {
-  // Kline marks an empty influence slot with bone -1. Written as the unsigned
+  // The Culp Mixer marks an empty influence slot with bone -1. Written as the unsigned
   // short glTF asks for, that became 65535 — a joint index thousands past the
   // end of the skin. The Khronos validator counted 5,664 of them in one
   // ordinary rigged sphere; an importer reads whatever is at that index.

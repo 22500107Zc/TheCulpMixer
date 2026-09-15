@@ -13,7 +13,7 @@ import { verifyKey } from '../src/licence/licence';
  * are about it staying shut: no password set, wrong password, no session, a
  * forged session, an expired one. The rest are about the thing it exists for —
  * making somebody an account without Stripe, and having that actually unlock
- * Kline.
+ * The Culp Mixer.
  */
 
 const PASSWORD = 'a-test-password-not-the-real-one';
@@ -222,7 +222,7 @@ test('a live Stripe key is never sent back to the browser', async () => {
 
 // ------------------------------------------------------------ what it is for
 
-test('an account made in the console unlocks Kline for that email', async () => {
+test('an account made in the console unlocks The Culp Mixer for that email', async () => {
   // The whole point of the founder login: somebody gets in without Stripe.
   const kv = store();
   const session = await signIn({ kv });
@@ -235,7 +235,7 @@ test('an account made in the console unlocks Kline for that email', async () => 
   const state = await run(licence, {
     action: 'state', install: 'install-partner', email: 'partner@example.com',
   }, { kv });
-  assert.equal(state.body.status, 'active', 'a granted account did not unlock Kline');
+  assert.equal(state.body.status, 'active', 'a granted account did not unlock The Culp Mixer');
   const parsed = await verifyKey(String(state.body.key), SPKI);
   assert.equal(parsed?.name, 'partner@example.com');
   assert.equal(parsed?.plan, 'Partner');
@@ -267,7 +267,7 @@ test('removing an account takes the access away', async () => {
   assert.equal(
     (await run(licence, { action: 'state', install: 'i', email: 'gone@example.com' }, { kv })).body.status,
     'trial',
-    'a removed account still unlocked Kline',
+    'a removed account still unlocked The Culp Mixer',
   );
 });
 
@@ -368,7 +368,7 @@ test('the thirty-three hours cannot be changed from the console', async () => {
 
 test('an account made in the console can sign in with its password', async () => {
   // The thing the founder login exists to produce: a customer with an email
-  // and a password who opens Kline and is in.
+  // and a password who opens The Culp Mixer and is in.
   const kv = store();
   const session = await signIn({ kv });
 

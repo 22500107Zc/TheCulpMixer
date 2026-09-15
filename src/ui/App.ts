@@ -175,7 +175,7 @@ export class App {
     this.setupGuide.showOnStart();
     this.watchForUpdates();
     this.editor.panels.toggleLicence = () => this.licencePanel.toggle();
-    // Whenever Kline is locked, the wall goes up — at startup and again on any
+    // Whenever The Culp Mixer is locked, the wall goes up — at startup and again on any
     // refused command. Registered before the first check runs, so a build that
     // is already past its trial never gets a frame of the editor.
     this.editor.on('licence', () => {
@@ -186,7 +186,7 @@ export class App {
     //
     // The local answer comes first, so the interface is never wrong even for a
     // moment, and then the server is asked. That second call is what
-    // recognises somebody who has just paid, or who is opening Kline on their
+    // recognises somebody who has just paid, or who is opening The Culp Mixer on their
     // second machine, without anybody being handed a key to copy. It cannot
     // fail loudly: offline, server down, or no Stripe account connected yet
     // all leave the local answer standing.
@@ -242,7 +242,7 @@ export class App {
       bridge?.answerClose?.(true);
       return;
     }
-    const answer = await askUnsaved('Closing Kline will lose them.');
+    const answer = await askUnsaved('Closing The Culp Mixer will lose them.');
     if (answer === 'cancel') {
       bridge?.answerClose?.(false);
       return;
@@ -252,7 +252,7 @@ export class App {
         'scene.kline', JSON.stringify(this.editor.scene.toJSON(), null, 1), 'application/json',
       );
       if (!saveWorked(outcome)) {
-        this.editor.setStatus(`${describeSave(outcome, 'scene.kline')} — Kline stayed open.`);
+        this.editor.setStatus(`${describeSave(outcome, 'scene.kline')} — The Culp Mixer stayed open.`);
         bridge?.answerClose?.(false);
         return;
       }
@@ -514,7 +514,7 @@ export class App {
    *
    * The service worker deliberately does not take over a running tab — it
    * installs, precaches, and waits — so without this the new version would sit
-   * there until every Kline tab had been closed. This is the control that
+   * there until every The Culp Mixer tab had been closed. This is the control that
    * releases it, and it only appears when there is genuinely something waiting
    * *and* a worker already in charge, so a first-ever install stays silent.
    */
@@ -524,7 +524,7 @@ export class App {
       if (!navigator.serviceWorker.controller) return;
       clear(this.updateBar);
       this.updateBar.append(
-        h('span', { text: 'A new version of Kline is ready.' }),
+        h('span', { text: 'A new version of The Culp Mixer is ready.' }),
         h('button', {
           class: 'btn primary', text: 'Reload',
           on: {

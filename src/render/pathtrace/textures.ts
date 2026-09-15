@@ -4,7 +4,7 @@ import { Scene } from '../../scene/Scene';
  * Getting pictures into the path tracer.
  *
  * The tracer runs in workers, and a worker has no DOM: it cannot turn a data
- * URL into pixels, which is how Kline stores every texture so that a saved
+ * URL into pixels, which is how The Culp Mixer stores every texture so that a saved
  * scene is one self-contained file. So the decoding happens here, once, on the
  * thread that does have a document, and what crosses to the workers is a flat
  * block of floats they can index without unpacking anything.

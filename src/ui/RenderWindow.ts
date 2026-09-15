@@ -202,10 +202,10 @@ export class RenderWindow {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'kline-render.png';
+      a.download = 'The Culp Mixer-render.png';
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
-      this.editor.setStatus('Saved kline-render.png');
+      this.editor.setStatus('Saved The Culp Mixer-render.png');
     }, 'image/png');
   }
 }

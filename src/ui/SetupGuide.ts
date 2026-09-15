@@ -35,10 +35,10 @@ interface Card {
 
 const CARDS: Card[] = [
   {
-    title: 'Welcome to Kline',
+    title: 'Welcome to The Culp Mixer',
     body: 'A 3D modelling application that runs on your machine and nowhere else. '
       + 'Nothing you open is uploaded, there is no account, and there is no server. '
-      + `Kline is proprietary software, not free software: ${TERMS} `
+      + `The Culp Mixer is proprietary software, not free software: ${TERMS} `
       + 'This takes about a minute and you can stop at any point.',
     action: {
       label: 'Put a cube in front of me',
@@ -91,7 +91,7 @@ const CARDS: Card[] = [
     title: 'Move, rotate, scale',
     body: 'G grabs, R rotates, S scales. Move the mouse, then click to keep it or press '
       + 'Escape to put it back. Hold X, Y or Z while dragging to lock to an axis. '
-      + 'Every transform in Kline works this way.',
+      + 'Every transform in The Culp Mixer works this way.',
     action: {
       label: 'Back to Object Mode',
       run: (editor) => {
@@ -101,7 +101,7 @@ const CARDS: Card[] = [
   },
   {
     title: 'Turn a photo into a model',
-    body: 'Drag a photograph onto the window. Kline finds the subject by colour, inflates it '
+    body: 'Drag a photograph onto the window. The Culp Mixer finds the subject by colour, inflates it '
       + 'to its own thickness — wide parts deep, thin parts thin — and projects the photo back '
       + 'on as a texture. What comes out is a closed, editable mesh, not a cut-out. It cannot '
       + 'see the back of the object, so the far side is the near side, shallower.',
@@ -197,7 +197,7 @@ export class SetupGuide {
       ]),
       h('label', { class: 'setup-again' }, [
         this.againBox,
-        h('span', { text: 'Do not show this when Kline opens' }),
+        h('span', { text: 'Do not show this when The Culp Mixer opens' }),
       ]),
     );
   }

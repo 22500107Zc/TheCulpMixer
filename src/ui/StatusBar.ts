@@ -78,14 +78,14 @@ export class StatusBar {
     if (account?.status === 'trial' && account.trialEndsAt) {
       this.left.append(h('button', {
         class: 'trial-chip',
-        title: 'How long is left of your 33 hours, and what Kline costs after',
+        title: 'How long is left of your 33 hours, and what The Culp Mixer costs after',
         text: `Trial — ${countdown(account.trialEndsAt)} left · ${PRICE}`,
         on: { click: () => ed.panels.toggleLicence?.() },
       }));
     } else if (!account && ed.licence.status === 'trial') {
       this.left.append(h('button', {
         class: 'trial-chip',
-        title: 'What Kline costs, and how long is left of the trial',
+        title: 'What The Culp Mixer costs, and how long is left of the trial',
         text: `${ed.licenceSummary} · ${PRICE}`,
         on: { click: () => ed.panels.toggleLicence?.() },
       }));

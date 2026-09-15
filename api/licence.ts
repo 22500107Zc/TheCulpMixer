@@ -1,7 +1,7 @@
 /**
  * The licence server.
  *
- * What this exists for, in one sentence: so that selling Kline is sending
+ * What this exists for, in one sentence: so that selling The Culp Mixer is sending
  * somebody a link, and nothing else.
  *
  * Everything here runs on Vercel next to the web app. There is no database to
@@ -83,7 +83,7 @@ function mint(payload: Record<string, unknown>): string {
   return `${body}.${base64url(signature)}`;
 }
 
-/** Stripe, over plain fetch. No SDK: Kline ships no runtime dependencies. */
+/** Stripe, over plain fetch. No SDK: The Culp Mixer ships no runtime dependencies. */
 async function stripe(
   path: string, params?: Record<string, string>, method: 'GET' | 'POST' = 'GET',
 ): Promise<Record<string, unknown> | null> {
@@ -131,7 +131,7 @@ async function findSubscription(
     });
     const sub = found?.subscription as Record<string, unknown> | undefined;
     if (sub && typeof sub === 'object' && isLive(sub)) {
-      return { name: emailOf(found) || email || 'Kline subscriber', until: periodEnd(sub) };
+      return { name: emailOf(found) || email || 'The Culp Mixer subscriber', until: periodEnd(sub) };
     }
   }
 
@@ -142,7 +142,7 @@ async function findSubscription(
       limit: '1',
     });
     const sub = (found?.data as Record<string, unknown>[] | undefined)?.[0];
-    if (sub && isLive(sub)) return { name: email || 'Kline subscriber', until: periodEnd(sub) };
+    if (sub && isLive(sub)) return { name: email || 'The Culp Mixer subscriber', until: periodEnd(sub) };
   }
 
   // 3. By email, which is how somebody who already paid unlocks a second
@@ -276,7 +276,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
           email: account.email,
           trialEndedAt: where.trialEndedAt,
           paymentLink,
-          message: 'Your 33 hours are up. Kline is $199/month. One person runs Kline, so '
+          message: 'Your 33 hours are up. The Culp Mixer is $199/month. One person runs The Culp Mixer, so '
             + 'access is switched on by hand once you have paid.',
         });
         return;

@@ -141,7 +141,7 @@ export async function writeInFolder(
 /**
  * Remember where a document was last saved, so Save writes there again.
  *
- * Keyed by the name the caller asks for, which is how Kline addresses a
+ * Keyed by the name the caller asks for, which is how The Culp Mixer addresses a
  * document. Held in memory only: a file handle is not serializable, and a
  * reload legitimately has to ask again.
  */
@@ -217,7 +217,7 @@ async function saveInBrowser(filename: string, blob: Blob, mime: string): Promis
 /** A word for the file type, for the picker's filter row. */
 function describeKind(extension: string): string {
   switch (extension) {
-    case '.kline': return 'Kline scene';
+    case '.kline': return 'The Culp Mixer scene';
     case '.gltf': return 'glTF 2.0';
     case '.obj': return 'Wavefront OBJ';
     case '.mtl': return 'Material library';

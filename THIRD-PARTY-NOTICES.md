@@ -1,6 +1,6 @@
 # Third-party components
 
-Kline itself is proprietary — see `LICENSE`. Two third-party components are
+The Culp Mixer itself is proprietary — see `LICENSE`. Two third-party components are
 redistributed inside the application, both under permissive licences that allow
 commercial redistribution inside a proprietary product. Those components keep
 their own terms, which are reproduced or linked below, and this file travels

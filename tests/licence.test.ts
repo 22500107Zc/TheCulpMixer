@@ -131,7 +131,7 @@ test('a live subscription works; an expired one is locked out entirely', async (
   const lapsed = await licenceState({ fromSource: false, key, publicKey: spki, now: NOW + 2 * 864e5 });
   assert.equal(lapsed.status, 'expired');
   assert.equal(canExport(lapsed), false);
-  assert.equal(canUse(lapsed), false, 'an expired licence could still use Kline');
+  assert.equal(canUse(lapsed), false, 'an expired licence could still use The Culp Mixer');
   // It names the price, because a lock that does not say what it costs is just
   // a dead end.
   assert.ok(whyBlocked(lapsed).includes(PRICE), whyBlocked(lapsed));
@@ -185,7 +185,7 @@ test('the trial runs for thirty-three hours, then locks the whole application', 
 
     const over = await at(NOW + TRIAL_MS + 1);
     assert.equal(over.status, 'trial-over');
-    assert.equal(canUse(over), false, 'Kline was still usable after the trial ended');
+    assert.equal(canUse(over), false, 'The Culp Mixer was still usable after the trial ended');
     assert.equal(canExport(over), false, 'export was still open after the trial ended');
     assert.match(whyBlocked(over), /locked/i);
     assert.ok(whyBlocked(over).includes(PRICE), whyBlocked(over));
@@ -197,7 +197,7 @@ test('the trial runs for thirty-three hours, then locks the whole application', 
 });
 
 test('the lock stops the application, never the work', async () => {
-  // Stated as a test because it is the promise. After the trial Kline is
+  // Stated as a test because it is the promise. After the trial The Culp Mixer is
   // locked — that is what is being sold — but the lock is on the software, not
   // on anything a person made with it. Nothing is deleted, nothing is held.
   const { spki, mint } = issuer();
@@ -237,7 +237,7 @@ test('the trial window is thirty-three hours and the price is $199 a month', () 
 test('every surface a person can read states the price and the trial', async () => {
   // The terms went in six different places and came out of four of them by
   // accident over successive edits. This is the sweep that stops that: if a
-  // file a customer can read does not say what Kline costs, it fails here.
+  // file a customer can read does not say what The Culp Mixer costs, it fails here.
   const { readFileSync } = await import('node:fs');
   const files = [
     'README.md', 'LICENSE', 'index.html', 'SELLING.md',
@@ -245,7 +245,7 @@ test('every surface a person can read states the price and the trial', async () 
   ];
   for (const file of files) {
     const text = readFileSync(file, 'utf8');
-    assert.match(text, /199/, `${file} does not say what Kline costs`);
+    assert.match(text, /199/, `${file} does not say what The Culp Mixer costs`);
     assert.match(text, /33[ -](hour|hours)|thirty-three \(33\) hours|thirty-three hours/i,
       `${file} does not state the 33-hour trial`);
   }
@@ -254,10 +254,10 @@ test('every surface a person can read states the price and the trial', async () 
   assert.match(guide, /TERMS/, 'the setup guide does not state the terms');
 });
 
-test('nothing Kline ships describes Kline as open source or MIT', async () => {
+test('nothing The Culp Mixer ships describes The Culp Mixer as open source or MIT', async () => {
   // This kept coming back. package.json said MIT while LICENSE said
   // proprietary; the README called it an open source alternative to Blender;
-  // THIRD-PARTY-NOTICES.md — which is inside every build — opened with "Kline
+  // THIRD-PARTY-NOTICES.md — which is inside every build — opened with "The Culp Mixer
   // itself is MIT licensed"; and the web manifest and package description said
   // open source too. Each was found separately, by a person reading the page
   // rather than by anything failing.
@@ -269,15 +269,15 @@ test('nothing Kline ships describes Kline as open source or MIT', async () => {
   for (const file of files) {
     const text = readFileSync(file, 'utf8');
     for (const line of text.split('\n')) {
-      // A line saying Kline is NOT open source is the point, not a failure.
+      // A line saying The Culp Mixer is NOT open source is the point, not a failure.
       if (/\bnot\b[^.]*open.?source|open.?source[^.]*\bnot\b/i.test(line)) continue;
       assert.ok(!/open.?source/i.test(line),
-        `${file} calls Kline open source: ${line.trim()}`);
+        `${file} calls The Culp Mixer open source: ${line.trim()}`);
       // A third-party component's own MIT licence is legitimate and required
-      // to be reproduced; a claim that *Kline* is MIT is not.
+      // to be reproduced; a claim that *The Culp Mixer* is MIT is not.
       if (/\bMIT\b/.test(line)) {
         assert.ok(!/\bKline\b/i.test(line),
-          `${file} claims Kline is MIT licensed: ${line.trim()}`);
+          `${file} claims The Culp Mixer is MIT licensed: ${line.trim()}`);
       }
     }
   }

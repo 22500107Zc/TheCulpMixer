@@ -3,7 +3,7 @@ import { h } from './dom';
 /**
  * "You have unsaved work."
  *
- * The one dialog a document application owes people, and the one Kline did not
+ * The one dialog a document application owes people, and the one The Culp Mixer did not
  * have. `File > New` wiped the scene on the spot, `File > Open` replaced it,
  * and closing the desktop window took it with no question asked — the only
  * safety net was an autosave that a person had no reason to know about and no

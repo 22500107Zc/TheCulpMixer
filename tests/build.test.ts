@@ -367,6 +367,8 @@ test('scenes saved before the rename still open', () => {
   const extensions = new Set(
     (BUILD.fileAssociations ?? []).flatMap((fa) => (Array.isArray(fa.ext) ? fa.ext : [fa.ext])),
   );
+  // The extensions themselves do not move when the product is renamed: every
+  // file anybody has already saved would stop being recognised.
   assert.ok(extensions.has('kline'), 'the current extension must be registered');
   assert.ok(extensions.has('kiln'), 'the pre-rename extension must still be registered');
 });
@@ -388,12 +390,32 @@ test('every path the packaging config points at exists', () => {
 });
 
 test('the app is packaged under the name it is called', () => {
-  assert.equal(BUILD.productName, 'Kline');
-  assert.ok(BUILD.appId?.includes('kline'), `appId ${BUILD.appId} should identify Kline`);
-  // The rename left the old name behind in places that only a release surfaces.
-  const config = JSON.stringify(BUILD);
-  const stale = config.match(/Kiln[a-z]*/gi)?.filter((m) => m !== 'kiln');
-  assert.deepEqual(stale ?? [], [], `the packaging config still says: ${stale?.join(', ')}`);
+  assert.equal(BUILD.productName, 'The Culp Mixer');
+  assert.ok(BUILD.appId?.includes('culpmixer'),
+    `appId ${BUILD.appId} should identify The Culp Mixer`);
+
+  // A rename leaves the old name behind in the places only a release
+  // surfaces: an installer filename, a Start-menu shortcut, the name macOS
+  // puts under the icon. Twice now, so the fields a person actually reads are
+  // named here rather than scanned for — the file extensions and the icon
+  // filed under one are deliberately not among them, because they cannot move
+  // without orphaning every file already saved.
+  const shown = [
+    BUILD.productName,
+    BUILD.appId,
+    BUILD.win?.shortcutName,
+    ...(BUILD.fileAssociations ?? []).map((fa) => fa.name),
+    ...[BUILD.mac, BUILD.win, BUILD.linux, BUILD.dmg, BUILD.nsis, BUILD.portable]
+      .flatMap((target) => {
+        const value = (target as { artifactName?: unknown } | undefined)?.artifactName;
+        return typeof value === 'string' ? [value] : [];
+      }),
+  ].filter((value): value is string => typeof value === 'string');
+
+  for (const value of shown) {
+    assert.ok(!/kiln|kline/i.test(value), `the packaging config still says "${value}"`);
+  }
+  assert.ok(shown.length >= 4, 'nothing was actually checked');
 });
 
 /**
@@ -401,7 +423,7 @@ test('the app is packaged under the name it is called', () => {
  *
  * On Apple Silicon the kernel refuses to execute a binary with no signature —
  * not a Gatekeeper warning that can be clicked through, but the loader
- * rejecting the app outright with "Kline is damaged and can't be opened."
+ * rejecting the app outright with "The Culp Mixer is damaged and can't be opened."
  * electron-builder signs only when it finds a real Developer ID certificate,
  * so without an Apple account every macOS build shipped unsigned and dead.
  */
@@ -489,7 +511,7 @@ test('the disk image opens onto the app and the Applications folder, and nothing
   //
   // electron-builder builds the x64 and arm64 images at the same time, and
   // each one is customised by mounting it and writing the layout into the
-  // volume. With one name for both, the two mount as "Kline" and "Kline 1"
+  // volume. With one name for both, the two mount as "The Culp Mixer" and "The Culp Mixer 1"
   // at the same moment and the layout goes into whichever the system handed
   // over — so one image came out with its icons placed and the other with no
   // .DS_Store, no background and, worst of all, no Applications folder to

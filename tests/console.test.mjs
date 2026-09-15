@@ -6,7 +6,7 @@
  * HTTP, against the actual built bundle and the actual founder page:
  *
  *   sign in to the console  ->  make an account  ->  read the password it
- *   hands over  ->  open Kline past its trial  ->  sign in with that email
+ *   hands over  ->  open The Culp Mixer past its trial  ->  sign in with that email
  *   and password  ->  the wall comes down and the application works.
  *
  * That is the whole of the business, and until this existed no test covered
@@ -217,7 +217,7 @@ if (app.skip) {
   test.before(() => {
     process.env.KV_REST_API_URL = `${app.origin}/kv`;
     process.env.KV_REST_API_TOKEN = 'test-token';
-    process.env.KLINE_PAYMENT_LINK = 'https://buy.example.com/kline';
+    process.env.KLINE_PAYMENT_LINK = 'https://buy.example.com/The Culp Mixer';
   });
 
   const carried = {};
@@ -318,7 +318,7 @@ if (app.skip) {
     // Made by the founder means paid: no trial, straight in.
     assert.equal(state.status, 'paid', `they landed in "${state.status}"`);
     assert.equal(state.canUse, true);
-    assert.equal(state.added, 1, 'Kline let them in and then refused to work');
+    assert.equal(state.added, 1, 'The Culp Mixer let them in and then refused to work');
   });
 
   test('5 · the same details work on a second machine', async () => {
@@ -347,7 +347,7 @@ if (app.skip) {
     await page.context().close();
   });
 
-  test('7 · removing the account in the console takes Kline away', async () => {
+  test('7 · removing the account in the console takes The Culp Mixer away', async () => {
     const page = carried.page;
     page.once('dialog', (d) => void d.accept());
     const rows = await page.$$('#accounts tr');
@@ -385,7 +385,7 @@ if (app.skip) {
     const front = await page.textContent('.home-card');
     assert.match(front, /33 hours free/i, `the home page did not state the trial: ${front}`);
     assert.ok(front.includes('$199/month'), 'the home page did not state the price');
-    assert.match(front, /One person runs Kline/i, 'the home page did not say who is behind it');
+    assert.match(front, /One person runs The Culp Mixer/i, 'the home page did not say who is behind it');
 
     const fields = await page.$$('.home-field');
     assert.equal(fields.length, 3, 'sign-up did not ask for a username, email and password');
@@ -394,7 +394,7 @@ if (app.skip) {
     await fields[2].fill('my-own-password');
     await page.click('.home-go');
 
-    // No confirmation step of any kind: the door closes and Kline is there.
+    // No confirmation step of any kind: the door closes and The Culp Mixer is there.
     // Waiting on the class, not on visibility: .hidden is display:none, so a
     // visibility wait can never resolve.
     await page.waitForFunction(
@@ -408,7 +408,7 @@ if (app.skip) {
     }));
     assert.equal(state.status, 'trial');
     assert.equal(state.username, 'Journey Person');
-    assert.equal(state.canUse, true, 'signing up did not actually unlock Kline');
+    assert.equal(state.canUse, true, 'signing up did not actually unlock The Culp Mixer');
 
     // And the countdown is on screen, not hidden in a menu.
     const chip = await page.textContent('.trial-chip');
@@ -425,7 +425,7 @@ if (app.skip) {
       window.kline.run('add.cube');
       return ed.scene.objects.size - before;
     });
-    assert.equal(added, 1, 'a signed-up customer in trial could not use Kline');
+    assert.equal(added, 1, 'a signed-up customer in trial could not use The Culp Mixer');
 
     // The thing that must not happen: being asked for money inside the trial.
     // Checked on a fresh load too, because a reload is where a wrongly-sticky
@@ -444,7 +444,7 @@ if (app.skip) {
     assert.equal(during.homeHidden, true, 'the pay screen showed during the trial');
     assert.equal(during.wallHidden, true, 'the licence wall showed during the trial');
     assert.equal(during.payButtons, 0, 'a pay button was on screen during the trial');
-    assert.equal(during.canUse, true, 'Kline was locked during the trial');
+    assert.equal(during.canUse, true, 'The Culp Mixer was locked during the trial');
   });
 
   test('11 · when the 33 hours are up they meet the payment link', async () => {
@@ -470,12 +470,12 @@ if (app.skip) {
       canUse: window.kline.editor.canUse,
     }));
     assert.equal(locked.status, 'locked');
-    assert.equal(locked.canUse, false, 'Kline was still usable after the trial ended');
+    assert.equal(locked.canUse, false, 'The Culp Mixer was still usable after the trial ended');
     assert.match(locked.text, /33 hours are up/i);
     assert.ok(locked.text.includes('$199/month'), `no price on the locked screen: ${locked.text}`);
-    assert.equal(locked.href, 'https://buy.example.com/kline', 'the pay button led nowhere');
+    assert.equal(locked.href, 'https://buy.example.com/The Culp Mixer', 'the pay button led nowhere');
     assert.match(locked.text, /still on your disk, untouched/i);
-    assert.match(locked.text, /One person runs Kline/i);
+    assert.match(locked.text, /One person runs The Culp Mixer/i);
   });
 
   test('12 · the founder sees their countdown run out, and switches them on', async () => {
@@ -534,6 +534,6 @@ if (app.skip) {
     });
     assert.equal(state.status, 'paid', 'being marked paid did not let them back in');
     assert.equal(state.canUse, true);
-    assert.equal(state.added, 1, 'Kline said they were paid and still refused to work');
+    assert.equal(state.added, 1, 'The Culp Mixer said they were paid and still refused to work');
   });
 }

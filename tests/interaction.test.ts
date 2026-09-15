@@ -220,7 +220,7 @@ test('a trackpad flick glides instead of teleporting', () => {
   // of small events, and treating each one as a whole detent multiplied the
   // distance by 0.9 a hundred times over. The camera hit the near clamp
   // before the fingers had finished moving, and the viewport was unusable on
-  // a laptop — which is the machine most people will try Kline on.
+  // a laptop — which is the machine most people will try The Culp Mixer on.
   const cam = new ViewportCamera();
   const before = cam.distance;
   // Roughly what one firm flick plus its momentum tail reports.

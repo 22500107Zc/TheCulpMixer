@@ -33,7 +33,7 @@ export interface Account {
   /**
    * Paid through, epoch ms — or null for access that never runs out.
    *
-   * Only meaningful when `paid` is true. Kline is approved by hand, so this
+   * Only meaningful when `paid` is true. The Culp Mixer is approved by hand, so this
    * is whatever the founder decided, not something a card reader set.
    */
   expires: number | null;
@@ -42,7 +42,7 @@ export interface Account {
    *
    * There is no payment API here on purpose. Somebody pays through whatever
    * link is set, tells the founder, and the founder turns this on. One person
-   * runs Kline; this is what that looks like in the data.
+   * runs The Culp Mixer; this is what that looks like in the data.
    */
   paid: boolean;
   /** When their thirty-three hours run out. Set once, at sign-up. */
@@ -368,7 +368,7 @@ export function hashPassword(password: string, salt = randomBytes(16)): string {
  * variable to set, and changing the password invalidates every session.
  */
 function sessionSecret(): string {
-  return `kline-console:${founderEmail()}:${env('KLINE_FOUNDER_HASH')}`;
+  return `The Culp Mixer-console:${founderEmail()}:${env('KLINE_FOUNDER_HASH')}`;
 }
 
 /**
@@ -400,7 +400,7 @@ export function readAccountSession(token: string): string {
 }
 
 function accountSecret(): string {
-  return `kline-account:${env('KLINE_SIGNING_KEY')}`;
+  return `The Culp Mixer-account:${env('KLINE_SIGNING_KEY')}`;
 }
 
 export function mintSession(hours = 12): string {

@@ -64,11 +64,11 @@ export type LicenceState =
 /** Thirty-three hours, in milliseconds. */
 export const TRIAL_MS = 33 * 60 * 60 * 1000;
 
-/** What Kline costs, in one place so nothing can quote a different figure. */
+/** What The Culp Mixer costs, in one place so nothing can quote a different figure. */
 export const PRICE = '$199/month';
 
 /** The one sentence, used everywhere the terms are stated. */
-export const TERMS = `33-hour free trial. After that ${PRICE} to use Kline at all.`;
+export const TERMS = `33-hour free trial. After that ${PRICE} to use The Culp Mixer at all.`;
 
 export const LICENCE_KEY = 'kline.licence';
 export const TRIAL_KEY = 'kline.trial.start';
@@ -257,7 +257,7 @@ export async function licenceState(options: {
 }
 
 /**
- * Whether Kline may be used at all.
+ * Whether The Culp Mixer may be used at all.
  *
  * After the trial the application is locked, not merely restricted: no
  * modelling, no rendering, no export. That is the product decision, and it is
@@ -302,7 +302,7 @@ export function describeLicence(state: LicenceState): string {
     case 'trial':
       return `Free trial — ${timeLeft(state.endsAt)} left of 33 hours. Then ${PRICE}.`;
     case 'trial-over':
-      return `Your 33-hour free trial has ended. Kline is ${PRICE} to keep using.`;
+      return `Your 33-hour free trial has ended. The Culp Mixer is ${PRICE} to keep using.`;
     default:
       return state.reason;
   }
@@ -317,20 +317,20 @@ function timeLeft(endsAt: number, now = Date.now()): string {
   return `${minutes}m`;
 }
 
-/** What to say when Kline is locked. Never a dead end. */
+/** What to say when The Culp Mixer is locked. Never a dead end. */
 export function whyBlocked(state: LicenceState): string {
   if (canUse(state)) return '';
   if (state.status === 'unsigned') {
     return 'The licence key stored on this machine does not verify against this build, so '
-      + `Kline is locked. Paste the key again, or ask for a new one — it is ${PRICE}. `
+      + `The Culp Mixer is locked. Paste the key again, or ask for a new one — it is ${PRICE}. `
       + 'Every file you have made is still on your disk, untouched.';
   }
   if (state.status === 'expired') {
-    return `The subscription for ${state.licence.name} has ended, so Kline is locked. `
+    return `The subscription for ${state.licence.name} has ended, so The Culp Mixer is locked. `
       + `It is ${PRICE} to continue. Every file you have made is still on your disk, `
       + 'untouched, and a new key unlocks everything immediately.';
   }
-  return `Your 33-hour free trial has ended, so Kline is locked. It is ${PRICE} to keep using it. `
+  return `Your 33-hour free trial has ended, so The Culp Mixer is locked. It is ${PRICE} to keep using it. `
     + 'Every file you have made is still on your disk, untouched, and a licence key unlocks '
     + 'everything immediately.';
 }

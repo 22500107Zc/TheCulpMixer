@@ -1,6 +1,6 @@
-# Kline
+# The Culp Mixer
 
-**A 3D modelling application for your desktop — and your browser.** Kline is an
+**A 3D modelling application for your desktop — and your browser.** The Culp Mixer is an
 alternative to Blender's modelling workflow: mesh editing with
 bevel and booleans, sculpting, UV unwrapping, keyframe animation, a
 non-destructive modifier stack, PBR materials, a path-traced renderer and glTF
@@ -8,12 +8,12 @@ export — in dependency-free TypeScript. Drop in a photo or a video and it
 builds geometry from it. No account, no server; nothing you open ever leaves
 your machine.
 
-**Proprietary software. 33-hour free trial, then $199/month.** Kline is not
+**Proprietary software. 33-hour free trial, then $199/month.** The Culp Mixer is not
 open source and it is not free — see [LICENSE](LICENSE).
 
-![Kline editing a subdivided form](docs/screenshot.png)
+![The Culp Mixer editing a subdivided form](docs/screenshot.png)
 
-Kline runs two ways: as a **desktop app** you double-click, or as a page in a
+The Culp Mixer runs two ways: as a **desktop app** you double-click, or as a page in a
 browser tab. Same code either way.
 
 ## Download
@@ -23,11 +23,11 @@ point at the newest release, so they never go stale.
 
 | | |
 |---|---|
-| **macOS — Apple Silicon** (M1/M2/M3/M4) | **[Download Kline-arm64.dmg](https://github.com/22500107Zc/Kline/releases/latest/download/Kline-arm64.dmg)** |
-| **macOS — Intel** | **[Download Kline-x64.dmg](https://github.com/22500107Zc/Kline/releases/latest/download/Kline-x64.dmg)** |
-| **macOS — installer** (either chip) | [Kline-universal.pkg](https://github.com/22500107Zc/Kline/releases/latest/download/Kline-universal.pkg) |
-| **Windows** | **[Download Kline-Setup.exe](https://github.com/22500107Zc/Kline/releases/latest/download/Kline-Setup.exe)** · [portable](https://github.com/22500107Zc/Kline/releases/latest/download/Kline-portable.exe) |
-| **Linux** | **[Download Kline.AppImage](https://github.com/22500107Zc/Kline/releases/latest/download/Kline.AppImage)** · [.deb](https://github.com/22500107Zc/Kline/releases/latest/download/Kline.deb) |
+| **macOS — Apple Silicon** (M1/M2/M3/M4) | **[Download CulpMixer-arm64.dmg](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-arm64.dmg)** |
+| **macOS — Intel** | **[Download CulpMixer-x64.dmg](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-x64.dmg)** |
+| **macOS — installer** (either chip) | [CulpMixer-universal.pkg](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-universal.pkg) |
+| **Windows** | **[Download CulpMixer-Setup.exe](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-Setup.exe)** · [portable](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-portable.exe) |
+| **Linux** | **[Download CulpMixer.AppImage](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer.AppImage)** · [.deb](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer.deb) |
 
 Not sure which Mac you have?  ▸ **About This Mac**. "Apple M1/M2/M3/M4" means
 Apple Silicon; "Intel" means Intel.
@@ -37,21 +37,21 @@ Apple Silicon; "Intel" means Intel.
 These builds are not signed by a paid Apple or Microsoft developer account, so
 each system asks once whether you meant it. Once, not every time.
 
-- **macOS** — open the `.dmg`, drag Kline to Applications, then **right-click
-  Kline ▸ Open ▸ Open**. Double-clicking will not work the first time; the
+- **macOS** — open the `.dmg`, drag The Culp Mixer to Applications, then **right-click
+  The Culp Mixer ▸ Open ▸ Open**. Double-clicking will not work the first time; the
   right-click is what offers the Open button.
   If it says the app **"is damaged and can't be opened"**, that is the
   quarantine flag macOS puts on downloaded unsigned apps, not a broken file:
 
   ```
-  xattr -dr com.apple.quarantine /Applications/Kline.app
+  xattr -dr com.apple.quarantine /Applications/The Culp Mixer.app
   ```
 
 - **Windows** — SmartScreen shows "Windows protected your PC" ▸ **More info** ▸
   **Run anyway**.
-- **Linux** — `chmod +x Kline.AppImage`, then run it.
+- **Linux** — `chmod +x CulpMixer.AppImage`, then run it.
 
-Kline gets a Dock or Start-menu entry, opens `.kline` files on double-click
+The Culp Mixer gets a Dock or Start-menu entry, opens `.kline` files on double-click
 (and `.kiln` files saved before the rename), and has a real menu bar with
 native Open and Save dialogs.
 
@@ -59,12 +59,12 @@ native Open and Save dialogs.
 
 ```bash
 git clone https://github.com/22500107Zc/Kline.git
-cd Kline
+cd The Culp Mixer
 npm install
 
 npm run app     # build and launch the desktop app
 npm run dist    # build an installer for the machine you are on -> release/
-npm run dev     # web version with hot reload, for working on Kline itself
+npm run dev     # web version with hot reload, for working on The Culp Mixer itself
 ```
 
 `npm run dist` only builds for the OS it runs on — macOS installers need a Mac.
@@ -82,7 +82,7 @@ first visit — the service worker caches the shell while it installs rather tha
 waiting for a second visit to see the traffic. Each build gets its own cache,
 and a new version waits behind a **Reload** bar instead of swapping itself in
 under an open document. The depth model is kept separately and survives an
-update, so a rebuild does not cost forty megabytes of download. Kline needs WebGL2 — Chrome, Firefox, Edge and Safari 15+ all have it.
+update, so a rebuild does not cost forty megabytes of download. The Culp Mixer needs WebGL2 — Chrome, Firefox, Edge and Safari 15+ all have it.
 Opening `dist/index.html` straight off disk will *not* work: browsers block ES
 modules over `file://`.
 
@@ -124,7 +124,7 @@ ollama serve
 ```
 
 Click the chip at the right of the Build box, press **Connect**, and you are
-done. Kline defaults to `http://127.0.0.1:11434`.
+done. The Culp Mixer defaults to `http://127.0.0.1:11434`.
 
 Any OpenAI-compatible endpoint works too — Groq and OpenRouter have free tiers,
 LM Studio and llama.cpp are local. Be clear-eyed about hosted "free": those
@@ -132,7 +132,7 @@ tiers are free *today*, rate-limited, and need an account. Nobody serves GPUs
 for nothing indefinitely, so local is the only zero anyone can promise.
 
 Coding models do this better than chat models. When one writes something that
-does not run, Kline hands the error back and asks again — which is usually
+does not run, The Culp Mixer hands the error back and asks again — which is usually
 enough.
 
 ### Without a model
@@ -170,13 +170,13 @@ that Recalculate Normals lives in Edit Mode instead of finding nothing.
 
 ## First time here
 
-Kline opens with a short guided tour the first time you run it — six cards
+The Culp Mixer opens with a short guided tour the first time you run it — six cards
 covering the two modes, the transform keys, the Build box and version
 comparison. Each card has a button that does the thing it is describing to the
 scene behind it, because watching a cube light up with vertices teaches more
 than reading that Tab does that.
 
-Tick **Do not show this when Kline opens** and it will not come back. It stays
+Tick **Do not show this when The Culp Mixer opens** and it will not come back. It stays
 in **Help ▸ Getting Started** if you want it again.
 
 ---
@@ -233,7 +233,7 @@ not the recipe, not the settings, not what the geometry looked like before you
 started working on it — so there is nothing to revise, only something to
 replace.
 
-Kline keeps all four, in the file.
+The Culp Mixer keeps all four, in the file.
 
 **Create New** builds something. **Revise Selected** changes it.
 
@@ -331,7 +331,7 @@ have to guess at.
 
 ### What causes an explicit conflict
 
-Not everything can survive a regeneration, and Kline does not pretend otherwise.
+Not everything can survive a regeneration, and The Culp Mixer does not pretend otherwise.
 A sculpted crease, an unwrapped UV island, a painted weight and a vertex colour
 are all stored against *particular vertices*. When a revision produces different
 vertices, the mapping is gone — no merge brings it back.
@@ -349,7 +349,7 @@ So those are conflicts, and they are reported as conflicts:
 - **No baseline was recorded**, so your edits cannot be told apart from the
   generator's. Everything is offered as the generator made it, and the panel
   says so.
-- **The record predates Kline storing materials, modifiers and animation**, so
+- **The record predates The Culp Mixer storing materials, modifiers and animation**, so
   a part cannot be *shown* to be unedited. Missing evidence is not permission:
   it is kept and flagged rather than deleted on an assumption.
 - **A removal would take work of yours with it** — anything you modelled and
@@ -427,7 +427,7 @@ or reject.
 
 ![A traced mug reference extruded into a solid, hole and all](docs/reference-to-mesh.png)
 
-Drag an image or a video anywhere onto the window. Kline reads it locally and
+Drag an image or a video anywhere onto the window. The Culp Mixer reads it locally and
 builds a mesh straight away — then rebuilds that same object as you adjust the
 settings, with what it found drawn over your reference so the result is
 something you can see rather than guess at. Videos are scrubbable, so any frame
@@ -494,20 +494,20 @@ learned prior, which is the next section.
 ### Hooking up a local AI model
 
 For genuine single-image reconstruction (TripoSR, InstantMesh, TRELLIS,
-Hunyuan3D and friends), Kline talks to a model server you run yourself. It does
+Hunyuan3D and friends), The Culp Mixer talks to a model server you run yourself. It does
 not bundle weights — those are gigabytes and want a GPU — but the other half is
 in the box:
 
 ```bash
-python3 tools/kline-ai-server.py                  # echo backend, verifies the wiring
-python3 tools/kline-ai-server.py --backend triposr
+python3 tools/The Culp Mixer-ai-server.py                  # echo backend, verifies the wiring
+python3 tools/The Culp Mixer-ai-server.py --backend triposr
 ```
 
-Then in Kline: **Create ▸ Local AI model ▸ Check ▸ Generate 3D**. The server
+Then in The Culp Mixer: **Create ▸ Local AI model ▸ Check ▸ Generate 3D**. The server
 defaults to `127.0.0.1`, so your images stay on your machine unless you
 deliberately point it somewhere else.
 
-The contract is two endpoints, so pointing Kline at your own pipeline means
+The contract is two endpoints, so pointing The Culp Mixer at your own pipeline means
 writing one function:
 
 ```
@@ -526,10 +526,10 @@ connection before installing anything.
 
 ## Why this exists
 
-Blender is extraordinary and Kline is not trying to replace it. What Kline
+Blender is extraordinary and The Culp Mixer is not trying to replace it. What The Culp Mixer
 replaces is the *first ten minutes*: downloading a 300 MB package to box-model
 a shape, check a silhouette, clean up a scanned mesh, or convert an OBJ to
-glTF. Kline opens in a tab, uses Blender's keymap so your hands already know it,
+glTF. The Culp Mixer opens in a tab, uses Blender's keymap so your hands already know it,
 and everything you make stays on your machine — there is no server.
 
 The whole application is dependency-free TypeScript: the mesh kernel, the
@@ -780,7 +780,7 @@ See `THIRD-PARTY-NOTICES.md` for the model's licence and attribution.
 
 ### Moving around the viewport
 
-`Option` on a Mac is `Alt` on Windows and Linux, and `Cmd` is `Ctrl`. Kline
+`Option` on a Mac is `Alt` on Windows and Linux, and `Cmd` is `Ctrl`. The Culp Mixer
 reads both, and the hints it shows in the application use whichever names the
 machine it is running on has.
 
@@ -890,7 +890,7 @@ move.
 **Booleans work on surfaces, not on a tree of planes.** The classic BSP
 approach splits every polygon against every plane it meets, which is fine on
 flat operands and never finishes on two rounded surfaces meeting almost
-tangentially. Kline finds the triangle pairs that actually cross through a BVH,
+tangentially. The Culp Mixer finds the triangle pairs that actually cross through a BVH,
 cuts only those, and classifies each piece by ray parity — so the work is
 proportional to the number of crossings rather than to their arrangement.
 Floating point still leaves the occasional sliver, and no tolerance setting
@@ -933,7 +933,7 @@ build; without either it skips with a reason and the rest still runs.
 
 ## Not there yet
 
-Honest list of what Blender has that Kline does not:
+Honest list of what Blender has that The Culp Mixer does not:
 
 - **Geometry nodes** and **Python scripting.** The Build box writes JavaScript
   against a sandboxed geometry API instead, and `kline.editor` in the browser
@@ -966,7 +966,7 @@ cost money rather than code.
 
 ## Contributing
 
-Kline is proprietary, so a contribution is not simply a pull request: accepting
+The Culp Mixer is proprietary, so a contribution is not simply a pull request: accepting
 outside code without a written assignment would leave someone else holding
 copyright in a product being sold. Contributions are welcome, and are accepted
 only under a signed contributor agreement — ask first at zachculprit@gmail.com.
@@ -980,11 +980,11 @@ For the house style and the test expectations, see
 
 They land on a home page, make an account — username, email, password, no
 confirmation email — and get **33 hours**, counting down where they can see it.
-When it runs out Kline locks and shows them your payment link. They pay, tell
+When it runs out The Culp Mixer locks and shows them your payment link. They pay, tell
 you which address they paid from, and you press **Mark paid** in the founder
 console. They are back in on the login they already have.
 
-No payment API, no webhooks, no integration. **One person runs Kline**, and the
+No payment API, no webhooks, no integration. **One person runs The Culp Mixer**, and the
 whole payment system is one button pressed by that person. The setup is four
 things, done once: **[SELLING.md](SELLING.md)**.
 
@@ -998,7 +998,7 @@ anything.
 Paid from a different address than they signed up with? Make them an account on
 the address that paid. One account covers a whole team.
 
-**The terms: 33-hour free trial, then $199/month to use Kline at all.** Not
+**The terms: 33-hour free trial, then $199/month to use The Culp Mixer at all.** Not
 $199 to export — $199 to open it. The 33 hours cannot be changed from the
 console, on purpose.
 
@@ -1014,14 +1014,14 @@ Four things the licensing deliberately cannot do, each covered by a test:
   standing, and a paid account keeps working offline for a week.
 - **Destroy anyone's work.** The lock stops the application; it never touches a
   file. Everything already saved stays on disk, untouched, and what a customer
-  made with Kline stays theirs for ever.
+  made with The Culp Mixer stays theirs for ever.
 
 ## Licence
 
-**Proprietary — see [LICENSE](LICENSE). Kline is not open source and it is not
+**Proprietary — see [LICENSE](LICENSE). The Culp Mixer is not open source and it is not
 free.**
 
-**33-hour free trial. After that it is $199/month to use Kline at all.** Not
+**33-hour free trial. After that it is $199/month to use The Culp Mixer at all.** Not
 $199 to export — $199 to open it. When the trial ends you have no right to use
 the Software in any way: not to run it, not to keep a copy, not to build it
 from source, not to put it inside anything you make or sell. You may not copy,
@@ -1033,7 +1033,7 @@ being handed a copy gives you the same 33 hours and nothing else.
 **What you make with it is yours.** The licence claims no ownership of and no
 rights over your models, scenes, renders or animations, and you may use them
 commercially without royalty — including after a licence ends.
-Kline contains no Blender code; the resemblance is in the keymap, which is
-deliberate. Third-party components Kline depends on keep their own licences,
+The Culp Mixer contains no Blender code; the resemblance is in the keymap, which is
+deliberate. Third-party components The Culp Mixer depends on keep their own licences,
 which are reproduced in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) and
 `licences/`.

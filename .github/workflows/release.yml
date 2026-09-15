@@ -144,7 +144,7 @@ jobs:
       # The macOS app shipped for months without ever being launched, because
       # nothing here could launch it: it is built on a machine nobody looks at
       # and downloaded by someone else entirely. An arm64 binary with no
-      # signature is refused by the kernel outright — "Kline is damaged and
+      # signature is refused by the kernel outright — "The Culp Mixer is damaged and
       # can't be opened" — and that was invisible from the build log, which
       # said "success". These runners are real Macs, so the app is now made to
       # start on one before anybody is offered it.
@@ -171,7 +171,7 @@ jobs:
             # The part that matters: does it run. The app boots, screenshots
             # itself and exits; no screenshot means it never got that far.
             shot="$RUNNER_TEMP/$(basename "$(dirname "$app")").png"
-            binary="$app/Contents/MacOS/Kline"
+            binary="$app/Contents/MacOS/The Culp Mixer"
             [ -x "$binary" ] || { echo "NO EXECUTABLE AT $binary"; fail=1; continue; }
             arch_of=$(lipo -archs "$binary" 2>/dev/null || echo unknown)
             echo "    architectures: $arch_of"
@@ -251,10 +251,10 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $exe = Get-ChildItem -Path release -Recurse -Filter Kline.exe |
+          $exe = Get-ChildItem -Path release -Recurse -Filter The Culp Mixer.exe |
                  Where-Object { $_.FullName -match 'win-unpacked|win-ia32-unpacked|win-arm64-unpacked' } |
                  Select-Object -First 1
-          if (-not $exe) { Write-Error 'no unpacked Kline.exe to launch'; exit 1 }
+          if (-not $exe) { Write-Error 'no unpacked The Culp Mixer.exe to launch'; exit 1 }
           Write-Host "launching $($exe.FullName)"
 
           $shot = Join-Path $env:RUNNER_TEMP 'windows-launch.png'
@@ -314,7 +314,7 @@ jobs:
             full="$(readlink -f "$image")"
             work="$(mktemp -d)"
             (cd "$work" && "$full" --appimage-extract >/dev/null)
-            binary="$work/squashfs-root/kline"
+            binary="$work/squashfs-root/The Culp Mixer"
             [ -x "$binary" ] || { echo "    NO EXECUTABLE INSIDE"; fail=1; continue; }
             shot="$RUNNER_TEMP/linux-launch.png"
             if KLINE_SMOKE="$shot" xvfb-run -a "$binary" --no-sandbox \
@@ -363,12 +363,12 @@ jobs:
           || inputs.tag != ''
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || format('kline-{0}', github.sha) }}
+          tag_name: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || format('The Culp Mixer-{0}', github.sha) }}
           # Without this the tag is cut against the default branch, so the
           # auto-attached "Source code" zip contains that branch, not the code
           # these installers were actually built from.
           target_commitish: ${{ github.sha }}
-          name: ${{ (inputs.tag && format('Kline {0}', inputs.tag)) || (startsWith(github.ref, 'refs/tags/') && format('Kline {0}', github.ref_name)) || 'Kline (unreleased build)' }}
+          name: ${{ (inputs.tag && format('The Culp Mixer {0}', inputs.tag)) || (startsWith(github.ref, 'refs/tags/') && format('The Culp Mixer {0}', github.ref_name)) || 'The Culp Mixer (unreleased build)' }}
           # `A && B || C` reads as "B if A, else C", so asking for a full
           # release from the Actions tab made B false and handed the decision
           # to C — which is true on a branch — and published it as a
@@ -391,43 +391,43 @@ jobs:
             **Do not click "Source code" at the bottom — that is the
             repository, not the app.**
 
-            > **Kline is proprietary software. It is not open source and it is
+            > **The Culp Mixer is proprietary software. It is not open source and it is
             > not free.** You get a **33-hour free trial**. After that it is
-            > **$199/month** to use Kline at all — not to export, to open it.
+            > **$199/month** to use The Culp Mixer at all — not to export, to open it.
             > Downloading a build, or the source, is not a licence. See
             > [LICENSE](https://github.com/22500107Zc/Kline/blob/main/LICENSE).
 
             | | |
             |---|---|
-            | **macOS - Apple Silicon** (M1/M2/M3/M4) | **[Kline-arm64.dmg](https://github.com/22500107Zc/Kline/releases/latest/download/Kline-arm64.dmg)** |
-            | **macOS - Intel** | **[Kline-x64.dmg](https://github.com/22500107Zc/Kline/releases/latest/download/Kline-x64.dmg)** |
-            | **macOS - installer** (either chip) | [Kline-universal.pkg](https://github.com/22500107Zc/Kline/releases/latest/download/Kline-universal.pkg) |
-            | **Windows** | **[Kline-Setup.exe](https://github.com/22500107Zc/Kline/releases/latest/download/Kline-Setup.exe)** - [portable](https://github.com/22500107Zc/Kline/releases/latest/download/Kline-portable.exe) |
-            | **Linux** | **[Kline.AppImage](https://github.com/22500107Zc/Kline/releases/latest/download/Kline.AppImage)** - [.deb](https://github.com/22500107Zc/Kline/releases/latest/download/Kline.deb) |
+            | **macOS - Apple Silicon** (M1/M2/M3/M4) | **[CulpMixer-arm64.dmg](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-arm64.dmg)** |
+            | **macOS - Intel** | **[CulpMixer-x64.dmg](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-x64.dmg)** |
+            | **macOS - installer** (either chip) | [CulpMixer-universal.pkg](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-universal.pkg) |
+            | **Windows** | **[CulpMixer-Setup.exe](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-Setup.exe)** - [portable](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-portable.exe) |
+            | **Linux** | **[CulpMixer.AppImage](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer.AppImage)** - [.deb](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer.deb) |
 
             ### First launch
 
             These are not signed by a paid developer account, so each system
             asks once whether you meant it. Once, not every time.
 
-            **macOS** - open the `.dmg`, drag Kline to Applications, then
-            **right-click Kline -> Open -> Open**. Double-clicking will not
+            **macOS** - open the `.dmg`, drag The Culp Mixer to Applications, then
+            **right-click The Culp Mixer -> Open -> Open**. Double-clicking will not
             work the first time; the right-click is what offers the Open
             button. If it says the app **"is damaged and can't be opened"**,
             that is the quarantine flag macOS puts on downloaded unsigned
             apps, not a broken file:
 
             ```
-            xattr -dr com.apple.quarantine /Applications/Kline.app
+            xattr -dr com.apple.quarantine /Applications/The Culp Mixer.app
             ```
 
             **Windows** - SmartScreen: **More info** -> **Run anyway**.
 
-            **Linux** - `chmod +x Kline.AppImage`, then run it.
+            **Linux** - `chmod +x CulpMixer.AppImage`, then run it.
 
             ### Scene files
 
-            Kline saves `.kline` files, and still opens the `.kiln` files
+            The Culp Mixer saves `.kline` files, and still opens the `.kiln` files
             written before the rename.
 
             ### Built from

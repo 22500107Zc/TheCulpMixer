@@ -1,7 +1,7 @@
 /**
  * What to call the keys, on the machine this is actually running on.
  *
- * Kline ships installers for macOS, Windows and Linux, and every hint it
+ * The Culp Mixer ships installers for macOS, Windows and Linux, and every hint it
  * shows was written on a Mac: "hold Option and scroll with two fingers". A
  * Windows laptop has no Option key and a desktop has no two fingers, so the
  * one instruction telling somebody how to turn the view was an instruction

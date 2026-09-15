@@ -6,7 +6,7 @@ import './style.css';
 import * as licence from './licence/licence';
 import * as deliver from './render/pathtrace/deliver';
 
-// Registering the worker is what lets browsers install Kline as a desktop app,
+// Registering the worker is what lets browsers install The Culp Mixer as a desktop app,
 // and what makes it start without a network connection afterwards.
 if ('serviceWorker' in navigator && import.meta.env.PROD && location.protocol.startsWith('http')) {
   window.addEventListener('load', () => {
@@ -19,7 +19,7 @@ if ('serviceWorker' in navigator && import.meta.env.PROD && location.protocol.st
 }
 
 const mount = document.getElementById('app');
-if (!mount) throw new Error('Kline could not find its mount point (#app).');
+if (!mount) throw new Error('The Culp Mixer could not find its mount point (#app).');
 
 try {
   const app = new App(mount);
@@ -52,9 +52,9 @@ try {
   const panel = document.createElement('div');
   panel.className = 'fatal';
   panel.innerHTML = `
-    <h1>Kline could not start</h1>
+    <h1>The Culp Mixer could not start</h1>
     <p>${message}</p>
-    <p class="dim">Kline needs WebGL2. Try a recent Chrome, Firefox, Edge or Safari, and make
+    <p class="dim">The Culp Mixer needs WebGL2. Try a recent Chrome, Firefox, Edge or Safari, and make
     sure hardware acceleration is enabled.</p>`;
   mount.appendChild(panel);
   throw err;

@@ -1,7 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 /**
- * The only bridge between Kline and the desktop shell. Everything is a named
+ * The only bridge between The Culp Mixer and the desktop shell. Everything is a named
  * channel — the renderer never sees ipcRenderer or Node.
  */
 contextBridge.exposeInMainWorld('klineDesktop', {

@@ -225,7 +225,7 @@ test('a cancelled subscription is not a licence', async () => {
       },
     },
   );
-  assert.equal(answer.body.status, 'trial', 'a cancelled subscription still unlocked Kline');
+  assert.equal(answer.body.status, 'trial', 'a cancelled subscription still unlocked The Culp Mixer');
 });
 
 test('the lease is capped at a week even on an annual subscription', async () => {

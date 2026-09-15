@@ -2,7 +2,7 @@ import { AABB, Mat4, Vec3 } from '../core/math';
 import type { SkinData } from './skin';
 
 /**
- * Kline's mesh kernel.
+ * The Culp Mixer's mesh kernel.
  *
  * Master data is an n-gon polygon soup (`positions` + `faces`), which keeps
  * serialization, import/export and undo snapshots trivial. Adjacency

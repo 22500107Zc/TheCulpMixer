@@ -110,7 +110,7 @@ export interface MergeReport {
   /** Parts the creator deleted that this revision leaves deleted. */
   staysDeleted: number;
   /**
-   * True when the recorded baseline predates Kline storing materials,
+   * True when the recorded baseline predates The Culp Mixer storing materials,
    * modifiers and animation, so "unedited" could not actually be established.
    */
   unverifiable: boolean;
@@ -345,7 +345,7 @@ export function mergeAsset(
           field: 'existence', yours: 'kept as it is', theirs: 'removed',
           detail: blind || !was
             ? `This revision removes "${name}", and there is no record of what it looked like when it was generated, so your changes to it cannot be told apart.`
-            : `This revision removes "${name}". Its record predates Kline storing materials, `
+            : `This revision removes "${name}". Its record predates The Culp Mixer storing materials, `
               + 'modifiers and animation, so there is no way to show you have not changed those. '
               + 'It is kept until you say otherwise.',
         });

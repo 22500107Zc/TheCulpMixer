@@ -6,12 +6,12 @@ import { Bitmap, Mask } from './contour';
  *
  * Everything downstream of a reference image — the silhouette, the inflation,
  * the texture — depends on knowing which pixels are the thing and which are
- * the room it was standing in. Kline used to decide that with one global
+ * the room it was standing in. The Culp Mixer used to decide that with one global
  * brightness threshold, which is exactly right for a logo on white and
  * useless for anything else: a shoe on a wooden floor, a chair against a wall,
  * a person outdoors. Half the floor came out as subject, the dark parts of the
  * shoe came out as floor, and the model that came out the other end looked
- * nothing like the photograph. That single threshold was the reason Kline
+ * nothing like the photograph. That single threshold was the reason The Culp Mixer
  * could only ever turn logos into 3D.
  *
  * So the subject is found by colour instead, in CIELAB where distance means

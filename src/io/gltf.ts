@@ -6,7 +6,7 @@ import { poseMatrices } from '../anim/armature';
 /**
  * glTF 2.0 export (.gltf with an embedded base64 buffer).
  *
- * Kline is Z-up, glTF is Y-up, so everything is parented to a root node that
+ * The Culp Mixer is Z-up, glTF is Y-up, so everything is parented to a root node that
  * carries a -90° X rotation instead of rewriting every vertex.
  */
 
@@ -28,7 +28,7 @@ const TARGET_ELEMENT_ARRAY_BUFFER = 34963;
 /**
  * The aspect ratio a horizontal field of view is converted through.
  *
- * glTF stores the vertical angle and Kline stores the horizontal one, so the
+ * glTF stores the vertical angle and The Culp Mixer stores the horizontal one, so the
  * conversion needs a ratio. A camera has no viewport of its own to ask, so the
  * file states the assumption rather than leaving the number unexplained.
  */
@@ -59,7 +59,7 @@ function base64(bytes: Uint8Array): string {
 /**
  * What an export carried, and what it could not.
  *
- * glTF is not a superset of what Kline can hold, and the difference used to be
+ * glTF is not a superset of what The Culp Mixer can hold, and the difference used to be
  * invisible: the file came out, nothing was said, and whatever the format had
  * no room for was simply missing when somebody opened it somewhere else. A
  * silent omission in an interchange format is the expensive kind of bug,
@@ -140,7 +140,7 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
 
   // Images, and the textures that point at them.
   //
-  // Kline stores a texture as a data URL so a saved scene is self-contained,
+  // The Culp Mixer stores a texture as a data URL so a saved scene is self-contained,
   // and glTF accepts a data URL as an image `uri` — so the picture travels
   // inside the .gltf too. Without this the export carried TEXCOORD_0 and a
   // material and no image at all: every model built from a photograph arrived
@@ -164,7 +164,7 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
    *
    * glTF calls it an error for a primitive to use a material with a base
    * colour texture and carry no TEXCOORD_0 — and rightly, since there is no
-   * way to sample the picture. Kline allows it: a material is shared between
+   * way to sample the picture. The Culp Mixer allows it: a material is shared between
    * objects and only some of them need be unwrapped. Writing the file anyway
    * produced something the Khronos validator rejects and importers show
    * inconsistently, so the untextured half gets a plain twin instead, and is
@@ -326,7 +326,7 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
               }
               if (sk) {
                 const at = v * 4;
-                // Kline marks an unused influence slot with bone -1. Written
+                // The Culp Mixer marks an unused influence slot with bone -1. Written
                 // as the unsigned short the format asks for, -1 becomes 65535
                 // — a joint index far past the end of the skin, which the
                 // Khronos validator rejects outright and an importer reads as
@@ -385,7 +385,7 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
           if (uvAccessor !== undefined) attributes.TEXCOORD_0 = uvAccessor;
 
           // Painted colour. Previously dropped without a word, so a mesh
-          // painted in Kline arrived plain white everywhere else.
+          // painted in The Culp Mixer arrived plain white everywhere else.
           if (colors.length) {
             const colView = pushView(new Float32Array(colors), TARGET_ARRAY_BUFFER);
             accessors.push({
@@ -452,7 +452,7 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
         cameraDefs.push({
           name: obj.name,
           type: 'perspective',
-          // Kline stores a horizontal field of view; glTF wants the vertical
+          // The Culp Mixer stores a horizontal field of view; glTF wants the vertical
           // one, and the conversion needs an aspect ratio to go through.
           perspective: {
             yfov: 2 * Math.atan(Math.tan((c.fov * Math.PI / 180) / 2) / GLTF_ASPECT),
@@ -487,7 +487,7 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
   }
   // ---- skins: a node per bone, so the rig arrives usable rather than baked
   //
-  // Kline keeps bones as data on one armature object; glTF needs each joint to
+  // The Culp Mixer keeps bones as data on one armature object; glTF needs each joint to
   // be a node in the hierarchy. They are emitted here, after the object nodes
   // exist, and parented under their armature so the whole rig moves with it.
   const skinForArmature = new Map<number, number>();
@@ -499,7 +499,7 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
     const jointNodes: number[] = [];
     for (let i = 0; i < bones.length; i++) {
       // The posed matrix relative to the parent bone, which is what a node
-      // transform is. Kline has no per-bone animation channels, so this is the
+      // transform is. The Culp Mixer has no per-bone animation channels, so this is the
       // single pose the armature is currently in.
       const parent = bones[i].parent;
       const local = parent >= 0 && parent < i
@@ -542,7 +542,7 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
       skeleton: nodeIndexById.get(rigObj.id),
     });
     skinForArmature.set(rigObj.id, skins.length - 1);
-    note('Bone poses are exported as they stand. Kline animates an armature as a whole '
+    note('Bone poses are exported as they stand. The Culp Mixer animates an armature as a whole '
       + 'rather than keyframing individual bones, so no per-bone curves are written.');
   }
   for (const obj of included) {
@@ -659,7 +659,7 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
   }
 
   const gltf: Record<string, unknown> = {
-    asset: { version: '2.0', generator: 'Kline' },
+    asset: { version: '2.0', generator: 'The Culp Mixer' },
     scene: 0,
     scenes: [{ name: 'Scene', nodes: [rootIndex] }],
     nodes,
@@ -667,7 +667,7 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
     materials: materials.length ? materials : undefined,
     images: usesTextures ? images : undefined,
     textures: usesTextures ? textures : undefined,
-    // One sampler for everything: Kline wraps and filters every texture the
+    // One sampler for everything: The Culp Mixer wraps and filters every texture the
     // same way, so a per-texture sampler would be the same object repeated.
     samplers: usesTextures
       ? [{ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 }]

@@ -819,7 +819,7 @@ export class Editor {
   }
 
   /**
-   * Whether Kline may be used at all. False once the trial has ended.
+   * Whether The Culp Mixer may be used at all. False once the trial has ended.
    *
    * When somebody is signed in, their account is the authority and nothing
    * else gets a say. Without this, a customer whose thirty-three hours ran out
@@ -958,7 +958,7 @@ export class Editor {
     // knowing about a file somebody sent you.
     if (restored.rejectedTextures.length) {
       this.notify('This project asked to load images from the internet', [
-        'Kline only loads images stored inside the file itself, so nothing was fetched and '
+        'The Culp Mixer only loads images stored inside the file itself, so nothing was fetched and '
           + 'nothing about you was sent anywhere.',
         ...restored.rejectedTextures.map((t) => `Not loaded: ${t}`),
         'Those surfaces will show their base colour instead. If you trust the file and want '
@@ -1025,7 +1025,7 @@ export class Editor {
    *
    * The active object when there is one — and otherwise the only mesh in the
    * scene, if there is exactly one, because then there is no question about
-   * what was meant. Kline starts with nothing active and clicking empty space
+   * what was meant. The Culp Mixer starts with nothing active and clicking empty space
    * puts it back there, so without this the Edit and Sculpt buttons are dead
    * on launch: they refuse, they look no different from a button that works,
    * and the only word about it is a line at the bottom of a crowded status

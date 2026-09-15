@@ -3,7 +3,7 @@ import { button, clear, h } from './dom';
 import { PRICE, TERMS } from '../licence/licence';
 
 /**
- * Paying for Kline, and the wall that appears when somebody has not.
+ * Paying for The Culp Mixer, and the wall that appears when somebody has not.
  *
  * The important thing about this screen is what is *not* on it. No licence
  * key, no serial number, nothing to copy or paste, nothing to be emailed. A
@@ -76,7 +76,7 @@ export class LicencePanel {
   }
 
   hide(): void {
-    // While Kline is locked this is the only way back in, so it stays.
+    // While The Culp Mixer is locked this is the only way back in, so it stays.
     if (this.locked) return;
     this.root.classList.add('hidden');
   }
@@ -133,7 +133,7 @@ export class LicencePanel {
         h('p', { class: 'dim small', text: `Subscribed at ${PRICE}. It renews on its own.` }),
         h('p', {
           class: 'dim small',
-          text: 'Using Kline on another machine: open this panel there and sign in with the '
+          text: 'Using The Culp Mixer on another machine: open this panel there and sign in with the '
             + 'same details.',
         }),
         this.signInBlock(),
@@ -168,7 +168,7 @@ export class LicencePanel {
       h('li', { text: 'Every file you have already saved is still on your disk, untouched.' }),
       h('li', { text: 'Nothing has been deleted and nothing has been sent anywhere.' }),
       h('li', { text: 'Paying unlocks everything straight away, here and in the desktop app.' }),
-      h('li', { text: 'Cancel whenever you like. What you made with Kline stays yours for ever.' }),
+      h('li', { text: 'Cancel whenever you like. What you made with The Culp Mixer stays yours for ever.' }),
     ]));
 
     this.body.append(

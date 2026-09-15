@@ -4,7 +4,7 @@ import { Scene } from '../scene/Scene';
 import { SceneTexture } from '../scene/Texture';
 
 /**
- * Wavefront OBJ. Kline is Z-up like Blender, while OBJ is conventionally Y-up,
+ * Wavefront OBJ. The Culp Mixer is Z-up like Blender, while OBJ is conventionally Y-up,
  * so both directions convert axes the way Blender's default importer/exporter
  * does: (x, y, z)_kline <-> (x, z, -y)_obj.
  */
@@ -23,7 +23,7 @@ export function exportOBJ(scene: Scene, selectionOnly = false): string {
   // every texture — was silently dropped on the way into any other
   // application. The name matches what the export command writes out.
   const lines: string[] = [
-    '# Exported from Kline',
+    '# Exported from The Culp Mixer',
     `# ${new Date().toISOString()}`,
     `mtllib ${MTL_FILENAME}`,
   ];
@@ -120,7 +120,7 @@ export function texturesForMTL(scene: Scene): { filename: string; url: string }[
 }
 
 export function exportMTL(scene: Scene): string {
-  const out: string[] = ['# Exported from Kline'];
+  const out: string[] = ['# Exported from The Culp Mixer'];
   const byId = new Map(scene.textures.map((t) => [t.id, t]));
   for (const mat of scene.materials) {
     out.push(
@@ -193,7 +193,7 @@ export function importOBJ(text: string): ImportedObject[] {
     const mesh = new Mesh(localPositions, faces);
     mesh.faceSmooth = current.smooth.slice();
     mesh.shadeSmooth = current.smooth.some(Boolean);
-    // Texture coordinates, if the file carried any. Kline round-tripped its
+    // Texture coordinates, if the file carried any. The Culp Mixer round-tripped its
     // own OBJ export and lost them every time, which meant a model built from
     // a photograph came back untextured from a file that had the coordinates
     // written in it.

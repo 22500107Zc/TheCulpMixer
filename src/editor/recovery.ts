@@ -16,7 +16,7 @@ import { SerializedScene } from '../scene/Scene';
  * where IndexedDB is missing or blocked.
  */
 
-const DB_NAME = 'kline';
+const DB_NAME = 'The Culp Mixer';
 /** The database name before the application was renamed. */
 const LEGACY_DB_NAME = 'kiln';
 const DB_VERSION = 1;

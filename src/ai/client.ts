@@ -4,9 +4,9 @@ import { importOBJ } from '../io/obj';
 /**
  * Bridge to a local image-to-3D model.
  *
- * Kline does not ship neural weights — they are gigabytes and want a GPU. What
+ * The Culp Mixer does not ship neural weights — they are gigabytes and want a GPU. What
  * it ships is the client half of a deliberately small contract, so any local
- * server that speaks it (see tools/kline-ai-server.py) can hand geometry back
+ * server that speaks it (see tools/The Culp Mixer-ai-server.py) can hand geometry back
  * into the scene. Nothing leaves the machine unless the endpoint points off it.
  */
 
@@ -119,7 +119,7 @@ export async function generateMesh(
     const body = (await response.json()) as { format?: string; data?: string; name?: string; seconds?: number };
     if (!body.data) throw new Error('The server replied with JSON but no mesh data.');
     if (body.format && body.format.toLowerCase() !== 'obj') {
-      throw new Error(`Kline can read OBJ from a model server; this one sent "${body.format}".`);
+      throw new Error(`The Culp Mixer can read OBJ from a model server; this one sent "${body.format}".`);
     }
     objText = body.data;
     if (body.name) name = body.name;
@@ -129,7 +129,7 @@ export async function generateMesh(
   }
 
   const objects = importOBJ(objText);
-  if (objects.length === 0) throw new Error('The server sent a mesh Kline could not read.');
+  if (objects.length === 0) throw new Error('The server sent a mesh The Culp Mixer could not read.');
 
   // Fold multi-object results into one, so a generation is one scene object.
   const mesh = objects[0].mesh;

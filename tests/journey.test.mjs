@@ -7,7 +7,7 @@
  * previewed and rejected, then previewed and accepted; the document is saved,
  * replaced and reopened; physics is baked under an animated parent; a still
  * and a short sequence are rendered; and the result is exported and parsed
- * back by something that is not Kline's own loader.
+ * back by something that is not The Culp Mixer's own loader.
  *
  * The steps run in order and hand state to each other, because that is what a
  * project is. Everything goes through commands and real clicks, so nothing
@@ -488,9 +488,9 @@ if (app.skip) {
     carried.cameras = cams;
   });
 
-  test('12 · export it, and read it back with something that is not Kline', async () => {
+  test('12 · export it, and read it back with something that is not The Culp Mixer', async () => {
     // Exported through the File command, caught as a real download, and parsed
-    // here by code that knows nothing about Kline's own loader — which is the
+    // here by code that knows nothing about The Culp Mixer's own loader — which is the
     // only way to find out whether the file is any use to anybody else.
     //
     // Saving goes through the File System Access API, which is what Chrome and
@@ -499,7 +499,7 @@ if (app.skip) {
     // for one folder instead of one dialog per file, because a picker spends
     // the gesture that opened it and the second dialog would throw. Both
     // pickers need a live user gesture a script cannot have, so they are stood
-    // in for here; everything past the picker is Kline's own code.
+    // in for here; everything past the picker is The Culp Mixer's own code.
     const installPickers = () => page.evaluate(() => {
       window.__saved = [];
       const writable = (name) => {
@@ -691,7 +691,7 @@ if (app.skip) {
   test('13 · a save the person cancels leaves the work marked unsaved', async () => {
     // Only the desktop shell can report a cancellation — a browser hands the
     // file to a download manager and is never told what became of it — so the
-    // shell is stood in for here. What is being tested is Kline's half: that
+    // shell is stood in for here. What is being tested is The Culp Mixer's half: that
     // "cancelled" is not quietly treated as "saved".
     const result = await page.evaluate(async () => {
       const ed = window.kline.editor;
@@ -1028,7 +1028,7 @@ if (app.skip) {
       `saving was refused on a fresh install: ${saved.status}`);
   });
 
-  test('19 · an expired licence locks Kline and never touches the work', async () => {
+  test('19 · an expired licence locks The Culp Mixer and never touches the work', async () => {
     // The customer-facing half, driven through the real command path. The key
     // is minted here with the same scheme the selling tool uses.
     const result = await page.evaluate(async () => {
@@ -1073,7 +1073,7 @@ if (app.skip) {
     assert.equal(result.dead.status, 'expired');
     assert.equal(result.dead.can, false, 'an expired licence still exported');
     assert.match(result.dead.why, /locked/i,
-      `the expiry message did not say Kline is locked: ${result.dead.why}`);
+      `the expiry message did not say The Culp Mixer is locked: ${result.dead.why}`);
     assert.ok(result.dead.why.includes('$199/month'),
       `the expiry message did not say what it costs: ${result.dead.why}`);
     assert.match(result.dead.why, /still on your disk, untouched/i,
@@ -1151,7 +1151,7 @@ if (app.skip) {
     assert.doesNotMatch(message, /^Recorded/, 'it claimed to have recorded something');
   });
 
-  test('22 · past the trial, Kline is a wall that says what it costs', async () => {
+  test('22 · past the trial, The Culp Mixer is a wall that says what it costs', async () => {
     // The product decision, proved in the browser rather than in a unit: after
     // 33 hours a shipped build does not merely refuse to export — it stops.
     // The wall covers the window, it has no way out but a key, and it says
@@ -1242,7 +1242,7 @@ if (app.skip) {
         hidden: document.querySelector('.licence-panel').classList.contains('hidden'),
       };
     });
-    assert.equal(freed.added, 1, 'Kline stayed locked after the licence state was restored');
+    assert.equal(freed.added, 1, 'The Culp Mixer stayed locked after the licence state was restored');
     assert.equal(freed.hidden, true, 'the wall stayed up after the lock was lifted');
   });
 

@@ -142,7 +142,7 @@ export class Renderer {
       preserveDrawingBuffer: false,
       powerPreference: 'high-performance',
     });
-    if (!gl) throw new Error('WebGL2 is required — Kline could not create a rendering context.');
+    if (!gl) throw new Error('WebGL2 is required — The Culp Mixer could not create a rendering context.');
     this.gl = gl;
 
     this.surfaceProgram = new Program(gl, SURFACE_VERT, SURFACE_FRAG, 'surface');

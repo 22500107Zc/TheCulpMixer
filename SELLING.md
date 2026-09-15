@@ -1,4 +1,4 @@
-# Turning Kline on for money
+# Turning The Culp Mixer on for money
 
 **How it works, end to end:**
 
@@ -6,11 +6,11 @@
 2. They land on the home page. Username, email, password. No confirmation
    email, nothing to click — they are in.
 3. **33 hours**, counting down in the corner where they can see it.
-4. It runs out. Kline locks and shows them your payment link.
+4. It runs out. The Culp Mixer locks and shows them your payment link.
 5. They pay and tell you which address they paid from.
 6. You open `/founder.html`, find them, press **Mark paid**. They are back in.
 
-No Stripe API key, no webhooks, no integration. One person runs Kline and one
+No Stripe API key, no webhooks, no integration. One person runs The Culp Mixer and one
 person presses the button.
 
 ---
@@ -138,7 +138,7 @@ the variable in Vercel, redeploy.
 
 ## Your own copy
 
-You are never charged for Kline. Three ways, any one is enough:
+You are never charged for The Culp Mixer. Three ways, any one is enough:
 
 - Running from source (`npm run dev`) is never gated at all.
 - Make yourself an account in the console — it is paid from the moment it
@@ -177,4 +177,4 @@ curl -s -X POST https://kline-flax.vercel.app/api/account \
 
 A healthy server answers `{"error":"sign-in-again"}` — it is up and it has
 storage. `no-storage` means step 2 is not done, and **until it is, everyone
-who opens your link uses Kline for free**.
+who opens your link uses The Culp Mixer for free**.

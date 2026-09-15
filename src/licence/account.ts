@@ -125,7 +125,7 @@ export type AccountResult =
   | { ok: true; account: AccountState }
   | { ok: false; message: string };
 
-const OFFLINE = 'Could not reach Kline just now. Check the connection and try again.';
+const OFFLINE = 'Could not reach The Culp Mixer just now. Check the connection and try again.';
 
 export async function signUp(
   username: string, email: string, password: string,

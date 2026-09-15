@@ -1,10 +1,10 @@
-# Contributing to Kline
+# Contributing to The Culp Mixer
 
-Thanks for taking a look. Kline is small enough that you can read the whole thing
+Thanks for taking a look. The Culp Mixer is small enough that you can read the whole thing
 before changing it, and the fastest way to get a change merged is to keep it
 that way.
 
-**Kline is proprietary software — see [LICENSE](LICENSE). It is not open source
+**The Culp Mixer is proprietary software — see [LICENSE](LICENSE). It is not open source
 and it is not free: a 33-hour trial, then $199/month to use it at all.** Reading
 this repository is not a licence to use what is in it, and building it yourself
 does not extend the trial. Contributions are accepted only under a signed

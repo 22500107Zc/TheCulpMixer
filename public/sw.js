@@ -1,7 +1,7 @@
 /*
- * Kline's service worker.
+ * The Culp Mixer's service worker.
  *
- * Kline is a single static bundle with no backend, so "offline" means holding
+ * The Culp Mixer is a single static bundle with no backend, so "offline" means holding
  * the shell — index, script, stylesheet, icons — and serving it when the
  * network is not there.
  *
@@ -20,9 +20,9 @@
  *    its own cache and the previous one is released when it is no longer in
  *    use by an open tab.
  *
- * 3. Cleanup must not reach past Kline. The old activate step deleted *every*
+ * 3. Cleanup must not reach past The Culp Mixer. The old activate step deleted *every*
  *    cache on the origin that was not its own — someone else's app on the same
- *    host, or Kline's own model cache. Only caches this worker owns are
+ *    host, or The Culp Mixer's own model cache. Only caches this worker owns are
  *    touched, by prefix, and the model cache is deliberately not one of them:
  *    the depth model is forty megabytes and does not change between builds.
  */
@@ -34,11 +34,11 @@
 const BUILD = 'dev'; // __KLINE_BUILD__
 const PRECACHE = ['./']; // __KLINE_PRECACHE__
 
-const SHELL = `kline-shell-${BUILD}`;
+const SHELL = `The Culp Mixer-shell-${BUILD}`;
 /** Big immutable downloads. Survives a shell update on purpose. */
-const LARGE = 'kline-large-v1';
+const LARGE = 'The Culp Mixer-large-v1';
 /** Everything this worker is allowed to delete. */
-const OWNED = /^kline-(shell|large)-/;
+const OWNED = /^The Culp Mixer-(shell|large)-/;
 
 /** Downloads too large to hold in a per-build cache. */
 function isLarge(pathname) {

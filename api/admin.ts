@@ -1,7 +1,7 @@
 /**
  * The founder console's back end.
  *
- * One login, held by the person who owns Kline. From it: make an account for
+ * One login, held by the person who owns The Culp Mixer. From it: make an account for
  * somebody, see who has one, take one away, and set the Stripe details that
  * make the Subscribe button work.
  *

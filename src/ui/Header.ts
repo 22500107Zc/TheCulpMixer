@@ -24,7 +24,7 @@ export class Header {
   constructor(private editor: Editor, onShowShortcuts: () => void) {
     // The accent sits on the middle letter, which is what gives the wordmark
     // its balance at this letter-spacing.
-    this.root.appendChild(h('div', { class: 'wordmark', title: 'Kline' }, [
+    this.root.appendChild(h('div', { class: 'wordmark', title: 'The Culp Mixer' }, [
       h('span', { text: 'KL' }),
       h('span', { class: 'wordmark-accent', text: 'I' }),
       h('span', { text: 'NE' }),

@@ -123,7 +123,7 @@ export function bitmapFromReference(reference: Reference, maxSize = 384): Bitmap
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!ctx) throw new Error('This browser would not give Kline a 2D canvas to read pixels from.');
+  if (!ctx) throw new Error('This browser would not give The Culp Mixer a 2D canvas to read pixels from.');
   ctx.drawImage(reference.element, 0, 0, width, height);
   const { data } = ctx.getImageData(0, 0, width, height);
   return { width, height, data };
@@ -136,7 +136,7 @@ export function blobFromReference(reference: Reference, maxSize = 768): Promise<
   canvas.width = Math.max(1, Math.round(reference.width * scale));
   canvas.height = Math.max(1, Math.round(reference.height * scale));
   const ctx = canvas.getContext('2d');
-  if (!ctx) return Promise.reject(new Error('This browser would not give Kline a 2D canvas.'));
+  if (!ctx) return Promise.reject(new Error('This browser would not give The Culp Mixer a 2D canvas.'));
   ctx.drawImage(reference.element, 0, 0, canvas.width, canvas.height);
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
@@ -161,7 +161,7 @@ export function textureFromReference(
   canvas.width = Math.max(1, Math.round(reference.width * scale));
   canvas.height = Math.max(1, Math.round(reference.height * scale));
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('This browser would not give Kline a 2D canvas.');
+  if (!ctx) throw new Error('This browser would not give The Culp Mixer a 2D canvas.');
   ctx.drawImage(reference.element, 0, 0, canvas.width, canvas.height);
   return { url: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
 }

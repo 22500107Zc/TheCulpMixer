@@ -203,7 +203,7 @@ test('when the trial runs out they are locked and sent to the link', async () =>
   assert.equal(after.body.key, undefined, 'a locked account was handed a working key');
   assert.match(String(after.body.message), /199/);
   // And it says why it is by hand, so nobody is left wondering.
-  assert.match(String(after.body.message), /one person runs kline/i);
+  assert.match(String(after.body.message), /one person runs The Culp Mixer/i);
 });
 
 test('the trial does not restart by signing out, or on another machine', async () => {

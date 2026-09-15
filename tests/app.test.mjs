@@ -939,7 +939,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
 
   // --------------------------------------------------------- navigation
   //
-  // Kline is used on laptops, and a laptop has no middle mouse button. Every
+  // The Culp Mixer is used on laptops, and a laptop has no middle mouse button. Every
   // one of these drives the real canvas through real input events, because
   // the failure being guarded against was never in the camera maths — it was
   // in what the browser reports and what the app does with it.
@@ -1414,7 +1414,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
 
   test('Edit and Sculpt work on the one object in the scene without selecting it first', async () => {
     // Reported as "these buttons don't work". They were wired correctly and
-    // did nothing, because Kline starts with nothing active and clicking empty
+    // did nothing, because The Culp Mixer starts with nothing active and clicking empty
     // space puts it back there — and with nothing active they refused, looked
     // exactly like buttons that work, and said so only in a line at the bottom
     // of a crowded status bar.
@@ -1890,7 +1890,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // The application's shell is a grid, and it declared four rows for six
     // children. The extras were auto-placed, so the moment the recovery bar
     // appeared it took the row meant for the workspace and stretched to the
-    // full height of the window: opening Kline with a recovered scene showed
+    // full height of the window: opening The Culp Mixer with a recovered scene showed
     // a wall of empty brown with two enormous buttons floating in the middle
     // of it, and the 3D view squeezed into what was left.
     //

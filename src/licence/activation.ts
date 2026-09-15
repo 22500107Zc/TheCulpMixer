@@ -3,7 +3,7 @@ import { LICENCE_KEY, TRIAL_KEY, TRIAL_MS, clearLicence, storeLicence } from './
 /**
  * Turning a link into a paying customer, without anybody touching a key.
  *
- * The whole of selling Kline is meant to be: send somebody the link. They get
+ * The whole of selling The Culp Mixer is meant to be: send somebody the link. They get
  * thirty-three hours. Then the application says $199/month and shows them a
  * button, they pay, and it keeps working — on the web and on the desktop
  * build, on that machine and on their next one.

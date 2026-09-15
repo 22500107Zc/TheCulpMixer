@@ -1,5 +1,5 @@
 /*
- * Kline shell.
+ * The Culp Mixer shell.
  *
  * Palette: warm graphite chrome with a single ember accent. The ember is not a
  * decorative choice — it is the exact colour the viewport uses for selected
@@ -2692,7 +2692,7 @@ button:disabled {
  * When the trial is over the licence panel stops being a panel and becomes the
  * whole screen. It covers everything, it has no close button, and the price is
  * the largest thing on it. There is no way past it except a key — which is the
- * point, because Kline is not free after the trial and the interface should not
+ * point, because The Culp Mixer is not free after the trial and the interface should not
  * pretend otherwise.
  */
 .licence-panel.licence-wall {
@@ -2829,7 +2829,7 @@ button:disabled {
  *
  * Covers the window until somebody is signed in, and again once their
  * thirty-three hours have gone. It is the first thing anybody sees at the
- * link, so it says what Kline is, what it costs and who is behind it before
+ * link, so it says what The Culp Mixer is, what it costs and who is behind it before
  * it asks for anything.
  */
 .home {
@@ -2852,8 +2852,8 @@ button:disabled {
   width: min(460px, 100%);
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 26px 24px 22px;
+  gap: 12px;
+  padding: 30px 28px 24px;
   border: 1px solid var(--edge);
   border-radius: 6px;
   background: var(--shell);
@@ -2923,13 +2923,18 @@ button:disabled {
 
 .home-field {
   width: 100%;
-  padding: 9px 11px;
+  height: auto;
+  padding: 11px 12px;
   border: 1px solid var(--edge);
   border-radius: var(--radius);
   background: var(--shell-sunk);
   color: var(--ink);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
+}
+
+.home-field::placeholder {
+  color: var(--ink-faint);
 }
 
 .home-field:focus {
@@ -2943,13 +2948,54 @@ button:disabled {
   margin-top: 4px;
 }
 
+/*
+ * The one button that matters on this page.
+ *
+ * `height` is the important line. The shared .btn is a 22px control built for
+ * dense panels, and a taller padding on top of a fixed height pushes the text
+ * out of the box — the border then runs straight through the middle of the
+ * label and reads as a strikethrough. Anything that grows a .btn has to let
+ * the height go.
+ *
+ * Solid rather than the usual wash, because this is somebody deciding whether
+ * to start, and a primary action that looks like a disabled one loses them.
+ */
 .home-go {
   flex: 1;
-  padding: 10px 14px;
-  font-size: 13px;
+  height: auto;
+  min-height: 42px;
+  padding: 12px 16px;
+  border: 1px solid var(--ember);
+  border-radius: var(--radius);
+  background: var(--ember);
+  color: #1b1a1d;
+  font-size: 14px;
   font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
   text-align: center;
   text-decoration: none;
+  white-space: normal;
+  cursor: pointer;
+}
+
+.home-go:hover {
+  background: #ffb457;
+  border-color: #ffb457;
+}
+
+.home-go:active {
+  background: var(--ember-deep);
+  border-color: var(--ember-deep);
+}
+
+/* The secondary action on the locked screen — present, but not competing. */
+.home-actions .btn:not(.home-go) {
+  height: auto;
+  min-height: 34px;
+  padding: 8px 14px;
+  font-size: 12px;
+  white-space: normal;
 }
 
 .home-note {

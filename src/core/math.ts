@@ -1,5 +1,5 @@
 /**
- * Minimal linear algebra for Kline. Column-major 4x4 matrices, right-handed
+ * Minimal linear algebra for The Culp Mixer. Column-major 4x4 matrices, right-handed
  * coordinate system, +Z up (Blender convention) so imported/exported data and
  * user muscle memory line up.
  */

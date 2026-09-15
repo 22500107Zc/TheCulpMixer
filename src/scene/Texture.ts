@@ -19,9 +19,9 @@ export function createTexture(name: string, url: string, width = 0, height = 0):
 }
 
 /**
- * Whether a texture reference is one Kline is willing to load.
+ * Whether a texture reference is one The Culp Mixer is willing to load.
  *
- * Kline embeds every image it owns as a `data:` URL so a saved file is
+ * The Culp Mixer embeds every image it owns as a `data:` URL so a saved file is
  * self-contained and opening one touches nothing outside it. A document is
  * untrusted input — people share project files — and a `url` of
  * `https://someone.example/pixel.png?who=you` loaded straight into an <img>

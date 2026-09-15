@@ -7,7 +7,7 @@ import { buildPrimitive } from '../src/mesh/primitives';
 /**
  * Untrusted input.
  *
- * Two kinds reach Kline: a program somebody generated, and a project file
+ * Two kinds reach The Culp Mixer: a program somebody generated, and a project file
  * somebody sent. Both were able to reach the network, and both were found by
  * an audit rather than by these tests — which is why the tests exist now.
  */
@@ -33,7 +33,7 @@ test('a texture url that is not self-contained is refused', () => {
   }
 });
 
-test('an embedded image is accepted, because that is what Kline itself writes', () => {
+test('an embedded image is accepted, because that is what The Culp Mixer itself writes', () => {
   assert.equal(isSelfContainedImage(PIXEL), true);
   assert.equal(isSelfContainedImage('data:image/jpeg;base64,/9j/4AAQ'), true);
   assert.equal(isSelfContainedImage('data:image/webp;base64,UklGRg=='), true);
@@ -65,7 +65,7 @@ test('a document with no textures still loads and reports nothing', () => {
   assert.deepEqual(back.rejectedTextures, []);
 });
 
-test('textures Kline saved survive its own round trip untouched', () => {
+test('textures The Culp Mixer saved survive its own round trip untouched', () => {
   // The filter must not break the ordinary case it is protecting.
   const scene = new Scene();
   scene.add('mesh', 'Cube', buildPrimitive('cube'));
