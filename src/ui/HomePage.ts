@@ -34,7 +34,7 @@ export class HomePage {
   private username = field('text', 'Username');
   private email = field('email', 'you@example.com');
   private password = field('password', 'Password — 8 characters or more');
-  private mode: 'signup' | 'signin' | 'locked' = 'signup';
+  private mode: 'signup' | 'signin' | 'founder' | 'locked' = 'signup';
   private busy = false;
 
   constructor(private editor: Editor) {
@@ -108,6 +108,13 @@ export class HomePage {
           this.mode = 'signin';
           this.render();
         }),
+        // Its own way in, named, rather than a customer login that happens to
+        // also accept the owner. One person runs this and they should not
+        // have to remember that their door is the same as everybody else's.
+        tab('Founder', this.mode === 'founder', () => {
+          this.mode = 'founder';
+          this.render();
+        }),
       ]),
     );
 
@@ -116,16 +123,33 @@ export class HomePage {
       : [this.email, this.password];
     for (const input of fields) this.card.append(input);
 
+    if (this.mode === 'founder') {
+      // Prefilled, because there is exactly one address that opens it and
+      // making somebody type it every time is friction for no gain.
+      this.email.value = CONTACT;
+    }
+
     this.card.append(
       h('div', { class: 'home-actions' }, [
         button(
-          this.mode === 'signup' ? 'Create account and start' : 'Log in',
+          this.mode === 'signup' ? 'Create account and start'
+            : this.mode === 'founder' ? 'Sign in as founder'
+              : 'Log in',
           () => void this.submit(),
           { class: 'primary home-go' },
         ),
       ]),
       this.note,
     );
+
+    if (this.mode === 'founder') {
+      this.card.append(h('p', {
+        class: 'home-small',
+        text: 'The owner\u2019s way in. It works with no server and on any machine, and it '
+          + 'never expires. Once you are in, the founder console is a button in the bar '
+          + 'along the bottom.',
+      }));
+    }
 
     if (this.mode === 'signup') {
       this.card.append(h('p', {

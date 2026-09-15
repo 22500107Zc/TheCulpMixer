@@ -303,4 +303,41 @@ if (app.skip) {
     }
     await page.context().close();
   });
+
+  test('10 · the Founder tab is on the login page, and it works', async () => {
+    // Asked for repeatedly: its own named way in, not a customer login that
+    // happens to also accept the owner.
+    const page = await app.browser.newContext().then((c) => c.newPage());
+    await page.goto(`${app.origin}/`, { waitUntil: 'networkidle' });
+    await page.waitForSelector('.home:not(.hidden)', { timeout: 10000 });
+
+    const tabs = await page.$$eval('.home-tab', (els) => els.map((e) => e.textContent));
+    assert.deepEqual(tabs, ['Create an account', 'Log in', 'Founder'],
+      `the tabs are: ${tabs.join(', ')}`);
+
+    await page.click('.home-tab:nth-child(3)');
+    // The address is filled in already — there is only one that opens it.
+    const prefilled = await page.inputValue('.home-field[type="email"]');
+    assert.equal(prefilled, 'culpindustriesllc@gmail.com', 'the founder email was not filled in');
+
+    const label = await page.textContent('.home-go');
+    assert.match(label, /founder/i, `the button says "${label}"`);
+
+    await page.fill('.home-field[type="password"]', 'founder10082004');
+    await page.click('.home-go');
+
+    await page.waitForFunction(
+      () => document.querySelector('.home')?.classList.contains('hidden'),
+      { timeout: 10000 },
+    );
+    const state = await page.evaluate(() => ({
+      founder: window.kline.editor.account?.founder,
+      licence: window.kline.editor.licence.status,
+      canUse: window.kline.editor.canUse,
+    }));
+    assert.equal(state.founder, true, 'the Founder tab did not sign in the founder');
+    assert.equal(state.licence, 'owner', `they hold a "${state.licence}" licence`);
+    assert.equal(state.canUse, true);
+    await page.context().close();
+  });
 }

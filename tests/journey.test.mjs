@@ -1371,7 +1371,83 @@ if (app.skip) {
     assert.match(after.name, /Cube/i, `it selected "${after.name}"`);
   });
 
-  test('26 · nothing logged an error along the whole journey', () => {
+  test('26 · the pause button stops playback, mid-playback', async () => {
+    // The fault this is here for: the timeline rebuilt every one of its
+    // buttons on every 'frame' event, which during playback is every
+    // animation frame. A click needs its press and its release on the same
+    // element, so the pause button was replaced under the cursor twenty-four
+    // times a second and the click never landed. It read as the whole
+    // interface being dead, because the timeline runs across the bottom of
+    // the window.
+    await signedIn();
+    await page.evaluate(() => {
+      const ed = window.kline.editor;
+      ed.scene.timeline.loop = true;
+      ed.startPlayback();
+    });
+    await new Promise((r) => setTimeout(r, 400));
+
+    const running = await page.evaluate(() => window.kline.editor.scene.timeline.playing);
+    assert.equal(running, true, 'playback did not start, so nothing was proved');
+
+    // Click it the way a person does, while it is moving.
+    const before = await page.evaluate(
+      () => document.querySelector('.tl-controls .tl-btn:nth-child(3)'),
+    );
+    assert.ok(before !== null, 'no play/pause button');
+    await page.click('.tl-controls .tl-btn:nth-child(3)');
+    await new Promise((r) => setTimeout(r, 200));
+
+    const state = await page.evaluate(() => ({
+      playing: window.kline.editor.scene.timeline.playing,
+      frame: window.kline.editor.scene.timeline.current,
+    }));
+    assert.equal(state.playing, false, 'the pause button did not stop playback');
+
+    // And it stays stopped, rather than a stray frame callback restarting it.
+    await new Promise((r) => setTimeout(r, 300));
+    const later = await page.evaluate(() => window.kline.editor.scene.timeline.current);
+    assert.equal(later, state.frame, 'the frame kept moving after pause');
+  });
+
+  test('27 · the timeline buttons keep their identity while playing', async () => {
+    // The mechanism behind the fault above, asserted directly: if these are
+    // new elements after a second of playback, they are being rebuilt and a
+    // click can land between the press and the release again.
+    await page.evaluate(() => {
+      const ed = window.kline.editor;
+      ed.scene.timeline.loop = true;
+      ed.startPlayback();
+      const btn = document.querySelector('.tl-controls .tl-btn:nth-child(3)');
+      window.__tlMarked = btn;
+      btn.dataset.witness = 'same-element';
+    });
+    await new Promise((r) => setTimeout(r, 600));
+    const survived = await page.evaluate(() => {
+      const btn = document.querySelector('.tl-controls .tl-btn:nth-child(3)');
+      return {
+        same: btn === window.__tlMarked,
+        witness: btn?.dataset.witness ?? '',
+      };
+    });
+    assert.equal(survived.same, true, 'the play button was replaced during playback');
+    assert.equal(survived.witness, 'same-element');
+
+    // Typing into Start is not thrown away by the frames going past either.
+    const typed = await page.evaluate(async () => {
+      const input = document.querySelector('.tl-ranges .tl-num');
+      input.focus();
+      input.value = '7';
+      await new Promise((r) => setTimeout(r, 400));
+      return { value: input.value, focused: document.activeElement === input };
+    });
+    assert.equal(typed.value, '7', 'a half-typed value was overwritten mid-playback');
+    assert.equal(typed.focused, true, 'the field lost focus mid-playback');
+
+    await page.evaluate(() => window.kline.editor.stopPlayback());
+  });
+
+  test('28 · nothing logged an error along the whole journey', () => {
     const noise = app.consoleErrors.filter((m) => !/favicon|404/i.test(m));
     assert.deepEqual(noise, [], `the app logged: ${noise.join(' | ')}`);
   });

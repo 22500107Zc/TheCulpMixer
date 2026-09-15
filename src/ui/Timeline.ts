@@ -20,9 +20,33 @@ export class Timeline {
   private ranges = h('div', { class: 'tl-ranges' });
   private scrubbing = false;
 
+  /**
+   * The controls, built once and kept.
+   *
+   * They used to be torn down and rebuilt on every 'frame' event — which
+   * during playback is every animation frame. A click needs its press and its
+   * release on the *same* element, so the pause button was being replaced out
+   * from under the cursor twenty-four times a second and the click never
+   * completed. From the outside that reads as "the button does nothing", and
+   * with the timeline sitting across the bottom of the window it read as the
+   * whole interface being dead.
+   *
+   * The same applied to the Start, End and FPS fields: rebuilding them threw
+   * away focus and the half-typed value with it.
+   *
+   * So refresh() now only changes what actually changed — an icon, a class, a
+   * label, a position.
+   */
+  private playButton!: HTMLElement;
+  private loopButton!: HTMLElement;
+  private startInput!: HTMLInputElement;
+  private endInput!: HTMLInputElement;
+  private fpsInput!: HTMLInputElement;
+
   constructor(private editor: Editor) {
     this.track.append(this.marks, this.playhead);
     this.root.append(this.controls, this.track, this.ranges);
+    this.buildControls();
 
     this.track.addEventListener('pointerdown', (e) => {
       this.scrubbing = true;
@@ -55,66 +79,95 @@ export class Timeline {
     return ((frame - tl.start) / span) * 100;
   }
 
-  refresh(): void {
+  /** Built once, in the constructor. Never rebuilt. */
+  private buildControls(): void {
     const ed = this.editor;
     const tl = ed.scene.timeline;
 
-    clear(this.controls);
     const btn = (
-      name: Parameters<typeof icon>[0], title: string, onClick: () => void, active = false,
+      name: Parameters<typeof icon>[0], title: string, onClick: () => void,
     ): HTMLElement => h('button', {
-      class: `tl-btn${active ? ' active' : ''}`, title, on: { click: onClick },
+      class: 'tl-btn', title, on: { click: onClick },
     }, [icon(name)]);
 
+    this.playButton = btn('play', 'Play / pause (Space)', () => ed.togglePlayback());
+
     this.controls.append(
-      btn('skipStart', 'Jump to start (Shift+Left)', () => ed.setFrame(tl.start)),
+      btn('skipStart', 'Jump to start (Shift+Left)', () => ed.setFrame(ed.scene.timeline.start)),
       btn('stepBack', 'Previous frame (Left)', () => ed.stepFrame(-1)),
-      btn(tl.playing ? 'pause' : 'play', 'Play / pause (Space)', () => ed.togglePlayback(), tl.playing),
+      this.playButton,
       btn('stepForward', 'Next frame (Right)', () => ed.stepFrame(1)),
-      btn('skipEnd', 'Jump to end (Shift+Right)', () => ed.setFrame(tl.end)),
+      btn('skipEnd', 'Jump to end (Shift+Right)', () => ed.setFrame(ed.scene.timeline.end)),
       btn('key', 'Insert keyframe (I)', () => ed.insertKeyframe('all')),
       this.frameLabel,
     );
-    this.frameLabel.textContent = `${tl.current}`;
 
-    clear(this.ranges);
     const numeric = (
       label: string, value: number, onChange: (v: number) => void, min: number, max: number,
-    ): HTMLElement => {
+    ): { wrap: HTMLElement; input: HTMLInputElement } => {
       const input = h('input', {
         class: 'tl-num', type: 'number', value: String(value),
         min: String(min), max: String(max),
-      });
+      }) as HTMLInputElement;
       input.addEventListener('change', () => {
         const v = Math.round(Number(input.value));
         if (Number.isFinite(v)) onChange(Math.max(min, Math.min(max, v)));
       });
       input.addEventListener('keydown', (e) => e.stopPropagation());
-      return h('label', { class: 'tl-range' }, [h('span', { text: label }), input]);
+      return { wrap: h('label', { class: 'tl-range' }, [h('span', { text: label }), input]), input };
     };
-    this.ranges.append(
-      numeric('Start', tl.start, (v) => {
-        tl.start = Math.min(v, tl.end - 1);
-        ed.emit('frame');
-      }, 0, 100000),
-      numeric('End', tl.end, (v) => {
-        tl.end = Math.max(v, tl.start + 1);
-        ed.emit('frame');
-      }, 1, 100000),
-      numeric('FPS', tl.fps, (v) => {
-        tl.fps = Math.max(1, v);
-        ed.emit('frame');
-      }, 1, 240),
-      h('button', {
-        class: `tl-btn${tl.loop ? ' active' : ''}`, title: 'Loop playback',
-        on: {
-          click: () => {
-            tl.loop = !tl.loop;
-            ed.emit('frame');
-          },
+
+    const start = numeric('Start', tl.start, (v) => {
+      tl.start = Math.min(v, tl.end - 1);
+      ed.emit('frame');
+    }, 0, 100000);
+    const end = numeric('End', tl.end, (v) => {
+      tl.end = Math.max(v, tl.start + 1);
+      ed.emit('frame');
+    }, 1, 100000);
+    const fps = numeric('FPS', tl.fps, (v) => {
+      tl.fps = Math.max(1, v);
+      ed.emit('frame');
+    }, 1, 240);
+    this.startInput = start.input;
+    this.endInput = end.input;
+    this.fpsInput = fps.input;
+
+    this.loopButton = h('button', {
+      class: 'tl-btn', title: 'Loop playback',
+      on: {
+        click: () => {
+          ed.scene.timeline.loop = !ed.scene.timeline.loop;
+          ed.emit('frame');
         },
-      }, [icon('loop')]),
-    );
+      },
+    }, [icon('loop')]);
+
+    this.ranges.append(start.wrap, end.wrap, fps.wrap, this.loopButton);
+  }
+
+  refresh(): void {
+    const ed = this.editor;
+    const tl = ed.scene.timeline;
+
+    // The play button changes its icon, not its identity.
+    const wantPause = tl.playing;
+    if (this.playButton.dataset.state !== String(wantPause)) {
+      this.playButton.dataset.state = String(wantPause);
+      clear(this.playButton);
+      this.playButton.appendChild(icon(wantPause ? 'pause' : 'play'));
+    }
+    this.playButton.classList.toggle('active', tl.playing);
+    this.loopButton.classList.toggle('active', tl.loop);
+
+    this.frameLabel.textContent = `${tl.current}`;
+
+    // A field being typed into is left alone: writing over it would eat the
+    // keystroke somebody is in the middle of.
+    const active = document.activeElement;
+    if (active !== this.startInput) this.startInput.value = String(tl.start);
+    if (active !== this.endInput) this.endInput.value = String(tl.end);
+    if (active !== this.fpsInput) this.fpsInput.value = String(tl.fps);
 
     clear(this.marks);
     const frames = new Set<number>();
