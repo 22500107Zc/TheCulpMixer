@@ -540,3 +540,31 @@ test('the disk image opens onto the app and the Applications folder, and nothing
     assert.ok(c.y - icon / 2 > 0 && c.y + icon / 2 < height, `an icon at y=${c.y} falls outside a ${height}px window`);
   }
 });
+
+test('the desktop shell uses a valid URL scheme and the real scene extension', async () => {
+  // The rename from Kline turned the custom protocol scheme into the literal
+  // "The Culp Mixer" — but a URL scheme cannot contain spaces or capitals, so
+  // "The Culp Mixer://app/" is not a URL loadURL can open, and the desktop
+  // window came up blank. The same regex corrupted the scene file extension to
+  // ".The Culp Mixer", which the web build never uses. Both are guarded here so
+  // a future rename cannot silently break the packaged app again.
+  const { readFileSync } = await import('node:fs');
+  const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
+  const main = readFileSync(join(root, 'electron', 'main.cjs'), 'utf8');
+
+  const scheme = main.match(/scheme:\s*'([^']+)'/);
+  assert.ok(scheme, 'no custom scheme is registered');
+  assert.match(scheme![1], /^[a-z][a-z0-9+.-]*$/,
+    `the desktop URL scheme "${scheme![1]}" is not a valid scheme (no spaces or capitals)`);
+  // The three places the scheme is used must agree.
+  assert.ok(main.includes(`protocol.handle('${scheme![1]}'`), 'the protocol handler names a different scheme');
+  assert.ok(main.includes(`loadURL('${scheme![1]}://app/')`), 'the window loads a different scheme');
+  // And it parses as a real URL.
+  assert.doesNotThrow(() => new URL(`${scheme![1]}://app/`), 'the scheme does not form a valid URL');
+
+  // The scene extension the desktop dialogs offer must match what the web
+  // build actually writes, which is .kline.
+  assert.ok(!/extensions:\s*\[\s*'The Culp Mixer'/.test(main),
+    'a file dialog still offers the broken "The Culp Mixer" extension');
+  assert.match(main, /extensions:\s*\['kline'/, 'the save dialog does not offer .kline');
+});

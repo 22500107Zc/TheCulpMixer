@@ -19,7 +19,7 @@ const STATE_FILE = path.join(app.getPath('userData'), 'window-state.json');
 // A privileged custom scheme, because ES modules and service workers are both
 // blocked on file:// — this gives the bundle a proper secure origin.
 protocol.registerSchemesAsPrivileged([{
-  scheme: 'The Culp Mixer',
+  scheme: 'culpmixer',
   privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, codeCache: true },
 }]);
 
@@ -72,7 +72,7 @@ const CONTENT_TYPES = {
 };
 
 function serveBundle() {
-  protocol.handle('The Culp Mixer', async (request) => {
+  protocol.handle('culpmixer', async (request) => {
     const url = new URL(request.url);
     let pathname = decodeURIComponent(url.pathname);
     if (pathname === '' || pathname === '/') pathname = '/index.html';
@@ -149,7 +149,7 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  mainWindow.loadURL('The Culp Mixer://app/');
+  mainWindow.loadURL('culpmixer://app/');
 
   // Smoke-test hook: `KLINE_SMOKE=<png path> electron .` boots the shell, puts
   // it through a short piece of real work, saves a screenshot and exits — so
@@ -398,7 +398,7 @@ ipcMain.on('kline:register-commands', (_event, commands) => {
 });
 
 const FILTERS = {
-  The Culp Mixer: { name: 'The Culp Mixer Scene', extensions: ['The Culp Mixer'] },
+  kline: { name: 'The Culp Mixer Scene', extensions: ['kline'] },
   obj: { name: 'Wavefront OBJ', extensions: ['obj'] },
   mtl: { name: 'Material Library', extensions: ['mtl'] },
   stl: { name: 'STL', extensions: ['stl'] },
@@ -490,7 +490,7 @@ ipcMain.handle('kline:open-scene', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
     title: 'Open Scene',
     properties: ['openFile'],
-    filters: [{ name: 'The Culp Mixer Scene', extensions: ['The Culp Mixer', 'kiln'] }],
+    filters: [{ name: 'The Culp Mixer Scene', extensions: ['kline', 'kiln'] }],
   });
   if (canceled || filePaths.length === 0) return null;
   return readScene(filePaths[0]);
