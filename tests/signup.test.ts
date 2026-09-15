@@ -370,3 +370,63 @@ test('nothing here ever talks to Stripe', async () => {
   }
   assert.ok(!reached.some((url) => url.includes('stripe.com')), `it called ${reached.join(', ')}`);
 });
+
+test('opening the endpoint in a browser says what is still missing', async () => {
+  // The fastest way to answer "is it deployed and finished?", and the one a
+  // person will actually use — a URL in a browser rather than a curl with
+  // headers. Booleans only: nothing here is a secret.
+  const kv = store();
+  const previousEnv = { ...process.env };
+  const previousFetch = globalThis.fetch;
+  Object.assign(process.env, {
+    KLINE_SIGNING_KEY: '',
+    KV_REST_API_URL: '',
+    KV_REST_API_TOKEN: '',
+    SUPABASE_URL: '',
+    SUPABASE_SERVICE_ROLE_KEY: '',
+    KLINE_PAYMENT_LINK: '',
+  });
+  globalThis.fetch = (async () => json({ result: null })) as typeof fetch;
+  const bare = recorder();
+  try {
+    await account({ method: 'GET', headers: {} }, bare.res);
+  } finally {
+    globalThis.fetch = previousFetch;
+    for (const key of Object.keys(process.env)) delete process.env[key];
+    Object.assign(process.env, previousEnv);
+  }
+  assert.equal(bare.out.code, 200, 'a browser got an error rather than an answer');
+  assert.equal(bare.out.body.ready, false);
+  assert.equal(bare.out.body.storage, false);
+  assert.equal(bare.out.body.signingKey, false);
+  assert.equal(bare.out.body.trialHours, 33);
+  const missing = bare.out.body.missing as string[];
+  assert.ok(missing.some((m) => /SUPABASE/.test(m)), `it did not name Supabase: ${missing}`);
+  assert.ok(missing.some((m) => /SIGNING_KEY/.test(m)), `it did not name the key: ${missing}`);
+  // And no secret leaks out of it, whatever is set.
+  assert.ok(!JSON.stringify(bare.out.body).includes('BEGIN'), 'the health check leaked a key');
+
+  // Fully configured, it simply says ready.
+  const full = await run(account, { action: '__health__' }, kv);
+  assert.ok(full.code === 200 || full.code === 400, 'configured lookup failed unexpectedly');
+  const good = recorder();
+  const env2 = { ...process.env };
+  Object.assign(process.env, {
+    KLINE_SIGNING_KEY: PEM,
+    KV_REST_API_URL: 'https://kv.test',
+    KV_REST_API_TOKEN: 'token',
+    KLINE_PAYMENT_LINK: 'https://buy.example.com/x',
+  });
+  const f2 = globalThis.fetch;
+  globalThis.fetch = (async (i: string | URL, init?: RequestInit) =>
+    (await kv.handle(String(i), init)) ?? json({ result: null })) as typeof fetch;
+  try {
+    await account({ method: 'GET', headers: {} }, good.res);
+  } finally {
+    globalThis.fetch = f2;
+    for (const key of Object.keys(process.env)) delete process.env[key];
+    Object.assign(process.env, env2);
+  }
+  assert.equal(good.out.body.ready, true, JSON.stringify(good.out.body));
+  assert.deepEqual(good.out.body.missing, []);
+});

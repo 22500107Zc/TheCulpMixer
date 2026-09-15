@@ -127,14 +127,40 @@ export type AccountResult =
 
 const OFFLINE = 'Could not reach The Culp Mixer just now. Check the connection and try again.';
 
+/**
+ * Turn a failed answer into a sentence that says what is actually wrong.
+ *
+ * The generic "could not log you in" was worse than useless: it was shown for
+ * a wrong password, for a server that had not been deployed yet, and for a
+ * database that was not connected — three completely different problems, one
+ * of which is the person's fault and two of which are ours. Somebody staring
+ * at it has no idea whether to retype their password or go and fix Vercel.
+ */
+function explain(body: Record<string, unknown> | null): string {
+  const error = typeof body?.error === 'string' ? body.error : '';
+  if (error === 'wrong-details') return 'That email and password do not match an account.';
+  if (error === 'no-storage') {
+    return 'The Culp Mixer is not finished being set up: it has nowhere to keep accounts yet. '
+      + 'Nobody can sign up until Supabase is connected.';
+  }
+  if (error === 'no-signing-key') {
+    return 'The Culp Mixer is not finished being set up: the signing key is missing, so no '
+      + 'account can be issued.';
+  }
+  if (typeof body?.detail === 'string') return body.detail;
+  if (error) return error;
+  // No JSON came back at all. Nearly always the API is not deployed and a
+  // stock 404 page arrived instead.
+  return 'The account service is not answering. If you have just deployed, it may still be '
+    + 'building; if this is a fresh setup, /api/account is not live yet.';
+}
+
 export async function signUp(
   username: string, email: string, password: string,
 ): Promise<AccountResult> {
   const { reached, ok, body } = await post({ action: 'signup', username, email, password });
   if (!reached) return { ok: false, message: OFFLINE };
-  if (!ok || !body) {
-    return { ok: false, message: String(body?.error ?? 'Could not make that account.') };
-  }
+  if (!ok || !body) return { ok: false, message: explain(body) };
   const account = adopt(body);
   return account ? { ok: true, account } : { ok: false, message: 'Could not make that account.' };
 }
@@ -142,14 +168,7 @@ export async function signUp(
 export async function logIn(email: string, password: string): Promise<AccountResult> {
   const { reached, ok, body } = await post({ action: 'signin', email, password });
   if (!reached) return { ok: false, message: OFFLINE };
-  if (!ok || !body) {
-    return {
-      ok: false,
-      message: body?.error === 'wrong-details'
-        ? 'That email and password do not match an account.'
-        : String(body?.error ?? 'Could not log you in.'),
-    };
-  }
+  if (!ok || !body) return { ok: false, message: explain(body) };
   const account = adopt(body);
   return account ? { ok: true, account } : { ok: false, message: 'Could not log you in.' };
 }

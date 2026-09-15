@@ -91,7 +91,11 @@ it into **Where people pay**. That is the button your customers see when their
 
 ## The founder console
 
-`/founder.html` — **culpindustriesllc@gmail.com** and your founder password.
+**https://kline-flax.vercel.app/founder.html** — a different page from the app.
+Signing in on the app's own home page will not get you in there; that form is
+for customers and your founder login is not a customer account.
+
+**culpindustriesllc@gmail.com** and your founder password.
 Both are checked, and a wrong one of either gets the same message, so nobody
 guessing learns they had the address right.
 
@@ -168,13 +172,22 @@ Misconfiguration says so rather than guessing:
 - `no-founder-password` — `KLINE_FOUNDER_HASH` is missing, so the console
   cannot be opened by anybody, including you.
 
-Check the server is alive:
+## Is it working? Open this in a browser
 
-```bash
-curl -s -X POST https://kline-flax.vercel.app/api/account \
-  -H 'Content-Type: application/json' -d '{"action":"refresh","session":""}'
+**https://kline-flax.vercel.app/api/account**
+
+That is the whole check. It answers with what is set up and what is not:
+
+```json
+{ "ready": true, "storage": true, "store": "Supabase",
+  "signingKey": true, "paymentLink": true, "trialHours": 33, "missing": [] }
 ```
 
-A healthy server answers `{"error":"sign-in-again"}` — it is up and it has
-storage. `no-storage` means step 2 is not done, and **until it is, everyone
-who opens your link uses The Culp Mixer for free**.
+- **A 404 page instead of JSON** — the API is not deployed. Redeploy.
+- **`"ready": false`** — `missing` names exactly what to go and set.
+- **`"ready": true`** — you are selling.
+
+Nothing secret is in that answer, only yes/no.
+
+**Until `ready` is true, everyone who opens your link uses The Culp Mixer for
+free.**

@@ -24,7 +24,7 @@
 import { createPrivateKey, sign } from 'node:crypto';
 import {
   Account, TRIAL_MS, env, findAccount, hashPassword, kvConfigured, mintAccountSession,
-  readAccountSession, saveAccount, settings, signInAccount, standing,
+  readAccountSession, saveAccount, settings, signInAccount, standing, storeName,
 } from './_store';
 
 interface Req {
@@ -116,6 +116,30 @@ export default async function handler(req: Req, res: Res): Promise<void> {
 
   if (req.method === 'OPTIONS') {
     res.status(204).end();
+    return;
+  }
+  // Opening this in a browser is the fastest way to find out whether the
+  // deployment is finished, so it answers instead of saying "POST only" —
+  // which told somebody the thing was up but nothing about whether it worked.
+  // Booleans only: no key, no URL, no secret of any kind.
+  if (req.method === 'GET') {
+    const configured = await settings();
+    const storage = kvConfigured();
+    const signingKey = !!env('KLINE_SIGNING_KEY');
+    res.status(200).json({
+      service: 'The Culp Mixer accounts',
+      ready: storage && signingKey,
+      storage,
+      store: storeName() || null,
+      signingKey,
+      paymentLink: !!configured.paymentLink,
+      trialHours: TRIAL_MS / 3600000,
+      missing: [
+        ...(storage ? [] : ['SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, and the kline_kv table']),
+        ...(signingKey ? [] : ['KLINE_SIGNING_KEY']),
+        ...(configured.paymentLink ? [] : ['a payment link, set in /founder.html']),
+      ],
+    });
     return;
   }
   if (req.method !== 'POST') {
