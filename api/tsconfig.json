@@ -1,0 +1,28 @@
+{
+  // The API compiles under different rules from the browser code, and Vercel
+  // needs to find those rules by itself.
+  //
+  // Vercel builds each api/*.ts with whatever tsconfig it finds by walking up
+  // from the file. Without this one it reached the root tsconfig.json, which
+  // is the browser config: no Node types, and noEmit. Every function failed to
+  // compile ("Cannot find module 'node:crypto'", "Cannot find name 'Buffer'")
+  // and every request to /api/* came back 500 FUNCTION_INVOCATION_FAILED.
+  //
+  // NodeNext, not bundler: these files are loaded by Node as separate modules
+  // at runtime, not bundled, so relative imports need the .js extension Node
+  // actually resolves. NodeNext is what enforces that at compile time instead
+  // of letting it fail in production.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "types": ["node"]
+  },
+  "include": ["**/*.ts"]
+}

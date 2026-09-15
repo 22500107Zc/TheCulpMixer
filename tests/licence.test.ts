@@ -285,3 +285,37 @@ test('nothing The Culp Mixer ships describes The Culp Mixer as open source or MI
   assert.notEqual(pkg.license, 'MIT', 'package.json still declares MIT');
   assert.match(pkg.license, /SEE LICENSE/i, `package.json license is "${pkg.license}"`);
 });
+
+test('the API is built with rules that let it actually run on the host', async () => {
+  // This is the test for a failure nobody could see from here: every request
+  // to /api/* came back 500 FUNCTION_INVOCATION_FAILED on the deployment while
+  // the same handlers passed every test locally.
+  //
+  // The host compiles each api/*.ts with the tsconfig it finds by walking up
+  // from the file. With no config in api/ it reached the root one — the
+  // browser config — which has no Node types and noEmit: true. So the
+  // functions were compiled with the wrong rules and Node was then asked to
+  // load a module graph whose relative imports it could not resolve, because
+  // ESM needs the .js extension and "bundler" resolution does not write one.
+  //
+  // Both halves are asserted, because either one alone brings the API down and
+  // neither shows up in a local run.
+  const { readFileSync, readdirSync } = await import('node:fs');
+
+  const config = JSON.parse(
+    readFileSync('api/tsconfig.json', 'utf8').replace(/^\s*\/\/.*$/gm, ''),
+  );
+  const options = config.compilerOptions;
+  assert.ok(!options.noEmit, 'api/tsconfig.json has noEmit, so nothing is compiled to run');
+  assert.deepEqual(options.types, ['node'], 'the API is compiled without Node types');
+  assert.equal(options.moduleResolution, 'NodeNext',
+    'the API must resolve modules the way Node does at runtime');
+
+  for (const file of readdirSync('api').filter((f) => f.endsWith('.ts'))) {
+    const text = readFileSync(`api/${file}`, 'utf8');
+    for (const [, specifier] of text.matchAll(/from '(\.[^']*)'/g)) {
+      assert.match(specifier, /\.js$/,
+        `api/${file} imports "${specifier}" — Node cannot resolve that at runtime`);
+    }
+  }
+});

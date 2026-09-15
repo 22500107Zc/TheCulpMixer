@@ -32,7 +32,7 @@
  */
 
 import { createPrivateKey, sign } from 'node:crypto';
-import { KEYS, env, kvGet, kvSet, liveAccount, settings, signInAccount, standing } from './_store';
+import { KEYS, env, kvGet, kvSet, liveAccount, settings, signInAccount, standing } from './_store.js';
 
 /** Thirty-three hours. The same number the application and the LICENCE state. */
 const TRIAL_MS = 33 * 60 * 60 * 1000;

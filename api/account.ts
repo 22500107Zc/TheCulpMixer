@@ -26,7 +26,7 @@ import {
   Account, TRIAL_MS, checkFounder, env, findAccount, founderEmail, hashPassword, kvConfigured,
   mintAccountSession, readAccountSession, saveAccount, settings, signInAccount, standing,
   storeName,
-} from './_store';
+} from './_store.js';
 
 interface Req {
   method?: string;
