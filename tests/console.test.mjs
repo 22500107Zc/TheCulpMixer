@@ -399,14 +399,34 @@ if (app.skip) {
     assert.match(chip, /3[23]h/, `the countdown did not start at 33 hours: ${chip}`);
   });
 
-  test('10 · the application actually works during the trial', async () => {
-    const added = await carried.customer.evaluate(() => {
+  test('10 · during the 33 hours there is no pay screen at all', async () => {
+    const page = carried.customer;
+    const added = await page.evaluate(() => {
       const ed = window.kline.editor;
       const before = ed.scene.objects.size;
       window.kline.run('add.cube');
       return ed.scene.objects.size - before;
     });
     assert.equal(added, 1, 'a signed-up customer in trial could not use Kline');
+
+    // The thing that must not happen: being asked for money inside the trial.
+    // Checked on a fresh load too, because a reload is where a wrongly-sticky
+    // lock screen would come back.
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForFunction(
+      () => window.kline?.editor?.account?.status === 'trial',
+      { timeout: 10000 },
+    );
+    const during = await page.evaluate(() => ({
+      homeHidden: document.querySelector('.home')?.classList.contains('hidden') ?? false,
+      wallHidden: document.querySelector('.licence-panel')?.classList.contains('hidden') ?? true,
+      payButtons: document.querySelectorAll('a.home-go, .licence-buy').length,
+      canUse: window.kline.editor.canUse,
+    }));
+    assert.equal(during.homeHidden, true, 'the pay screen showed during the trial');
+    assert.equal(during.wallHidden, true, 'the licence wall showed during the trial');
+    assert.equal(during.payButtons, 0, 'a pay button was on screen during the trial');
+    assert.equal(during.canUse, true, 'Kline was locked during the trial');
   });
 
   test('11 · when the 33 hours are up they meet the payment link', async () => {

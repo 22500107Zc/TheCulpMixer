@@ -145,12 +145,9 @@ export class LicencePanel {
     if (state.status === 'trial') {
       this.body.append(
         h('p', { class: 'dim small', text: TERMS }),
-        h('div', { class: 'btn-row licence-buy' }, [
-          button(`Subscribe — ${PRICE}`, () => void this.subscribe(), { class: 'primary' }),
-        ]),
         h('p', {
           class: 'dim small',
-          text: 'Subscribing now does not cut the trial short and does not charge you twice.',
+          text: 'Paying does not cut the trial short and does not charge you twice.',
         }),
         h('p', { class: 'dim small licence-restore-label', text: 'Already have an account?' }),
         this.signInBlock(),
@@ -164,7 +161,7 @@ export class LicencePanel {
     this.body.append(h('p', { class: 'licence-blocked', text: this.editor.licenceBlockedMessage }));
 
     this.body.append(h('div', { class: 'btn-row licence-buy' }, [
-      button(`Subscribe — ${PRICE}`, () => void this.subscribe(), { class: 'primary' }),
+      button('Sign in or create an account', () => this.editor.emit('licence'), { class: 'primary' }),
     ]));
 
     this.body.append(h('ul', { class: 'licence-list' }, [
@@ -224,29 +221,6 @@ export class LicencePanel {
   private say(message: string, bad = false): void {
     this.note.textContent = message;
     this.note.classList.toggle('licence-bad', bad);
-  }
-
-  private async subscribe(): Promise<void> {
-    if (this.busy) return;
-    this.busy = true;
-    this.say('Opening the payment page…');
-    // Opened before the request so the browser sees it as part of the click.
-    // A tab opened from inside a promise is a popup as far as Safari and
-    // Firefox are concerned, and gets blocked.
-    const tab = window.open('', '_blank');
-    try {
-      const result = await this.editor.checkoutLink(this.email.value.trim() || undefined);
-      if ('url' in result) {
-        if (tab) tab.location.href = result.url;
-        else window.location.href = result.url;
-        this.say('Finish in the payment tab. Kline unlocks the moment it goes through.');
-      } else {
-        tab?.close();
-        this.say(result.error, true);
-      }
-    } finally {
-      this.busy = false;
-    }
   }
 
   private async signIn(): Promise<void> {

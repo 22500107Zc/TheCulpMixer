@@ -1217,9 +1217,8 @@ if (app.skip) {
     assert.match(locked.text, /33-hour free trial/, `the wall did not state the terms: ${locked.text}`);
     assert.match(locked.text, /still on your disk, untouched/i,
       `the wall did not say the work is safe: ${locked.text}`);
-    assert.match(locked.buyLabel, /Subscribe/i,
-      `the wall had no way to pay: "${locked.buyLabel}"`);
-    assert.ok(locked.buyLabel.includes('$199/month'), `the buy button said: ${locked.buyLabel}`);
+    assert.match(locked.buyLabel, /Sign in|account/i,
+      `the wall had no way forward: "${locked.buyLabel}"`);
     assert.equal(locked.restore, true,
       'no way to unlock a second machine with the email they paid with');
     // Nobody is ever shown a licence key. The box exists, folded away, for the
@@ -1247,70 +1246,7 @@ if (app.skip) {
     assert.equal(freed.hidden, true, 'the wall stayed up after the lock was lifted');
   });
 
-  test('23 · the Subscribe button really sends somebody to Stripe', async () => {
-    // The money path, clicked rather than described. If this breaks, Kline
-    // still locks people out and simply has no way to take their money — a
-    // failure that looks like everything working.
-    const result = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      const realFetch = window.fetch;
-      const realOpen = window.open;
-      const sent = [];
-      let opened = '';
-      window.fetch = async (url, init) => {
-        if (String(url).includes('/api/licence')) {
-          sent.push(JSON.parse(String(init?.body ?? '{}')));
-          return new Response(
-            JSON.stringify({ url: 'https://checkout.stripe.com/c/pay/cs_test_journey' }),
-            { status: 200, headers: { 'Content-Type': 'application/json' } },
-          );
-        }
-        return realFetch(url, init);
-      };
-      // The panel opens a tab before awaiting, so that a popup blocker sees a
-      // click rather than a promise. Catching it here is how we know which
-      // page a customer would actually land on.
-      window.open = () => ({
-        set location(value) { opened = String(value); },
-        get location() { return { set href(v) { opened = String(v); } }; },
-        close() {},
-      });
-
-      window.__accountWas2 = ed.account;
-      ed.account = null;
-      ed.licence = { status: 'trial-over', endsAt: Date.now() - 1 };
-      ed.emit('licence');
-      await new Promise((r) => setTimeout(r, 50));
-
-      const buy = document.querySelector('.licence-buy .btn');
-      buy?.click();
-      await new Promise((r) => setTimeout(r, 300));
-
-      const note = document.querySelector('.licence-note')?.textContent ?? '';
-      window.fetch = realFetch;
-      window.open = realOpen;
-      return { sent, opened, note, label: buy?.textContent ?? '' };
-    });
-
-    assert.equal(result.sent.length, 1, 'clicking Subscribe asked the server nothing');
-    assert.equal(result.sent[0].action, 'checkout');
-    assert.ok(result.sent[0].install, 'the checkout request carried no install id');
-    assert.match(result.opened, /^https:\/\/checkout\.stripe\.com\//,
-      `Subscribe sent them to: ${result.opened || '(nowhere)'}`);
-    assert.ok(result.label.includes('$199/month'), `the button said: ${result.label}`);
-    assert.doesNotMatch(result.note, /could not/i, `it reported a problem: ${result.note}`);
-
-    // And put the editor back for the console sweep that follows.
-    await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      ed.licence = { status: 'source' };
-      ed.account = window.__accountWas2 ?? null;
-      ed.emit('licence');
-      ed.panels.toggleLicence?.();
-    });
-  });
-
-  test('24 · nothing logged an error along the whole journey', () => {
+  test('23 · nothing logged an error along the whole journey', () => {
     const noise = app.consoleErrors.filter((m) => !/favicon|404/i.test(m));
     assert.deepEqual(noise, [], `the app logged: ${noise.join(' | ')}`);
   });
