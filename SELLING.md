@@ -26,6 +26,10 @@ Project → **Settings** → **Environment Variables**, for **Production**:
 | `KLINE_SIGNING_KEY` | The entire contents of `kline-private-key.pem`, including the `-----BEGIN` and `-----END` lines. |
 | `KLINE_FOUNDER_HASH` | Run `node tools/kline-founder.mjs "your password"` and paste the line it prints. |
 
+The founder login is **culpindustriesllc@gmail.com** plus that password. The
+address is built in, so there is nothing to set for it. To move it later, add
+`KLINE_FOUNDER_EMAIL` — the old address stops working the moment you do.
+
 `KLINE_SIGNING_KEY` is the only thing that can mint a licence. It is not in
 this repository and must never be.
 
@@ -34,14 +38,43 @@ never goes in the repository** — this repository is readable, and the founder
 console can let people in and see every customer you have. The hash is safe to
 paste into Vercel and cannot be turned back into the password.
 
-### 2. A place to keep accounts
+### 2. Supabase — where accounts live
 
-Vercel project → **Storage** → **Create** → any Upstash-compatible Redis. The
-free tier is plenty. Vercel adds `KV_REST_API_URL` and `KV_REST_API_TOKEN` for
-you.
+**This one is not optional.** Without it there is nowhere to put accounts, so
+nobody can sign up and nobody is gated — everyone who opens your link gets in
+free. Do this before you send the link to anybody.
 
-**This one is not optional.** Without it there is nowhere to put accounts and
-Kline will say so rather than pretending to save them.
+Free tier, and it is a real database you can open and look at.
+
+**a.** Make a project at https://supabase.com — free, takes a minute.
+
+**b.** In your project: **SQL Editor** → **New query** → paste this and Run:
+
+```sql
+create table if not exists kline_kv (
+  key   text primary key,
+  value text not null
+);
+
+-- Nothing but the server touches this. The service role key bypasses RLS;
+-- turning RLS on with no policies means a leaked anon key reads nothing.
+alter table kline_kv enable row level security;
+```
+
+**c.** **Project Settings** → **API**, and copy two things into Vercel
+(Settings → Environment Variables, Production):
+
+| Name | Where it comes from |
+|---|---|
+| `SUPABASE_URL` | Project URL — `https://xxxxxxxx.supabase.co` |
+| `SUPABASE_SERVICE_ROLE_KEY` | **service_role** key, under Project API keys |
+
+Use the **service_role** key, not the `anon` one. It only ever lives in Vercel
+— it is never sent to a browser and is not in this repository.
+
+**d.** Redeploy.
+
+The console shows `Supabase is connected` once it is working.
 
 ### 3. Redeploy
 
@@ -58,7 +91,9 @@ it into **Where people pay**. That is the button your customers see when their
 
 ## The founder console
 
-`/founder.html`, your password.
+`/founder.html` — **culpindustriesllc@gmail.com** and your founder password.
+Both are checked, and a wrong one of either gets the same message, so nobody
+guessing learns they had the address right.
 
 **Everyone** — every account, whether they signed themselves up or you made it.
 For each: their username and email, whether they are in trial / waiting to pay /
@@ -126,7 +161,8 @@ week.
 
 Misconfiguration says so rather than guessing:
 
-- `no-storage` — no KV store. Accounts cannot be saved. Fix this first.
+- `no-storage` — Supabase is not connected. Nobody can sign up and nobody is
+  gated. Fix this first: step 2.
 - `no-signing-key` — `KLINE_SIGNING_KEY` is missing. Nobody can be let in
   until it is set.
 - `no-founder-password` — `KLINE_FOUNDER_HASH` is missing, so the console
@@ -140,4 +176,5 @@ curl -s -X POST https://kline-flax.vercel.app/api/account \
 ```
 
 A healthy server answers `{"error":"sign-in-again"}` — it is up and it has
-storage. `no-storage` means step 2 is not done.
+storage. `no-storage` means step 2 is not done, and **until it is, everyone
+who opens your link uses Kline for free**.

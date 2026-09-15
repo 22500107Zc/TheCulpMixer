@@ -63,7 +63,11 @@ function newestMtime(dir) {
 
 function ensureBuild() {
   const index = join(DIST, 'index.html');
-  if (existsSync(index) && statSync(index).mtimeMs >= newestMtime(join(ROOT, 'src'))) return;
+  // public/ as well as src/: the founder console lives there and is copied at
+  // build time, so watching only src meant editing it changed nothing that
+  // the tests could see.
+  const newest = Math.max(newestMtime(join(ROOT, 'src')), newestMtime(join(ROOT, 'public')));
+  if (existsSync(index) && statSync(index).mtimeMs >= newest) return;
   execFileSync('npx', ['vite', 'build'], { cwd: ROOT, stdio: 'ignore' });
 }
 
@@ -184,6 +188,7 @@ const app = await (async () => {
   });
 
   process.env.KLINE_FOUNDER_HASH = hash(FOUNDER_PASSWORD);
+  process.env.KLINE_FOUNDER_EMAIL = 'culpindustriesllc@gmail.com';
   process.env.KLINE_SIGNING_KEY = readFileSync(PEM, 'utf8');
   process.env.STRIPE_SECRET_KEY = '';
   process.env.KLINE_PRICE_ID = '';
@@ -220,6 +225,7 @@ if (app.skip) {
   test('1 · the founder console refuses the wrong password', async () => {
     const page = await app.browser.newPage();
     await page.goto(`${app.origin}/founder.html`, { waitUntil: 'networkidle' });
+    await page.fill('#founderEmail', 'culpindustriesllc@gmail.com');
     await page.fill('#password', 'not-the-password');
     await page.click('#signIn');
     // "Checking…" goes up first, so wait for whatever replaces it.
@@ -228,7 +234,7 @@ if (app.skip) {
       return text.length > 0 && !text.startsWith('Checking');
     }, { timeout: 8000 });
     const note = await page.textContent('#gateNote');
-    assert.match(note, /not the password/i, `it said: ${note}`);
+    assert.match(note, /do not open this console/i, `it said: ${note}`);
     // And the console stayed shut.
     assert.equal(await page.isHidden('#console'), true, 'the console opened anyway');
     await page.close();
@@ -237,6 +243,18 @@ if (app.skip) {
   test('2 · the right password opens the console', async () => {
     const page = await app.browser.newPage();
     await page.goto(`${app.origin}/founder.html`, { waitUntil: 'networkidle' });
+
+    // The right password with the wrong address is still refused.
+    await page.fill('#founderEmail', 'someone@else.com');
+    await page.fill('#password', FOUNDER_PASSWORD);
+    await page.click('#signIn');
+    await page.waitForFunction(() => {
+      const text = document.querySelector('#gateNote')?.textContent ?? '';
+      return text.length > 0 && !text.startsWith('Checking');
+    }, { timeout: 8000 });
+    assert.equal(await page.isHidden('#console'), true, 'the wrong address opened the console');
+
+    await page.fill('#founderEmail', 'culpindustriesllc@gmail.com');
     await page.fill('#password', FOUNDER_PASSWORD);
     await page.click('#signIn');
     await page.waitForSelector('#console:not(.hidden)', { timeout: 5000 });
@@ -467,6 +485,7 @@ if (app.skip) {
     // Signing in again would be a thirty-second wait on a field that is not
     // there.
     if (!(await console_.isHidden('#gate'))) {
+      await console_.fill('#founderEmail', 'culpindustriesllc@gmail.com');
       await console_.fill('#password', FOUNDER_PASSWORD);
       await console_.click('#signIn');
     }

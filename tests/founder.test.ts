@@ -107,8 +107,12 @@ async function run(
 }
 
 /** Sign in and hand back the session, so the tests below read as one action. */
+const FOUNDER_EMAIL = 'culpindustriesllc@gmail.com';
+
 async function signIn(options: RunOptions = {}): Promise<string> {
-  const result = await run(admin, { action: 'login', password: PASSWORD }, options);
+  const result = await run(
+    admin, { action: 'login', email: FOUNDER_EMAIL, password: PASSWORD }, options,
+  );
   assert.equal(result.code, 200, `login failed: ${JSON.stringify(result.body)}`);
   return String(result.body.session);
 }
@@ -119,7 +123,10 @@ test('the console refuses every login when no password is configured', async () 
   // Falling open here would mean anybody who found the URL could issue
   // themselves a licence.
   for (const action of ['login', 'state', 'accounts.create', 'settings.save']) {
-    const result = await run(admin, { action, password: PASSWORD }, { env: { KLINE_FOUNDER_HASH: '' } });
+    const result = await run(
+      admin, { action, email: FOUNDER_EMAIL, password: PASSWORD },
+      { env: { KLINE_FOUNDER_HASH: '' } },
+    );
     assert.equal(result.code, 503, `${action} did not fail shut`);
     assert.equal(result.body.error, 'no-founder-password');
   }
@@ -127,16 +134,42 @@ test('the console refuses every login when no password is configured', async () 
 
 test('a wrong password does not get in, and says nothing useful', async () => {
   for (const attempt of ['', 'wrong', PASSWORD.toUpperCase(), `${PASSWORD} `, 'scrypt$']) {
-    const result = await run(admin, { action: 'login', password: attempt });
+    const result = await run(admin, { action: 'login', email: FOUNDER_EMAIL, password: attempt });
     assert.equal(result.code, 401, `"${attempt}" was accepted`);
     assert.equal(result.body.error, 'wrong-password');
   }
 });
 
-test('the right password gets in', async () => {
-  const result = await run(admin, { action: 'login', password: PASSWORD });
+test('the right password with the wrong email does not get in either', async () => {
+  // Both halves, one message. Saying which was wrong would tell somebody
+  // guessing that they had the address right.
+  for (const email of ['', 'someone@else.com', 'culpindustriesllc@gmail.co', 'CULP@gmail.com']) {
+    const result = await run(admin, { action: 'login', email, password: PASSWORD });
+    assert.equal(result.code, 401, `"${email}" opened the console`);
+    assert.equal(result.body.error, 'wrong-password');
+  }
+});
+
+test('the founder email and password get in, in any case', async () => {
+  for (const email of [FOUNDER_EMAIL, FOUNDER_EMAIL.toUpperCase(), ` ${FOUNDER_EMAIL} `]) {
+    const result = await run(admin, { action: 'login', email, password: PASSWORD });
+    assert.equal(result.code, 200, `"${email}" was refused`);
+    assert.match(String(result.body.session), /^\d+\.[0-9a-f]{64}$/);
+    assert.equal(result.body.founder, FOUNDER_EMAIL);
+  }
+});
+
+test('the founder email can be moved with an environment variable', async () => {
+  const moved = 'someone@example.com';
+  const result = await run(admin, { action: 'login', email: moved, password: PASSWORD }, {
+    env: { KLINE_FOUNDER_EMAIL: moved },
+  });
   assert.equal(result.code, 200);
-  assert.match(String(result.body.session), /^\d+\.[0-9a-f]{64}$/);
+  // And the old one stops working the moment it moves.
+  const old = await run(admin, { action: 'login', email: FOUNDER_EMAIL, password: PASSWORD }, {
+    env: { KLINE_FOUNDER_EMAIL: moved },
+  });
+  assert.equal(old.code, 401, 'the old founder address still opened the console');
 });
 
 test('no session, a forged one, or an expired one is not a session', async () => {
@@ -166,7 +199,7 @@ test('changing the password signs every open console out', async () => {
 });
 
 test('the console is never framed, indexed, or cached', async () => {
-  const result = await run(admin, { action: 'login', password: PASSWORD });
+  const result = await run(admin, { action: 'login', email: FOUNDER_EMAIL, password: PASSWORD });
   assert.equal(result.headers['x-frame-options'], 'DENY');
   assert.match(result.headers['x-robots-tag'], /noindex/);
   assert.match(result.headers['cache-control'], /no-store/);

@@ -988,7 +988,8 @@ No payment API, no webhooks, no integration. **One person runs Kline**, and the
 whole payment system is one button pressed by that person. The setup is four
 things, done once: **[SELLING.md](SELLING.md)**.
 
-The founder console at `/founder.html` shows every account, whether they are in
+The founder console at `/founder.html` — one email and one password — shows
+every account, whether they are in
 trial, waiting to pay, or paid — with **the same countdown the customer sees**,
 so a message saying "I have two hours left" can be checked. It can also make
 accounts directly, reset a password, and revoke access without deleting

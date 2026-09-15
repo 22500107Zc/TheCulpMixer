@@ -73,9 +73,86 @@ export interface Settings {
   priceId?: string;
 }
 
-export const kvConfigured = (): boolean => !!env('KV_REST_API_URL') && !!env('KV_REST_API_TOKEN');
+/**
+ * Where accounts live.
+ *
+ * Two backends, picked by whichever is configured. Supabase is the one to
+ * use — its free tier is generous, it is a real database you can open and look
+ * at, and setting it up is a table and two environment variables. The
+ * Upstash-shaped one stays because it costs nothing to keep and some
+ * deployments already have it.
+ *
+ * Everything here degrades rather than throws when nothing is configured: a
+ * missing store means "no accounts yet", not a five hundred on the page that
+ * takes people's money.
+ */
+const supabaseUrl = (): string => env('SUPABASE_URL').replace(/\/+$/, '');
+const supabaseKey = (): string =>
+  env('SUPABASE_SERVICE_ROLE_KEY') || env('SUPABASE_SERVICE_KEY') || env('SUPABASE_KEY');
 
-async function kv(path: string, body?: string): Promise<unknown> {
+/** The table the rows live in. Created once, by the SQL in SELLING.md. */
+const TABLE = env('SUPABASE_TABLE') || 'kline_kv';
+
+const supabaseConfigured = (): boolean => !!supabaseUrl() && !!supabaseKey();
+const upstashConfigured = (): boolean => !!env('KV_REST_API_URL') && !!env('KV_REST_API_TOKEN');
+
+export const kvConfigured = (): boolean => supabaseConfigured() || upstashConfigured();
+
+/** Which store is in use, for the console to show. */
+export const storeName = (): string =>
+  supabaseConfigured() ? 'Supabase' : upstashConfigured() ? 'Upstash' : '';
+
+function supabaseHeaders(): Record<string, string> {
+  const key = supabaseKey();
+  return {
+    apikey: key,
+    Authorization: `Bearer ${key}`,
+    'Content-Type': 'application/json',
+  };
+}
+
+async function supabaseGet(key: string): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `${supabaseUrl()}/rest/v1/${TABLE}?key=eq.${encodeURIComponent(key)}&select=value`,
+      { headers: supabaseHeaders() },
+    );
+    if (!response.ok) return null;
+    const rows = (await response.json()) as { value?: unknown }[];
+    const value = rows?.[0]?.value;
+    return value == null ? null : String(value);
+  } catch {
+    return null;
+  }
+}
+
+async function supabaseSet(key: string, value: string): Promise<boolean> {
+  try {
+    // merge-duplicates makes this an upsert on the primary key, so a second
+    // write to the same key replaces it rather than failing.
+    const response = await fetch(`${supabaseUrl()}/rest/v1/${TABLE}`, {
+      method: 'POST',
+      headers: { ...supabaseHeaders(), Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify([{ key, value }]),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function supabaseDel(key: string): Promise<void> {
+  try {
+    await fetch(`${supabaseUrl()}/rest/v1/${TABLE}?key=eq.${encodeURIComponent(key)}`, {
+      method: 'DELETE',
+      headers: supabaseHeaders(),
+    });
+  } catch {
+    /* Nothing to do: a delete that did not happen leaves the row, not a crash. */
+  }
+}
+
+async function upstash(path: string, body?: string): Promise<unknown> {
   const url = env('KV_REST_API_URL');
   const token = env('KV_REST_API_TOKEN');
   if (!url || !token) return null;
@@ -94,18 +171,24 @@ async function kv(path: string, body?: string): Promise<unknown> {
 }
 
 export async function kvGet(key: string): Promise<string | null> {
-  const result = await kv(`get/${encodeURIComponent(key)}`);
+  if (supabaseConfigured()) return supabaseGet(key);
+  const result = await upstash(`get/${encodeURIComponent(key)}`);
   return result == null ? null : String(result);
 }
 
 export async function kvSet(key: string, value: string): Promise<boolean> {
+  if (supabaseConfigured()) return supabaseSet(key, value);
   // The value goes in the body rather than the path: an email or a secret in
   // a URL ends up in every proxy log between here and the store.
-  return (await kv(`set/${encodeURIComponent(key)}`, value)) != null;
+  return (await upstash(`set/${encodeURIComponent(key)}`, value)) != null;
 }
 
 export async function kvDel(key: string): Promise<void> {
-  await kv(`del/${encodeURIComponent(key)}`);
+  if (supabaseConfigured()) {
+    await supabaseDel(key);
+    return;
+  }
+  await upstash(`del/${encodeURIComponent(key)}`);
 }
 
 export async function readJson<T>(key: string): Promise<T | null> {
@@ -236,6 +319,26 @@ export function checkPassword(password: string): boolean {
   return verifyHash(password, env('KLINE_FOUNDER_HASH'));
 }
 
+/**
+ * The one address that can open the console.
+ *
+ * Not a secret — it is the address on the licence and the one customers write
+ * to — so it has a default rather than being another thing to configure. It
+ * is a second thing to get right on the way in, not a second password.
+ */
+export const founderEmail = (): string =>
+  (env('KLINE_FOUNDER_EMAIL') || 'culpindustriesllc@gmail.com').trim().toLowerCase();
+
+/** Both halves of the founder login, checked at one cost. */
+export function checkFounder(email: string, password: string): boolean {
+  const wanted = founderEmail();
+  const given = String(email ?? '').trim().toLowerCase();
+  // The password is checked either way, so a wrong address does not come back
+  // faster than a wrong password and give away which half was wrong.
+  const passwordOk = checkPassword(password);
+  return given === wanted && passwordOk;
+}
+
 /** Compare a password against a stored scrypt hash, in constant time. */
 export function verifyHash(password: string, stored: string): boolean {
   if (!stored || !password) return false;
@@ -265,7 +368,7 @@ export function hashPassword(password: string, salt = randomBytes(16)): string {
  * variable to set, and changing the password invalidates every session.
  */
 function sessionSecret(): string {
-  return `kline-console:${env('KLINE_FOUNDER_HASH')}`;
+  return `kline-console:${founderEmail()}:${env('KLINE_FOUNDER_HASH')}`;
 }
 
 /**

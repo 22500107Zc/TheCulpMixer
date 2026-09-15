@@ -97,7 +97,10 @@ function newestMtime(dir) {
  */
 function ensureBuild() {
   const index = join(DIST, 'index.html');
-  if (existsSync(index) && statSync(index).mtimeMs >= newestMtime(join(ROOT, 'src'))) return;
+  // public/ as well as src/: files there are copied into the build, so
+  // watching only src let an edited one sit unbuilt and untested.
+  const newest = Math.max(newestMtime(join(ROOT, 'src')), newestMtime(join(ROOT, 'public')));
+  if (existsSync(index) && statSync(index).mtimeMs >= newest) return;
   execFileSync('npx', ['vite', 'build'], { cwd: ROOT, stdio: 'ignore' });
 }
 

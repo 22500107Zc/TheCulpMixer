@@ -108,7 +108,9 @@ function windBack(kv: ReturnType<typeof store>, email: string, hours: number): v
 }
 
 async function founderSession(kv: ReturnType<typeof store>): Promise<string> {
-  const result = await run(admin, { action: 'login', password: FOUNDER }, kv);
+  const result = await run(
+    admin, { action: 'login', email: 'culpindustriesllc@gmail.com', password: FOUNDER }, kv,
+  );
   assert.equal(result.code, 200);
   return String(result.body.session);
 }

@@ -90,6 +90,9 @@
       <!-- Sign in -->
       <section id="gate">
         <h2>Sign in</h2>
+        <label for="founderEmail">Founder email</label>
+        <input id="founderEmail" type="email" autocomplete="username"
+               placeholder="culpindustriesllc@gmail.com" />
         <label for="password">Founder password</label>
         <div class="row">
           <input id="password" type="password" autocomplete="current-password" />
@@ -232,14 +235,20 @@
       }
 
       async function signIn() {
+        const email = $('founderEmail').value.trim();
         const password = $('password').value;
-        if (!password) { say($('gateNote'), 'Put the password in.', 'bad'); return; }
+        if (!email || !password) {
+          say($('gateNote'), 'Both the email and the password.', 'bad');
+          return;
+        }
         say($('gateNote'), 'Checking…');
-        const result = await call('login', { password });
+        const result = await call('login', { email, password });
         if (!result.ok) {
           say($('gateNote'), result.body.detail
             || (result.body.error === 'wrong-password'
-              ? 'That is not the password.'
+              // One message for both halves: saying which was wrong would tell
+              // somebody guessing that they had the address right.
+              ? 'That email and password do not open this console.'
               : result.body.error || 'Could not sign in.'), 'bad');
           return;
         }
@@ -284,10 +293,11 @@
         }
 
         $('storageHint').textContent = result.body.storage
-          ? 'Storage is connected, so the trial clock lives on the server and clearing a '
-            + 'browser does not restart it.'
-          : 'No KV store is connected, so the trial clock lives in the visitor’s browser '
-            + 'and clearing it restarts the 33 hours. Add one in Vercel under Storage.';
+          ? `${result.body.store || 'Storage'} is connected. Accounts are saved and the 33 `
+            + 'hours belong to the account, so clearing a browser does not restart them.'
+          : 'Nothing is connected to keep accounts in, so nobody can sign up and nobody is '
+            + 'gated. Connect Supabase in Vercel — SELLING.md has the two variables and the '
+            + 'one line of SQL.';
 
         renderAccounts(result.body.accounts || []);
       }
@@ -391,7 +401,9 @@
       }
 
       $('signIn').onclick = signIn;
-      $('password').onkeydown = (e) => { if (e.key === 'Enter') signIn(); };
+      for (const id of ['founderEmail', 'password']) {
+        $(id).onkeydown = (e) => { if (e.key === 'Enter') signIn(); };
+      }
 
       $('createAccount').onclick = async () => {
         const email = $('email').value.trim();

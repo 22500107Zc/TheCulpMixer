@@ -133,7 +133,8 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   if (!kvConfigured()) {
     res.status(503).json({
       error: 'no-storage',
-      detail: 'Kline cannot take accounts until a KV store is connected in Vercel.',
+      detail: 'Kline cannot take accounts until Supabase is connected. Set SUPABASE_URL and '
+        + 'SUPABASE_SERVICE_ROLE_KEY in Vercel and make the kline_kv table.',
     });
     return;
   }

@@ -20,9 +20,9 @@
  */
 
 import {
-  Account, TRIAL_MS, checkPassword, deleteAccount, findAccount, generatePassword, hashPassword,
-  kvConfigured, listAccounts, mintSession, readJson, saveAccount, settings, standing,
-  validSession, writeJson, KEYS, env,
+  Account, TRIAL_MS, checkFounder, deleteAccount, findAccount, founderEmail, generatePassword,
+  hashPassword, kvConfigured, listAccounts, mintSession, readJson, saveAccount, settings,
+  standing, storeName, validSession, writeJson, KEYS, env,
 } from './_store';
 
 interface Req {
@@ -99,14 +99,20 @@ export default async function handler(req: Req, res: Res): Promise<void> {
 
   if (action === 'login') {
     const password = typeof body?.password === 'string' ? body.password : '';
-    if (!checkPassword(password)) {
+    const email = clean(body?.email, 200);
+    if (!checkFounder(email, password)) {
       // Deliberately vague and deliberately slow to be useful: one message for
       // every kind of wrong.
       await new Promise((done) => setTimeout(done, 400));
       res.status(401).json({ error: 'wrong-password' });
       return;
     }
-    res.status(200).json({ session: mintSession(), storage: kvConfigured() });
+    res.status(200).json({
+      session: mintSession(),
+      storage: kvConfigured(),
+      store: storeName(),
+      founder: founderEmail(),
+    });
     return;
   }
 
@@ -120,8 +126,9 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   if (!kvConfigured() && action !== 'state') {
     res.status(503).json({
       error: 'no-storage',
-      detail: 'This deployment has no KV store, so accounts cannot be saved. Add one in '
-        + 'Vercel under Storage, then redeploy.',
+      detail: 'This deployment has nowhere to keep accounts. Connect Supabase — set '
+        + 'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel and make the kline_kv '
+        + 'table — then redeploy. SELLING.md has the SQL.',
     });
     return;
   }
@@ -132,6 +139,8 @@ export default async function handler(req: Req, res: Res): Promise<void> {
         const current = await settings();
         res.status(200).json({
           storage: kvConfigured(),
+          store: storeName(),
+          founder: founderEmail(),
           // Never the secret itself — only whether one is set, and where it
           // came from. A console that echoes a live Stripe key back over the
           // wire is a console that leaks it to anything watching.
