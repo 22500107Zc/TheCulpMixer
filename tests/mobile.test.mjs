@@ -38,6 +38,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { statSync } from 'node:fs';
 import { launchApp } from './app/harness.mjs';
 
 const app = await launchApp();
@@ -535,6 +536,71 @@ if (app.skip) {
     await context.close();
     assert.equal(mouse.pointing, 'mouse', 'plugging a mouse in never took effect');
     assert.match(mouse.status, /middle/i, `a mouse was not offered the middle button: "${mouse.status}"`);
+  });
+
+  test('work can be got back out, on the path a phone actually takes', async () => {
+    // Chromium on a desktop has showSaveFilePicker and opens a native save
+    // dialog. No phone does, and neither does Safari or Firefox, so they all
+    // fall back to an anchor download — a completely different branch of
+    // saveInBrowser, and the one every mobile customer uses. Testing the
+    // branch a headless desktop happens to take would prove nothing about
+    // whether somebody on a phone can get their model off it.
+    const context = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+      deviceScaleFactor: 2,
+      acceptDownloads: true,
+    });
+    await context.addInitScript(() => {
+      delete window.showSaveFilePicker;
+      delete window.showDirectoryPicker;
+    });
+    const page = await context.newPage();
+    await page.goto(app.page.url(), { waitUntil: 'networkidle' });
+    await page.waitForFunction(() => !!window.kline?.editor?.renderer, null, { timeout: 30_000 });
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => {
+      for (const s of ['.home', '.setup-guide', '.build-bar']) document.querySelector(s)?.classList.add('hidden');
+      const ed = window.kline.editor;
+      ed.addPrimitive('cube');
+      ed.addPrimitive('uvSphere');
+    });
+
+    const got = [];
+    for (const [label, item] of [
+      ['glTF', 'Export glTF'], ['OBJ', 'Export OBJ'], ['STL', 'Export STL'], ['.kline', 'Save'],
+    ]) {
+      const pending = page.waitForEvent('download', { timeout: 15_000 }).catch(() => null);
+      const clicked = await page.evaluate((text) => {
+        const menu = [...document.querySelectorAll('.menu-label')].find((e) => e.textContent.trim() === 'File');
+        if (!menu) return 'there is no File menu';
+        menu.click();
+        const entry = [...document.querySelectorAll('.menu.open .menu-item')]
+          .find((e) => e.textContent.trim().startsWith(text));
+        if (!entry) return `there is no ${text} item`;
+        entry.click();
+        return 'clicked';
+      }, item);
+      const download = await pending;
+      const path = download ? await download.path() : null;
+      got.push({
+        label,
+        name: download?.suggestedFilename() ?? null,
+        bytes: path ? statSync(path).size : 0,
+        clicked,
+      });
+      await page.waitForTimeout(300);
+    }
+    await context.close();
+
+    for (const f of got) {
+      assert.ok(f.bytes > 50,
+        `${f.label} produced ${f.bytes} bytes on a phone (${f.clicked}) — the work cannot be got off the device`);
+    }
+    // Named, not just non-empty: a file called "download" helps nobody.
+    assert.equal(got.find((f) => f.label === 'glTF').name, 'scene.gltf');
+    assert.equal(got.find((f) => f.label === '.kline').name, 'scene.kline');
   });
 
   test.after(() => app.close());
