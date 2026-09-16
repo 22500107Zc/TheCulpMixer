@@ -2,7 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <!-- viewport-fit=cover is what makes env(safe-area-inset-*) report real
+         numbers on a notched iPhone; without it they are all zero and the
+         status bar sits under the home indicator. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+    <!-- Installed from the Home Screen this opens without Safari chrome. -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="The Culp Mixer" />
     <title>The Culp Mixer — 3D modelling</title>
     <meta name="description" content="The Culp Mixer is a proprietary 3D modelling application that runs in the browser and on your desktop: mesh editing, sculpting, rigging, animation, materials and glTF export. 33-hour free trial, then $199/month." />
     <!--

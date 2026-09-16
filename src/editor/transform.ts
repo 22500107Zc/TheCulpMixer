@@ -57,6 +57,28 @@ export class TransformSession {
     this.startDist = Math.max(8, Math.hypot(startX - p.x, startY - p.y));
   }
 
+  /**
+   * Move the gesture's origin to a new pixel, as if it had started there.
+   *
+   * A mouse has a position before the transform begins, so the delta can be
+   * measured from wherever the pointer already was. A finger does not: the
+   * screen is untouched until it lands, and by then the tool has been chosen
+   * from a button somewhere else entirely. Without this, the first touch
+   * teleported the selection by the distance between that button and the
+   * finger — hundreds of pixels — before the drag had moved at all.
+   *
+   * Rotation and scale are re-anchored too, because both measure from the
+   * pivot to the start point, and a stale start gives a rotation that jumps by
+   * the opening angle and a scale factor that jumps by the opening distance.
+   */
+  reanchor(x: number, y: number): void {
+    this.startX = x;
+    this.startY = y;
+    const p = this.camera.worldToScreen(this.pivot, this.viewport.width, this.viewport.height);
+    this.startAngle = Math.atan2(y - p.y, x - p.x);
+    this.startDist = Math.max(8, Math.hypot(x - p.x, y - p.y));
+  }
+
   /** Constrain to an arbitrary direction, such as the extrude normal. */
   constrainTo(vec: Vec3, label: string): void {
     if (vec.lengthSq() < 1e-12) return;

@@ -1039,6 +1039,34 @@ button:disabled {
   color: var(--ink-faint);
 }
 
+/*
+ * Confirm and cancel for an open modal operator.
+ *
+ * These live in the status bar, which is 24px tall, so they are small by
+ * necessity on a desktop. On a phone the status bar is given room to hold a
+ * proper touch target instead — see the mobile block at the end of this file.
+ */
+.modal-act {
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  background: var(--shell-raised);
+  color: var(--ink);
+  font: inherit;
+  padding: 0 8px;
+  margin-right: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.modal-act:hover {
+  background: var(--shell-hover);
+}
+
+.modal-act.confirm {
+  border-color: var(--ember);
+  color: var(--ember);
+}
+
 /* ----------------------------------------------------------------- overlay */
 
 .overlay-panel {
@@ -3343,7 +3371,7 @@ button:disabled {
    * menu labels. They were hittable by the code and covered by the 3D view.
    */
   #app {
-    grid-template-rows: auto 2px auto auto 1fr auto 24px;
+    grid-template-rows: auto 2px auto auto 1fr auto auto;
   }
 
   .header {
@@ -3441,5 +3469,67 @@ button:disabled {
     width: auto;
     max-width: none;
     transform: none;
+  }
+
+  /*
+   * The status bar carries Confirm and Cancel while an operator is open, so on
+   * a phone it has to be tall enough to be one. It also sits against the
+   * bottom edge, which on a notched iPhone is where the home indicator lives —
+   * hence the safe-area padding, without which Cancel is under the bar the
+   * system draws over everything.
+   */
+  .status-bar {
+    min-height: 40px;
+    flex-wrap: wrap;
+    gap: 8px;
+    row-gap: 4px;
+    padding: 4px 10px calc(4px + env(safe-area-inset-bottom));
+  }
+
+  .modal-act {
+    padding: 0 14px;
+    line-height: 34px;
+    min-height: 34px;
+    font-size: 13px;
+  }
+
+  /* Confirm and Cancel matter more than the readout when room is short. */
+  .status-centre {
+    order: -1;
+    flex: 1 1 100%;
+  }
+
+  /*
+   * A bottom sheet has to clear the home indicator too, or its last row is
+   * half under it and cannot be chosen.
+   */
+  .menu-items {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* The notch eats the left edge in landscape; the header must start after it. */
+  .header,
+  .status-bar {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+  }
+
+  /*
+   * Landscape on a phone is only ~390px tall, and the two-row header plus a
+   * timeline plus a status bar leaves almost nothing for the model. The
+   * viewport is what people came for, so the chrome gives its height back.
+   */
+  @media (orientation: landscape) and (max-height: 500px) {
+    .menu-label {
+      line-height: 32px;
+    }
+
+    .menu-items {
+      max-height: 78vh;
+    }
+
+    .timeline {
+      max-height: 34px;
+    }
   }
 }

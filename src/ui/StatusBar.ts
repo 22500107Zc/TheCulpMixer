@@ -119,7 +119,24 @@ export class StatusBar {
 
     const modal = ed.modalLabel;
     if (modal) {
-      this.centre.appendChild(h('span', { class: 'modal-hint', text: 'Click or Enter to confirm · Esc to cancel' }));
+      // Enter and Esc are the whole confirm/cancel vocabulary of a modal
+      // operator, and a phone has neither key. Lifting the finger commits, so
+      // committing was always reachable — cancelling was not, and an operator
+      // you cannot back out of is one nobody will risk starting. These are
+      // real buttons rather than a hint, which also gives a mouse a visible
+      // target instead of a line of text about keys.
+      this.centre.append(
+        h('button', {
+          class: 'modal-act confirm', text: '✓ Confirm',
+          title: 'Apply this operation (Enter, or lift your finger)',
+          on: { click: () => ed.confirmModal() },
+        }),
+        h('button', {
+          class: 'modal-act cancel', text: '✕ Cancel',
+          title: 'Abandon this operation and put everything back (Esc)',
+          on: { click: () => ed.cancelModal() },
+        }),
+      );
       this.right.appendChild(h('span', { class: 'modal-readout', text: modal }));
     } else {
       this.centre.appendChild(h('span', { class: 'dim', text: ed.mode === 'edit' ? 'Tab: back to Object Mode' : 'Tab: edit the active object' }));

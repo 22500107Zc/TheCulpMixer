@@ -17,7 +17,7 @@ import { edgeRing, insetFaces, loopCut } from '../mesh/ops';
 import { ProportionalSettings, defaultProportional, influenceCircle, proportionalWeights } from './proportional';
 import { SnapSettings, defaultSnap, snapPointUnderCursor } from './snapping';
 import {
-  NavGesture, NavMode, TOUCH_DRAG_SLOP, TouchPoint, modifiersOf, navModeForPress, pinchGestures,
+  NavGesture, NavMode, TOUCH_DRAG_SLOP, TOUCH_PICK_RADIUS, TouchPoint, modifiersOf, navModeForPress, pinchGestures,
   pressGesture, touchNavMode, wheelGesture,
 } from './navigation';
 import { SculptSettings, SculptStroke, defaultSculpt } from '../sculpt/sculpt';
@@ -227,6 +227,14 @@ export class Editor {
   private touches = new Map<number, TouchPoint>();
   /** Where those fingers were on the previous move, to measure against. */
   private lastTouches: TouchPoint[] = [];
+  /**
+   * The one finger driving an open modal operator, if any.
+   *
+   * Only the first finger to land counts. A second one arriving mid-transform
+   * would otherwise re-anchor the gesture under the first, and the selection
+   * would jump.
+   */
+  private modalTouch: number | null = null;
   private keys = { shift: false, ctrl: false, alt: false };
   private hoverPreview: LineSegment[] = [];
 
@@ -547,14 +555,18 @@ export class Editor {
     this.changed();
   }
 
-  private selectElementAt(x: number, y: number, extend: boolean): void {
+  private selectElementAt(x: number, y: number, extend: boolean, touch = false): void {
     const obj = this.editObject;
     const mesh = this.editMesh;
     if (!obj || !mesh) return;
     const model = obj.worldMatrix(this.scene);
     const hit = pickElement(mesh, model, this.camera, x, y, this.viewport(), this.selectMode, {
       xray: this.options.xray,
-      radius: 14,
+      // A cursor is a pixel and a fingertip is about nine millimetres, and the
+      // finger is also standing on top of the thing being aimed at. 14px is a
+      // 28px target, well under the 44px every phone platform asks for, and on
+      // a real screen it meant most taps at a vertex selected nothing at all.
+      radius: touch ? TOUCH_PICK_RADIUS : 14,
     });
     if (hit === null) {
       if (!extend) this.clearElementSelection();
@@ -2318,7 +2330,28 @@ export class Editor {
     });
   }
 
+  /**
+   * Re-base an open modal operator on a pixel, as if the gesture began there.
+   *
+   * Every modal measures a distance from where it started: the transform from
+   * its start point, inset and bevel from theirs. All three of those were set
+   * from the last known pointer position, which for a mouse is where the
+   * cursor already is and for a finger is meaningless — the last place the
+   * screen happened to be touched, often a toolbar button. Re-anchoring is
+   * what turns "wherever the pointer last was" into "where the hand is now".
+   */
+  private reanchorModal(x: number, y: number): void {
+    if (!this.modal) return;
+    switch (this.modal.type) {
+      case 'transform': this.modal.session.reanchor(x, y); break;
+      case 'inset': this.modal.startX = x; this.modal.startY = y; break;
+      case 'bevel': this.modal.state.startX = x; this.modal.state.startY = y; break;
+      default: break;
+    }
+  }
+
   confirmModal(): void {
+    this.modalTouch = null;
     if (!this.modal) return;
     switch (this.modal.type) {
       case 'transform':
@@ -2349,6 +2382,7 @@ export class Editor {
   }
 
   cancelModal(): void {
+    this.modalTouch = null;
     if (!this.modal) return;
     const m = this.modal;
     this.modal = null;
@@ -2504,10 +2538,28 @@ export class Editor {
 
     if (this.modal) {
       this.pressConsumed = true;
-      // The knife collects points on click rather than being confirmed by one.
+      // The knife collects points on click rather than being confirmed by one,
+      // and a tap is a click, so touch needs nothing special here.
       if (this.modal.type === 'knife') {
         if (e.button === 0) this.addKnifePoint(p.x, p.y);
         else if (e.button === 2) this.cancelModal();
+        return;
+      }
+      // A finger cannot hover, so it cannot drive a modal the way a mouse
+      // does: press G, move with no button held, click to commit. On a phone
+      // the screen is untouched until the finger lands, and that landing used
+      // to arrive here as button 0 and confirm the transform instantly, at
+      // zero distance. Move, Rotate and Scale were unusable on a phone —
+      // the tool started and ended in the same event.
+      //
+      // So a touch does not confirm. It anchors: the modal is re-based to
+      // where the finger is, the drag drives it, and lifting commits. One
+      // continuous gesture, which is what the hand expects.
+      if (e.pointerType === 'touch') {
+        if (this.modalTouch === null) {
+          this.modalTouch = e.pointerId;
+          this.reanchorModal(p.x, p.y);
+        }
         return;
       }
       if (e.button === 0) this.confirmModal();
@@ -2515,6 +2567,15 @@ export class Editor {
       return;
     }
     if (e.pointerType === 'touch') {
+      // Sculpting is the one place where a single finger is not navigation.
+      // The brush is the left mouse button on a desktop, and that press used
+      // to be unreachable here: touch returned before beginStroke was ever
+      // considered, so a finger on a phone orbited the view over a mesh it
+      // could not mark. One finger paints, two still turn and zoom — the same
+      // split every sculpting application on a tablet uses.
+      if (this.mode === 'sculpt' && this.touches.size === 0) {
+        if (this.beginStroke(p.x, p.y, false)) return;
+      }
       this.touches.set(e.pointerId, { x: p.x, y: p.y });
       this.lastTouches = [...this.touches.values()];
       // Not decided here. One finger is a tap until it travels far enough to
@@ -2547,6 +2608,10 @@ export class Editor {
     this.syncModifierKeys(e);
 
     if (this.modal) {
+      // Only the finger that anchored the modal drives it. A touch that never
+      // went through pointerdown on the canvas — a second finger, or one that
+      // began its life on a panel — must not move the selection.
+      if (e.pointerType === 'touch' && this.modalTouch !== e.pointerId) return;
       switch (this.modal.type) {
         case 'transform':
           this.updateSnapping(this.modal.session, p.x, p.y, e.ctrlKey);
@@ -2628,10 +2693,28 @@ export class Editor {
   }
 
   private onPointerUp(e: PointerEvent): void {
+    // Lifting the finger that was driving a modal operator commits it, which
+    // is the touch equivalent of the click that confirms one with a mouse.
+    // Whatever the drag arrived at is what gets kept; a tap that went nowhere
+    // commits a transform of nothing, exactly as a click in place would.
+    // Pointer ids are only unique within an input device: a mouse and a
+    // finger can both be id 1. This listener is on the window rather than the
+    // canvas, so a mouse released anywhere — on the Cancel button, say — used
+    // to match the finger driving a modal and commit it instead. The device
+    // has to match too.
+    if (this.modalTouch === e.pointerId && e.pointerType === 'touch') {
+      this.modalTouch = null;
+      if (this.modal && this.modal.type !== 'knife' && this.modal.type !== 'box') {
+        this.confirmModal();
+        this.pointer.down = false;
+        this.pointer.dragging = false;
+        return;
+      }
+    }
     // Lifting one of several fingers is not the end of the gesture: the rest
     // carry on, re-based so the remaining fingers do not jump the camera by
     // the distance to the one that left.
-    if (this.touches.delete(e.pointerId)) {
+    if (e.pointerType === 'touch' && this.touches.delete(e.pointerId)) {
       this.lastTouches = [...this.touches.values()];
       if (this.touches.size > 0) return;
     }
@@ -2659,7 +2742,7 @@ export class Editor {
     if (this.mode === 'sculpt') return;
     if (this.mode === 'edit') {
       if (e.altKey) this.selectLoopAt(p.x, p.y, e.shiftKey);
-      else this.selectElementAt(p.x, p.y, e.shiftKey);
+      else this.selectElementAt(p.x, p.y, e.shiftKey, e.pointerType === 'touch');
     } else {
       const hit = pickObject(this.scene, this.camera, p.x, p.y, this.viewport());
       this.selectObject(hit ? hit.object.id : null, e.shiftKey);
