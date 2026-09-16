@@ -3533,3 +3533,60 @@ button:disabled {
     }
   }
 }
+
+/* ------------------------------------------------- a coarse pointer ---- */
+
+/*
+ * Anything being prodded with a finger, whatever size its screen is.
+ *
+ * The phone layout keys off width, which is right for a phone and wrong for
+ * everything else with a touch screen. An iPad in landscape is 1024px across
+ * — wider than plenty of laptops — so it took the full desktop layout, with
+ * 20px timeline buttons and 4px menu rows, and was as hard to use as the
+ * phone was before any of this. A Surface and a touchscreen laptop have the
+ * same problem and are not rare machines.
+ *
+ * So target size follows the pointer rather than the viewport. The editor
+ * sets data-coarse from `any-pointer: coarse`, which is true whenever a
+ * finger can reach the screen at all — including on a laptop that also has a
+ * trackpad, where making the targets bigger costs a mouse user a few pixels
+ * and wins the touch user the ability to hit anything.
+ *
+ * Deliberately narrow: rows, buttons and checkboxes, the things a finger
+ * aims at. Sizes and spacing of everything else stay as they are.
+ */
+:root[data-coarse='yes'] .menu-item {
+  padding: 10px 12px;
+}
+
+:root[data-coarse='yes'] .tl-btn {
+  width: 34px;
+  height: 30px;
+}
+
+:root[data-coarse='yes'] .modal-act {
+  padding: 0 14px;
+  line-height: 32px;
+  min-height: 32px;
+}
+
+:root[data-coarse='yes'] input[type='checkbox'],
+:root[data-coarse='yes'] input[type='radio'] {
+  width: 18px;
+  height: 18px;
+}
+
+:root[data-coarse='yes'] .prop-row input,
+:root[data-coarse='yes'] .prop-vector input,
+:root[data-coarse='yes'] select {
+  min-height: 30px;
+}
+
+/*
+ * A hint that names a key is noise on a machine with no keyboard to press it
+ * on. Only hidden where there is no fine pointer at all, so a tablet with a
+ * keyboard case keeps them.
+ */
+:root[data-pointing='touch'] .menu-item kbd {
+  display: none;
+}

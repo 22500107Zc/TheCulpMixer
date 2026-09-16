@@ -21,7 +21,8 @@ import { SculptPanel } from './SculptPanel';
 import { askUnsaved } from './UnsavedDialog';
 import { describeSave, saveText, saveWorked } from '../io/files';
 import { formatAge } from '../editor/recovery';
-import { altKeyName, ctrlKeyName, isMac, navigationHint, scrollPhrase } from './platform';
+import { navigationFor } from '../editor/device';
+import { altKeyName, ctrlKeyName, isMac, scrollPhrase } from './platform';
 import { HomePage } from './HomePage';
 import { LicencePanel } from './LicencePanel';
 import { IssuePanel } from './IssuePanel';
@@ -230,7 +231,22 @@ export class App {
     this.editor.on('change', () => this.syncModalChrome());
     this.syncModalChrome();
     this.editor.start();
-    this.editor.setStatus(`Ready — ${navigationHint()} · Ctrl+K finds everything else`);
+    // Worded for the machine this actually opened on, and re-worded if the
+    // first scroll proves the guess wrong — a laptop opening on Windows is
+    // assumed to have a mouse until a two-finger glide says otherwise, and
+    // leaving it reading middle-button instructions for ever is how somebody
+    // concludes the application does not work.
+    const readyLine = (): string => {
+      const nav = navigationFor(this.editor.device, isMac());
+      const extra = this.editor.device.keyboard ? ' · Ctrl+K finds everything else' : '';
+      return `Ready — ${nav}${extra}`;
+    };
+    this.editor.setStatus(readyLine());
+    this.editor.on('device', () => {
+      // Only while nothing else has been said, so a correction never wipes
+      // out the result of whatever the person just did.
+      if (this.editor.statusMessage.startsWith('Ready — ')) this.editor.setStatus(readyLine());
+    });
   }
 
   /**
@@ -643,6 +659,15 @@ export class App {
     grid.appendChild(h('div', { class: 'shortcut-group' }, [
       h('h3', { text: 'Trackpad and mouse' }),
       ...[
+        // Whatever this machine turned out to be goes first, because the list
+        // is long and the rows that apply are the ones worth reading.
+        ...(this.editor.device.coarse
+          ? [
+            ['Drag', 'Orbit (touch)'],
+            ['Two fingers', 'Pan (touch)'],
+            ['Pinch', 'Zoom (touch)'],
+            ['Tap', 'Select (touch)'],
+          ] : []),
         [`${altKeyName()} + ${scrollPhrase()}`, 'Orbit — no button to hold'],
         [`Shift + ${scrollPhrase()}`, 'Pan'],
         ...(isMac() ? [['Pinch', 'Zoom towards the cursor']] : []),

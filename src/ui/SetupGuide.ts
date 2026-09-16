@@ -1,7 +1,8 @@
 import { Editor } from '../editor/Editor';
 import { TERMS } from '../licence/licence';
 import { h } from './dom';
-import { altKeyName, isMac, navigationHint, scrollPhrase } from './platform';
+import { navigationFor } from '../editor/device';
+import { altKeyName, isMac, scrollPhrase } from './platform';
 
 /**
  * The first thing a new user sees.
@@ -28,7 +29,16 @@ import { altKeyName, isMac, navigationHint, scrollPhrase } from './platform';
 
 interface Card {
   title: string;
-  body: string;
+  /**
+   * The text, or a function of the machine it is being read on.
+   *
+   * The navigation card used to name Option and two fingers on every device,
+   * because it was written on a Mac. On a phone that describes a gesture with
+   * no keyboard to perform it, and on a desktop tower it describes a trackpad
+   * nobody has. A card that teaches an impossible gesture is worse than no
+   * card, so this one is resolved when it is shown.
+   */
+  body: string | ((editor: Editor) => string);
   /** Optional demonstration, run against the live scene behind the dialog. */
   action?: { label: string; run: (editor: Editor) => void };
 }
@@ -51,10 +61,22 @@ const CARDS: Card[] = [
   },
   {
     title: 'Turning the view',
-    body: `Hold ${altKeyName()} and ${scrollPhrase()} to turn the model round. Shift and `
-      + `${scrollPhrase()} slides it sideways, and ${isMac() ? 'pinch or scroll' : 'the wheel'} `
-      + 'zooms. All of it works from a laptop trackpad — no middle mouse button, no second '
-      + 'hand. With a mouse, the middle button does the same.',
+    body: (editor) => {
+      const d = editor.device;
+      if (d.pointing === 'touch') {
+        return 'Drag with one finger to turn the model round. Two fingers slide it sideways, '
+          + 'and pinching zooms. Tap to select. Everything the desktop version does is here — '
+          + 'the gestures are the difference, not the features.';
+      }
+      if (d.pointing === 'trackpad') {
+        return `Hold ${altKeyName()} and ${scrollPhrase()} to turn the model round. Shift and `
+          + `${scrollPhrase()} slides it sideways, and ${isMac() ? 'pinch or scroll' : 'scrolling'} `
+          + 'zooms. No middle mouse button and no second hand — it is all from the trackpad.';
+      }
+      return 'Hold the middle mouse button and drag to turn the model round. Shift and the '
+        + 'middle button slides it sideways, and the wheel zooms. If you are on a laptop '
+        + `instead, ${altKeyName()} and a two-finger scroll does the same thing.`;
+    },
     action: {
       label: 'Show me from another angle',
       run: (editor) => {
@@ -62,7 +84,7 @@ const CARDS: Card[] = [
         editor.frameSelected();
         editor.camera.nudge(-45 * (Math.PI / 180), 12 * (Math.PI / 180));
         editor.requestRender();
-        editor.setStatus(navigationHint());
+        editor.setStatus(navigationFor(editor.device, isMac()));
       },
     },
   },
@@ -242,7 +264,7 @@ export class SetupGuide {
   private render(): void {
     const card = CARDS[this.step];
     this.titleEl.textContent = card.title;
-    this.bodyEl.textContent = card.body;
+    this.bodyEl.textContent = typeof card.body === 'function' ? card.body(this.editor) : card.body;
 
     this.actionRow.replaceChildren();
     if (card.action) {

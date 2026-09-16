@@ -17,7 +17,10 @@ import { edgeRing, insetFaces, loopCut } from '../mesh/ops';
 import { ProportionalSettings, defaultProportional, influenceCircle, proportionalWeights } from './proportional';
 import { SnapSettings, defaultSnap, snapPointUnderCursor } from './snapping';
 import {
-  NavGesture, NavMode, TOUCH_DRAG_SLOP, TOUCH_PICK_RADIUS, TouchPoint, modifiersOf, navModeForPress, pinchGestures,
+  DeviceProfile, MOUSE_PICK_RADIUS, Pointing, WheelWatcher, isMac, profileFrom, readCapabilities,
+} from './device';
+import {
+  NavGesture, NavMode, TOUCH_DRAG_SLOP, TouchPoint, modifiersOf, navModeForPress, pinchGestures,
   pressGesture, touchNavMode, wheelGesture,
 } from './navigation';
 import { SculptSettings, SculptStroke, defaultSculpt } from '../sculpt/sculpt';
@@ -81,7 +84,7 @@ type Modal =
   | { type: 'box'; rect: Rect; extend: boolean; subtract: boolean }
   | { type: 'knife'; points: [number, number][]; preview: [number, number] | null };
 
-export type EditorEvent = 'change' | 'status' | 'modal' | 'render' | 'frame' | 'diff' | 'revision' | 'licence';
+export type EditorEvent = 'change' | 'status' | 'modal' | 'render' | 'frame' | 'diff' | 'revision' | 'licence' | 'device';
 
 /**
  * The application controller: owns the scene, the viewport camera, input
@@ -227,6 +230,16 @@ export class Editor {
   private touches = new Map<number, TouchPoint>();
   /** Where those fingers were on the previous move, to measure against. */
   private lastTouches: TouchPoint[] = [];
+  /**
+   * What this is being used on, and what it can do.
+   *
+   * Capabilities are read once at startup because they are facts. The
+   * pointing device starts as an assumption and is corrected the first time
+   * somebody scrolls, because no browser will say whether a scroll came from
+   * a wheel or a trackpad — see device.ts for why that is not an oversight.
+   */
+  device: DeviceProfile = profileFrom(readCapabilities({}), null, false);
+  private wheelWatcher = new WheelWatcher();
   /**
    * The one finger driving an open modal operator, if any.
    *
@@ -566,7 +579,7 @@ export class Editor {
       // finger is also standing on top of the thing being aimed at. 14px is a
       // 28px target, well under the 44px every phone platform asks for, and on
       // a real screen it meant most taps at a vertex selected nothing at all.
-      radius: touch ? TOUCH_PICK_RADIUS : 14,
+      radius: touch ? this.device.pickRadius : MOUSE_PICK_RADIUS,
     });
     if (hit === null) {
       if (!extend) this.clearElementSelection();
@@ -2512,6 +2525,7 @@ export class Editor {
     const c = this.canvas;
     c.tabIndex = 0;
     c.style.touchAction = 'none';
+    this.detectDevice();
     c.addEventListener('pointerdown', (e) => this.onPointerDown(e));
     c.addEventListener('pointermove', (e) => this.onPointerMove(e));
     window.addEventListener('pointerup', (e) => this.onPointerUp(e));
@@ -2521,6 +2535,46 @@ export class Editor {
     c.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
     c.addEventListener('contextmenu', (e) => e.preventDefault());
     new ResizeObserver(() => this.requestRender()).observe(c);
+  }
+
+  /**
+   * Work out what this is running on, and tell the document.
+   *
+   * The result goes onto the root element as `data-pointing` and
+   * `data-device` so the stylesheet can size targets by what is pointing at
+   * them rather than by how wide the window happens to be — a tablet in
+   * landscape is 1024px across and still being prodded with a thumb.
+   */
+  private detectDevice(): void {
+    if (typeof window === 'undefined') return;
+    this.device = profileFrom(
+      readCapabilities({
+        matchMedia: (q) => window.matchMedia(q),
+        maxTouchPoints: navigator.maxTouchPoints,
+        width: window.screen?.width,
+        height: window.screen?.height,
+      }),
+      this.wheelWatcher.conclusion,
+      isMac(),
+    );
+    this.publishDevice();
+  }
+
+  /** Record a pointing device the wheel events have proved. */
+  private setPointing(pointing: Pointing): void {
+    if (this.device.pointing === pointing && this.device.certain) return;
+    this.device = profileFrom(this.device, pointing, isMac());
+    this.publishDevice();
+    this.emit('device');
+  }
+
+  private publishDevice(): void {
+    const root = document.documentElement;
+    root.dataset.pointing = this.device.pointing;
+    root.dataset.device = this.device.label;
+    // Kept separate from the label: a laptop with a touch screen is a laptop
+    // that also wants big targets, and one attribute cannot say both.
+    root.dataset.coarse = this.device.coarse ? 'yes' : 'no';
   }
 
   private localPointer(e: PointerEvent | WheelEvent): { x: number; y: number } {
@@ -2751,6 +2805,11 @@ export class Editor {
 
   private onWheel(e: WheelEvent): void {
     e.preventDefault();
+    // The only moment a trackpad is distinguishable from a wheel. A pinch
+    // arrives here with ctrlKey set although nobody is holding the key, and
+    // the editor already knows whether they are.
+    const seen = this.wheelWatcher.observe(e, this.keys.ctrl, performance.now());
+    if (seen) this.setPointing(seen);
     if (this.modal?.type === 'transform' && this.proportional.enabled && this.mode === 'edit') {
       this.setProportionalRadius(this.proportional.radius * (e.deltaY < 0 ? 1 / 1.12 : 1.12));
       return;

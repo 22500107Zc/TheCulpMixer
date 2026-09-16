@@ -215,13 +215,3 @@ export function pinchGestures(
   }
   return out;
 }
-
-/**
- * How near a fingertip has to land to pick a vertex, edge or face.
- *
- * Half of the 44px target every touch platform asks for. The mouse figure is
- * 14px, which is right for a cursor sitting on a single pixel and wrong for a
- * finger that both covers the target and lands a few millimetres from where
- * its owner was looking.
- */
-export const TOUCH_PICK_RADIUS = 22;

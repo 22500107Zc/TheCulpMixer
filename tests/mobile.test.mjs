@@ -449,5 +449,93 @@ if (app.skip) {
     assert.ok(size.canvas >= 140, `the model gets only ${size.canvas}px of a 390px-tall screen`);
   });
 
+  test('the application knows what it was opened on', async () => {
+    const { context, page } = await phone();
+    const seen = await page.evaluate(() => ({
+      label: window.kline.editor.device.label,
+      pointing: window.kline.editor.device.pointing,
+      radius: window.kline.editor.device.pickRadius,
+      // Published to the document so the stylesheet can size targets by what
+      // is pointing at them rather than by how wide the window happens to be.
+      attr: document.documentElement.dataset.pointing,
+      coarse: document.documentElement.dataset.coarse,
+      status: window.kline.editor.statusMessage,
+    }));
+    await context.close();
+    assert.equal(seen.label, 'phone', `a 390x844 touch screen was called a ${seen.label}`);
+    assert.equal(seen.pointing, 'touch');
+    assert.equal(seen.attr, 'touch', 'the stylesheet was never told this is a touch device');
+    assert.equal(seen.coarse, 'yes');
+    assert.ok(seen.radius >= 22, `a fingertip was given a ${seen.radius}px radius`);
+    // The opening line used to name Option and two fingers on every machine.
+    assert.match(seen.status, /pinch/i, `a phone was told: "${seen.status}"`);
+    assert.doesNotMatch(seen.status, /middle|wheel/i,
+      `a phone was told to use hardware it does not have: "${seen.status}"`);
+  });
+
+  test('a tablet is told apart from a phone', async () => {
+    const context = await browser.newContext({
+      viewport: { width: 834, height: 1194 },
+      isMobile: true,
+      hasTouch: true,
+      deviceScaleFactor: 2,
+    });
+    const page = await context.newPage();
+    await page.goto(app.page.url(), { waitUntil: 'networkidle' });
+    await page.waitForFunction(() => !!window.kline?.editor?.renderer, null, { timeout: 30_000 });
+    await page.waitForTimeout(1000);
+    const seen = await page.evaluate(() => ({
+      label: window.kline.editor.device.label,
+      coarse: document.documentElement.dataset.coarse,
+      menuPad: getComputedStyle(document.querySelector('.menu-item') ?? document.body).paddingTop,
+    }));
+    await context.close();
+    assert.equal(seen.label, 'tablet', `an 834x1194 touch screen was called a ${seen.label}`);
+    // The point of the coarse flag: a tablet in landscape is wider than many
+    // laptops, so a width-only rule leaves it with desktop-sized targets.
+    assert.equal(seen.coarse, 'yes');
+  });
+
+  test('a machine with a mouse learns it has a trackpad, and back again', async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const page = await context.newPage();
+    await page.goto(app.page.url(), { waitUntil: 'networkidle' });
+    await page.waitForFunction(() => !!window.kline?.editor?.renderer, null, { timeout: 30_000 });
+    await page.waitForTimeout(1000);
+
+    const wheel = async (events) => {
+      await page.evaluate((list) => {
+        const c = document.querySelector('.viewport-canvas');
+        for (const e of list) c.dispatchEvent(new WheelEvent('wheel', { ...e, bubbles: true, cancelable: true }));
+      }, events);
+      await page.waitForTimeout(150);
+    };
+    const now = () => page.evaluate(() => ({
+      pointing: window.kline.editor.device.pointing,
+      label: window.kline.editor.device.label,
+      certain: window.kline.editor.device.certain,
+      status: window.kline.editor.statusMessage,
+    }));
+
+    const fresh = await now();
+    assert.equal(fresh.certain, false,
+      'the input device was claimed as known before a single scroll had been seen');
+
+    // A fractional delta is something a wheel cannot produce.
+    await wheel([{ deltaX: 0, deltaY: 3.5, deltaMode: 0 }]);
+    const glide = await now();
+    assert.equal(glide.pointing, 'trackpad', 'a two-finger glide was read as a wheel');
+    assert.equal(glide.label, 'laptop');
+    assert.match(glide.status, /two fingers/i,
+      `a trackpad was still being told to use a middle button: "${glide.status}"`);
+
+    // Now plug a mouse in: round, single-axis, spaced-out detents.
+    await wheel(Array.from({ length: 4 }, () => ({ deltaX: 0, deltaY: 120, deltaMode: 0 })));
+    const mouse = await now();
+    await context.close();
+    assert.equal(mouse.pointing, 'mouse', 'plugging a mouse in never took effect');
+    assert.match(mouse.status, /middle/i, `a mouse was not offered the middle button: "${mouse.status}"`);
+  });
+
   test.after(() => app.close());
 }

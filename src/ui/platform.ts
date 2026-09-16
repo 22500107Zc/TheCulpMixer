@@ -10,21 +10,12 @@
  * wording needs to differ.
  */
 
-/**
- * Whether this is a Mac.
- *
- * `navigator.platform` is deprecated and still the only thing every browser
- * agrees on; `userAgentData` is asked first where it exists. Neither is
- * load-bearing — being wrong names a key badly, it does not break anything —
- * so there is no fallback beyond assuming the majority platform.
- */
-export function isMac(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const data = (navigator as { userAgentData?: { platform?: string } }).userAgentData;
-  const platform = data?.platform ?? navigator.platform ?? '';
-  if (platform) return /mac/i.test(platform);
-  return /mac/i.test(navigator.userAgent ?? '');
-}
+// Which machine this is now lives with the device profile, which needs it
+// too; imported back here so every existing caller of platform.ts still works
+// and so the defaults below can keep reading it.
+import { isMac } from '../editor/device';
+
+export { isMac };
 
 /**
  * The key that turns the view, by the name printed on it.
