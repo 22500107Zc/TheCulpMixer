@@ -31,8 +31,8 @@
 // vite.config.ts). The values here are what an unprocessed copy uses — a dev
 // server, or someone opening public/sw.js directly — and stay valid JavaScript
 // so that copy still works.
-const BUILD = 'dev'; // __KLINE_BUILD__
-const PRECACHE = ['./']; // __KLINE_PRECACHE__
+const BUILD = 'dev'; // __CULPMIXER_BUILD__
+const PRECACHE = ['./']; // __CULPMIXER_PRECACHE__
 
 const SHELL = `The Culp Mixer-shell-${BUILD}`;
 /** Big immutable downloads. Survives a shell update on purpose. */
@@ -76,7 +76,7 @@ self.addEventListener('activate', (event) => {
 // The page offers the creator a reload when a new version is waiting; this is
 // how that reload takes effect. Nothing activates over a running tab unasked.
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'kline:activate-update') self.skipWaiting();
+  if (event.data && event.data.type === 'culpmixer:activate-update') self.skipWaiting();
 });
 
 self.addEventListener('fetch', (event) => {

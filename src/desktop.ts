@@ -1,7 +1,7 @@
 /**
  * The renderer half of the desktop shell.
  *
- * Everything here is a no-op in a browser tab: `window.klineDesktop` only exists
+ * Everything here is a no-op in a browser tab: `window.culpMixerDesktop` only exists
  * when The Culp Mixer is running inside its Electron host, so the same bundle ships to
  * both without a second build.
  */
@@ -30,7 +30,7 @@ export interface DesktopBridge {
 }
 
 export function desktop(): DesktopBridge | null {
-  return (window as unknown as { klineDesktop?: DesktopBridge }).klineDesktop ?? null;
+  return (window as unknown as { culpMixerDesktop?: DesktopBridge }).culpMixerDesktop ?? null;
 }
 
 export const isDesktop = (): boolean => desktop() !== null;

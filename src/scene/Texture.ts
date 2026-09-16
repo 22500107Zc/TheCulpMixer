@@ -1,5 +1,5 @@
 /**
- * Image textures. The pixels live in a data URL so a saved .kline file is
+ * Image textures. The pixels live in a data URL so a saved .culpmixer file is
  * self-contained — a scene that references files on disk stops working the
  * moment it is sent to anyone else.
  */

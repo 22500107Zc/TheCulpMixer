@@ -37,7 +37,7 @@ function supabase() {
       return new Response('{"message":"no api key"}', { status: 401 });
     }
 
-    const table = '/rest/v1/kline_kv';
+    const table = '/rest/v1/culpmixer_kv';
     if (!url.includes(table)) return new Response('{"message":"no table"}', { status: 404 });
 
     const match = url.match(/key=eq\.([^&]+)/);
@@ -81,8 +81,8 @@ async function run(
   const previousEnv = { ...process.env };
   const previousFetch = globalThis.fetch;
   Object.assign(process.env, {
-    KLINE_FOUNDER_HASH: FOUNDER_HASH,
-    KLINE_SIGNING_KEY: PEM,
+    CULPMIXER_FOUNDER_HASH: FOUNDER_HASH,
+    CULPMIXER_SIGNING_KEY: PEM,
     SUPABASE_URL: 'https://project.supabase.test',
     SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
     // Deliberately absent: this proves Supabase is used on its own.
@@ -116,7 +116,7 @@ test('somebody can sign up, and the row lands in Supabase', async () => {
   assert.equal(made.code, 200, JSON.stringify(made.body));
   assert.equal(made.body.status, 'trial');
 
-  const stored = db.rows.get('kline:account:zed@example.com');
+  const stored = db.rows.get('culpmixer:account:zed@example.com');
   assert.ok(stored, `nothing was written. Calls: ${db.seen.join(' | ')}`);
   const parsed = JSON.parse(stored);
   assert.equal(parsed.username, 'Zed');
@@ -139,7 +139,7 @@ test('writing the same key twice replaces it instead of conflicting', async () =
     action: 'accounts.approve', session, email: 'zed@example.com', months: 1,
   }, db);
   assert.equal(approved.code, 200, JSON.stringify(approved.body));
-  assert.equal(JSON.parse(db.rows.get('kline:account:zed@example.com')).paid, true);
+  assert.equal(JSON.parse(db.rows.get('culpmixer:account:zed@example.com')).paid, true);
 });
 
 test('logging in, refreshing and being approved all read Supabase', async () => {
@@ -186,7 +186,7 @@ test('deleting an account removes the row', async () => {
   }, db).then((r) => String(r.body.session));
 
   await run(admin, { action: 'accounts.delete', session, email: 'zed@example.com' }, db);
-  assert.equal(db.rows.get('kline:account:zed@example.com'), undefined, 'the row survived');
+  assert.equal(db.rows.get('culpmixer:account:zed@example.com'), undefined, 'the row survived');
 });
 
 test('the service key goes in both headers Supabase wants', async () => {

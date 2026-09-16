@@ -124,7 +124,7 @@ jobs:
             process.stdout.write(m ? m[1] : '');
           ")"
           if [ -z "$key" ]; then
-            echo "::error::PUBLIC_KEY_SPKI is empty, so these installers would enforce no licence at all while the LICENCE promises a trial. Run tools/kline-licence.mjs keygen and install the public key before tagging."
+            echo "::error::PUBLIC_KEY_SPKI is empty, so these installers would enforce no licence at all while the LICENCE promises a trial. Run tools/culpmixer-licence.mjs keygen and install the public key before tagging."
             exit 1
           fi
           echo "signing key present (${#key} chars)"
@@ -186,7 +186,7 @@ jobs:
               continue
             fi
 
-            if KLINE_SMOKE="$shot" "$binary" 2>&1 | sed 's/^/    /'; then
+            if CULPMIXER_SMOKE="$shot" "$binary" 2>&1 | sed 's/^/    /'; then
               if [ -s "$shot" ]; then
                 echo "    LAUNCHED — rendered $(wc -c < "$shot") bytes"
               else
@@ -260,7 +260,7 @@ jobs:
           $shot = Join-Path $env:RUNNER_TEMP 'windows-launch.png'
           $out  = Join-Path $env:RUNNER_TEMP 'windows-launch.out'
           $err  = Join-Path $env:RUNNER_TEMP 'windows-launch.err'
-          $env:KLINE_SMOKE = $shot
+          $env:CULPMIXER_SMOKE = $shot
 
           # Chromium writes GPU and D-Bus warnings to stderr on every start.
           # Merging that into the success stream while ErrorActionPreference is
@@ -317,7 +317,7 @@ jobs:
             binary="$work/squashfs-root/The Culp Mixer"
             [ -x "$binary" ] || { echo "    NO EXECUTABLE INSIDE"; fail=1; continue; }
             shot="$RUNNER_TEMP/linux-launch.png"
-            if KLINE_SMOKE="$shot" xvfb-run -a "$binary" --no-sandbox \
+            if CULPMIXER_SMOKE="$shot" xvfb-run -a "$binary" --no-sandbox \
                  --enable-unsafe-swiftshader --use-angle=swiftshader 2>&1 | sed 's/^/    /'; then
               [ -s "$shot" ] && echo "    LAUNCHED — rendered $(wc -c < "$shot") bytes" \
                 || { echo "    STARTED BUT NEVER RENDERED"; fail=1; }
@@ -395,15 +395,15 @@ jobs:
             > not free.** You get a **33-hour free trial**. After that it is
             > **$199/month** to use The Culp Mixer at all — not to export, to open it.
             > Downloading a build, or the source, is not a licence. See
-            > [LICENSE](https://github.com/22500107Zc/Kline/blob/main/LICENSE).
+            > [LICENSE](https://github.com/${{ github.repository }}/blob/main/LICENSE).
 
             | | |
             |---|---|
-            | **macOS - Apple Silicon** (M1/M2/M3/M4) | **[CulpMixer-arm64.dmg](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-arm64.dmg)** |
-            | **macOS - Intel** | **[CulpMixer-x64.dmg](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-x64.dmg)** |
-            | **macOS - installer** (either chip) | [CulpMixer-universal.pkg](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-universal.pkg) |
-            | **Windows** | **[CulpMixer-Setup.exe](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-Setup.exe)** - [portable](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-portable.exe) |
-            | **Linux** | **[CulpMixer.AppImage](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer.AppImage)** - [.deb](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer.deb) |
+            | **macOS - Apple Silicon** (M1/M2/M3/M4) | **[CulpMixer-arm64.dmg](https://github.com/${{ github.repository }}/releases/latest/download/CulpMixer-arm64.dmg)** |
+            | **macOS - Intel** | **[CulpMixer-x64.dmg](https://github.com/${{ github.repository }}/releases/latest/download/CulpMixer-x64.dmg)** |
+            | **macOS - installer** (either chip) | [CulpMixer-universal.pkg](https://github.com/${{ github.repository }}/releases/latest/download/CulpMixer-universal.pkg) |
+            | **Windows** | **[CulpMixer-Setup.exe](https://github.com/${{ github.repository }}/releases/latest/download/CulpMixer-Setup.exe)** - [portable](https://github.com/${{ github.repository }}/releases/latest/download/CulpMixer-portable.exe) |
+            | **Linux** | **[CulpMixer.AppImage](https://github.com/${{ github.repository }}/releases/latest/download/CulpMixer.AppImage)** - [.deb](https://github.com/${{ github.repository }}/releases/latest/download/CulpMixer.deb) |
 
             ### First launch
 
@@ -427,7 +427,7 @@ jobs:
 
             ### Scene files
 
-            The Culp Mixer saves `.kline` files, and still opens the `.kiln` files
+            The Culp Mixer saves `.mixer` files, and still opens the older `.kline` and `.kiln` files
             written before the rename.
 
             ### Built from

@@ -191,7 +191,7 @@ export class IssuePanel {
       'Either — put this one line in Vercel and redeploy.',
       '  Settings > Environment Variables > Production',
       '',
-      '    KLINE_PAYMENT_LINK',
+      '    CULPMIXER_PAYMENT_LINK',
       `    ${result.link}`,
       '',
       'Or — edit public/pay.json in the repository so it reads:',
@@ -223,7 +223,7 @@ export class IssuePanel {
       this.note,
       h('p', {
         class: 'dim small',
-        text: 'It is the kline-private-key.pem file. If it is lost, keys already issued keep '
+        text: 'It is the culpmixer-private-key.pem file. If it is lost, keys already issued keep '
           + 'working and no new ones can be made, so it is worth a backup somewhere that is '
           + 'not a browser.',
       }),

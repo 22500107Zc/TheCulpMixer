@@ -21,7 +21,7 @@ const DB_NAME = 'The Culp Mixer';
 const LEGACY_DB_NAME = 'kiln';
 const DB_VERSION = 1;
 const STORE = 'recovery';
-const LS_KEY = 'kline.autosave';
+const LS_KEY = 'culpmixer.autosave';
 /** The localStorage fallback key before the rename. */
 const LEGACY_LS_KEY = 'kiln.autosave';
 
@@ -192,8 +192,8 @@ function localStore(): Storage | null {
   try {
     const s = window.localStorage;
     // Safari in private mode hands back an object that throws on write.
-    s.setItem('__kline_probe__', '1');
-    s.removeItem('__kline_probe__');
+    s.setItem('__culpmixer_probe__', '1');
+    s.removeItem('__culpmixer_probe__');
     return s;
   } catch {
     return null;

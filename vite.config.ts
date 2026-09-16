@@ -17,7 +17,7 @@ import { defineConfig, Plugin } from 'vite';
  */
 function stampServiceWorker(): Plugin {
   return {
-    name: 'kline-service-worker',
+    name: 'culpmixer-service-worker',
     apply: 'build',
     closeBundle() {
       const out = 'dist';
@@ -52,9 +52,9 @@ function stampServiceWorker(): Plugin {
 
       const swPath = join(out, 'sw.js');
       const source = readFileSync(swPath, 'utf8')
-        .replace(/^const BUILD = .*__KLINE_BUILD__.*$/m, `const BUILD = ${JSON.stringify(build)};`)
-        .replace(/^const PRECACHE = .*__KLINE_PRECACHE__.*$/m, `const PRECACHE = ${JSON.stringify(files)};`);
-      if (source.includes('__KLINE_BUILD__') || source.includes('__KLINE_PRECACHE__')) {
+        .replace(/^const BUILD = .*__CULPMIXER_BUILD__.*$/m, `const BUILD = ${JSON.stringify(build)};`)
+        .replace(/^const PRECACHE = .*__CULPMIXER_PRECACHE__.*$/m, `const PRECACHE = ${JSON.stringify(files)};`);
+      if (source.includes('__CULPMIXER_BUILD__') || source.includes('__CULPMIXER_PRECACHE__')) {
         throw new Error('the service worker was not stamped — its marker lines have moved');
       }
       writeFileSync(swPath, source);

@@ -8,8 +8,8 @@
  * `recovery.ts`, which uses IndexedDB.
  */
 
-const PREFS_KEY = 'kline.preferences';
-const RECENT_KEY = 'kline.recent';
+const PREFS_KEY = 'culpmixer.preferences';
+const RECENT_KEY = 'culpmixer.recent';
 /**
  * What these keys were called before the application was renamed.
  *
@@ -71,7 +71,7 @@ function storage(): Storage | null {
   try {
     const s = window.localStorage;
     // Safari in private mode hands back an object that throws on write.
-    const probe = '__kline_probe__';
+    const probe = '__culpmixer_probe__';
     s.setItem(probe, '1');
     s.removeItem(probe);
     return s;

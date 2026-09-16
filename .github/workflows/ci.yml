@@ -52,8 +52,8 @@ jobs:
         # and then throws on the first operation used to pass.
         run: xvfb-run -a npx electron . --no-sandbox --enable-unsafe-swiftshader
         env:
-          KLINE_SMOKE: ${{ runner.temp }}/kiln-desktop.png
+          CULPMIXER_SMOKE: ${{ runner.temp }}/culpmixer-desktop.png
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-smoke-screenshot
-          path: ${{ runner.temp }}/kiln-desktop.png
+          path: ${{ runner.temp }}/culpmixer-desktop.png

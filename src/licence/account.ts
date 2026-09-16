@@ -14,7 +14,7 @@ import { LocalAccount, localCurrent, localLogIn, localSignOut, localSignUp } fro
  */
 
 const FALLBACK_API = 'https://theculpmixer.vercel.app/api/account';
-const SESSION_KEY = 'kline.session';
+const SESSION_KEY = 'culpmixer.session';
 const TIMEOUT_MS = 8000;
 
 /** What the application knows about who is signed in. */
@@ -60,7 +60,7 @@ function write(key: string, value: string): void {
 
 export function accountApi(): string {
   const configured = (import.meta as unknown as { env?: Record<string, string> })
-    .env?.VITE_KLINE_ACCOUNT_API;
+    .env?.VITE_CULPMIXER_ACCOUNT_API;
   if (configured) return configured;
   const origin = typeof location !== 'undefined' ? location.origin : '';
   return origin.startsWith('http') ? `${origin}/api/account` : FALLBACK_API;

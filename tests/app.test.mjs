@@ -29,7 +29,7 @@ if (app.skip) {
   const shadowScene = async () => {
     await resetScene(page);
     await page.evaluate(() => {
-      const k = window.kline, ed = k.editor, S = ed.scene;
+      const k = window.culpmixer, ed = k.editor, S = ed.scene;
       k.run('add.plane');
       const floor = S.get(S.active);
       floor.scale.x = 8;
@@ -61,7 +61,7 @@ if (app.skip) {
   test('the shadow pass writes depth rather than leaving the map empty', async () => {
     await shadowScene();
     const depth = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const r = ed.renderer;
       const gl = r.gl;
       ed.renderNow();
@@ -136,7 +136,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
       gl.disableVertexAttribArray(loc);
-      window.kline.editor.requestRender();
+      window.culpmixer.editor.requestRender();
       return { min, occupied, of: N * N };
     });
 
@@ -153,10 +153,10 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     await shadowScene();
     const points = floorGrid();
 
-    await page.evaluate(() => { window.kline.editor.options.shadows = true; });
+    await page.evaluate(() => { window.culpmixer.editor.options.shadows = true; });
     const lit = (await samplePixels(page, points)).map(luma);
 
-    await page.evaluate(() => { window.kline.editor.options.shadows = false; });
+    await page.evaluate(() => { window.culpmixer.editor.options.shadows = false; });
     const flat = (await samplePixels(page, points)).map(luma);
 
     // Only points that are on the floor at all — the frame also contains the
@@ -180,13 +180,13 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       `no shadow reached the floor: brightness ranges over only ${spread(lit).toFixed(1)}`,
     );
 
-    await page.evaluate(() => { window.kline.editor.options.shadows = true; });
+    await page.evaluate(() => { window.culpmixer.editor.options.shadows = true; });
   });
 
   test('no pass leaves a GL error behind, in any mode', async () => {
     await resetScene(page);
     const errors = await page.evaluate(() => {
-      const k = window.kline, ed = k.editor, S = ed.scene;
+      const k = window.culpmixer, ed = k.editor, S = ed.scene;
       const gl = ed.renderer.gl;
       k.run('add.uvsphere');
       const ball = S.get(S.active);
@@ -237,7 +237,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // the stride wrong, and the overlay does not vanish — it scatters, which
     // is why counting pixels is not enough. Where they land is the test.
     const check = async (selectMode) => page.evaluate((mode) => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       ed.setSelectMode(mode);
       k.run('select.all');
       ed.options.showOverlays = true;
@@ -279,7 +279,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     }, selectMode);
 
     await page.evaluate(() => {
-      const k = window.kline;
+      const k = window.culpmixer;
       k.run('add.uvsphere');
       k.run('mode.edit');
     });
@@ -304,7 +304,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   const cubeWithTopFacePicked = async () => {
     await resetScene(page);
     await page.evaluate(() => {
-      const k = window.kline;
+      const k = window.culpmixer;
       k.run('add.cube');
       k.run('mode.edit');
       k.run('select.face');
@@ -320,7 +320,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('confirming a modal with a click keeps the selection', async () => {
     await cubeWithTopFacePicked();
     assert.equal(
-      await page.evaluate(() => window.kline.editor.selection.faces.size), 1,
+      await page.evaluate(() => window.culpmixer.editor.selection.faces.size), 1,
       'clicking the top face should select exactly it',
     );
 
@@ -336,7 +336,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     await page.mouse.up();
 
     const after = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       return { faces: ed.selection.faces.size, modal: ed.modal ? ed.modal.type : null };
     });
     assert.equal(after.modal, null, 'the click should have confirmed the inset');
@@ -346,7 +346,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
 
   test('inset then extrude chains, which is the whole point of keeping it', async () => {
     const top = await cubeWithTopFacePicked();
-    const faces = () => page.evaluate(() => window.kline.editor.editObject.mesh.faceCount);
+    const faces = () => page.evaluate(() => window.culpmixer.editor.editObject.mesh.faceCount);
     const start = await faces();
 
     await page.keyboard.press('i');
@@ -367,7 +367,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('the ordinary ways of selecting still work', async () => {
     await resetScene(page);
     await page.evaluate(() => {
-      const k = window.kline, S = k.editor.scene;
+      const k = window.culpmixer, S = k.editor.scene;
       k.run('add.cube');
       S.get(S.active).position.x = -2.2;
       k.run('add.cube');
@@ -376,7 +376,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       S.active = null;
       k.editor.requestRender();
     });
-    const count = () => page.evaluate(() => window.kline.editor.scene.selection.size);
+    const count = () => page.evaluate(() => window.culpmixer.editor.scene.selection.size);
 
     const left = await screenPoint(page, [-2.2, 0, 0]);
     await page.mouse.click(left.x, left.y);
@@ -406,13 +406,13 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('escape cancels a transform and puts the value back', async () => {
     await resetScene(page);
     await page.evaluate(() => {
-      const k = window.kline, S = k.editor.scene;
+      const k = window.culpmixer, S = k.editor.scene;
       k.run('add.cube');
       S.selection = new Set([S.active]);
       k.editor.requestRender();
     });
     const x = () => page.evaluate(
-      () => +window.kline.editor.scene.get(window.kline.editor.scene.active).position.x,
+      () => +window.culpmixer.editor.scene.get(window.culpmixer.editor.scene.active).position.x,
     );
     const origin = await screenPoint(page, [0, 0, 0]);
     const before = await x();
@@ -446,7 +446,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('a sculpt stroke moves the surface it is dragged over', async () => {
     await resetScene(page);
     await page.evaluate(() => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       k.run('add.uvsphere');
       k.run('mode.sculpt');
       ed.sculpt.brush = 'draw';
@@ -458,7 +458,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     await dragAcross({ x: centre.x - 30, y: centre.y });
 
     const moved = await page.evaluate(() => {
-      const o = window.kline.editor.scene.get(window.kline.editor.scene.active);
+      const o = window.culpmixer.editor.scene.get(window.culpmixer.editor.scene.active);
       let n = 0, worst = 0, nan = 0;
       o.mesh.positions.forEach((p, i) => {
         if (!Number.isFinite(p.x + p.y + p.z)) { nan++; return; }
@@ -477,7 +477,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('a mask holds back the brush where it was painted', async () => {
     await resetScene(page);
     await page.evaluate(() => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       k.run('add.uvsphere');
       k.run('mode.sculpt');
       ed.sculpt.brush = 'mask';
@@ -490,7 +490,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     for (let i = 0; i < 5; i++) await dragAcross({ x: centre.x - 20, y: centre.y }, 8, 4);
 
     const painted = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const o = ed.scene.get(ed.scene.active);
       if (!o.mesh.mask) return { held: 0 };
       window.__mask = [...o.mesh.mask];
@@ -502,7 +502,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
 
     await dragAcross({ x: centre.x - 20, y: centre.y }, 8, 4);
     const byLevel = await page.evaluate(() => {
-      const o = window.kline.editor.scene.get(window.kline.editor.scene.active);
+      const o = window.culpmixer.editor.scene.get(window.culpmixer.editor.scene.active);
       const masked = [], partial = [];
       o.mesh.positions.forEach((p, i) => {
         const q = window.__before[i];
@@ -526,7 +526,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('posing a bound rig changes what is on screen', async () => {
     await resetScene(page);
     const bound = await page.evaluate(() => {
-      const k = window.kline, ed = k.editor, S = ed.scene;
+      const k = window.culpmixer, ed = k.editor, S = ed.scene;
       k.run('add.cylinder');
       const tube = S.get(S.active);
       tube.scale.z = 3;
@@ -561,7 +561,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // sample points: on a flat-shaded surface two very different silhouettes
     // can happen to share a colour anywhere you happen to look.
     const deformed = await page.evaluate(() => {
-      const ed = window.kline.editor, S = ed.scene;
+      const ed = window.culpmixer.editor, S = ed.scene;
       const tube = S.get(window.__tube);
       const arm = S.get(window.__arm);
       const gl = ed.renderer.gl;
@@ -613,7 +613,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('a physics bake drops a box onto a floor and keys where it lands', async () => {
     await resetScene(page);
     const baked = await page.evaluate(() => {
-      const k = window.kline, ed = k.editor, S = ed.scene;
+      const k = window.culpmixer, ed = k.editor, S = ed.scene;
       k.run('add.plane');
       const floor = S.get(S.active);
       floor.scale.x = 8;
@@ -649,7 +649,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('the path tracer produces an image, not a blank canvas', async () => {
     await resetScene(page);
     await page.evaluate(() => {
-      const k = window.kline, ed = k.editor, S = ed.scene;
+      const k = window.culpmixer, ed = k.editor, S = ed.scene;
       k.run('add.plane');
       const floor = S.get(S.active);
       floor.scale.x = 6;
@@ -665,11 +665,11 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       k.run('render.image');
     });
     await page.waitForFunction(
-      () => window.kline.editor.activeRender && window.kline.editor.activeRender.samplesDone > 0,
+      () => window.culpmixer.editor.activeRender && window.culpmixer.editor.activeRender.samplesDone > 0,
       null, { timeout: 60_000 },
     );
     const image = await page.evaluate(() => {
-      const job = window.kline.editor.activeRender;
+      const job = window.culpmixer.editor.activeRender;
       const data = job.toImageData();
       let min = 255, max = 0, sum = 0;
       const n = data.width * data.height;
@@ -680,7 +680,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
         sum += v;
       }
       const nan = [...data.data].some((v) => !Number.isFinite(v));
-      window.kline.run('render.cancel');
+      window.culpmixer.run('render.cancel');
       return { samples: job.samplesDone, triangles: job.triangles, min, max, mean: sum / n, nan };
     });
     assert.equal(image.nan, false, 'the render contains non-finite pixels');
@@ -696,7 +696,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('a comparison tints changed geometry and ghosts what was removed', async () => {
     await resetScene(page);
     const counts = await page.evaluate(() => {
-      const k = window.kline, ed = k.editor, S = ed.scene;
+      const k = window.culpmixer, ed = k.editor, S = ed.scene;
       k.run('add.cube');
       const block = S.get(S.active);
       for (let i = 0; i < 4 && ed.options.shading !== 'material'; i++) k.run('view.shading');
@@ -731,7 +731,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // The whole point is that it reaches the screen, so the frames are
     // compared with the comparison shown and hidden.
     const pixels = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const gl = ed.renderer.gl;
       const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
       const frame = () => {
@@ -759,13 +759,13 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // outlines where they used to be, which is the other half of a diff.
     assert.ok(pixels.red > 40, `removed geometry left no ghost: only ${pixels.red} redder pixels`);
 
-    await page.evaluate(() => window.kline.editor.stopComparing());
+    await page.evaluate(() => window.culpmixer.editor.stopComparing());
   });
 
   test('a comparison against an unchanged scene reports nothing', async () => {
     await resetScene(page);
     const result = await page.evaluate(() => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       k.run('add.uvsphere');
       const before = JSON.parse(JSON.stringify(ed.scene.toJSON()));
       const diff = ed.compareAgainst(before, 'itself');
@@ -779,7 +779,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('the comparison panel opens on its shortcut and lists the changes', async () => {
     await resetScene(page);
     await page.evaluate(() => {
-      const k = window.kline;
+      const k = window.culpmixer;
       k.run('add.cube');
       window.__snapshot = JSON.parse(JSON.stringify(k.editor.scene.toJSON()));
       k.run('add.uvsphere');
@@ -796,7 +796,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     assert.equal(opened.hidden, false, 'ctrl+D did not open the comparison panel');
 
     const rows = await page.evaluate(() => {
-      window.kline.editor.compareAgainst(window.__snapshot, 'a moment ago');
+      window.culpmixer.editor.compareAgainst(window.__snapshot, 'a moment ago');
       return [...document.querySelectorAll('.diff-row')].map((r) => r.textContent);
     });
     assert.ok(
@@ -804,7 +804,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       `the added object is not listed; rows were ${JSON.stringify(rows)}`,
     );
 
-    await page.evaluate(() => window.kline.editor.stopComparing());
+    await page.evaluate(() => window.culpmixer.editor.stopComparing());
     await page.keyboard.press('Escape');
   });
 
@@ -815,7 +815,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       const el = document.querySelector('.setup-guide');
       return {
         present: !!el,
-        preference: window.kline.editor.preferences.showGuideOnStart,
+        preference: window.culpmixer.editor.preferences.showGuideOnStart,
       };
     });
     assert.ok(first.present, 'the guide is not in the document at all');
@@ -823,10 +823,10 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // Open it explicitly, since earlier tests in this file have already been
     // through the boot sequence.
     await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.applyPreferences({ ...ed.preferences, showGuideOnStart: true });
       if (!document.querySelector('.setup-guide').classList.contains('hidden')) return;
-      window.kline.run('help.guide');
+      window.culpmixer.run('help.guide');
     });
     await page.waitForTimeout(200);
 
@@ -847,20 +847,20 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
 
     // The demonstrations have to act on the real scene, or they teach nothing.
     await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       for (const id of [...ed.scene.objects.keys()]) ed.scene.remove(id);
     });
     await page.click('.setup-try');
     await page.waitForTimeout(300);
-    const built = await page.evaluate(() => window.kline.editor.scene.objects.size);
+    const built = await page.evaluate(() => window.culpmixer.editor.scene.objects.size);
     assert.ok(built > 0, 'the first card\'s button did nothing to the scene');
 
     // Ticking the box must persist, not just hide the panel for this session.
     await page.click('.setup-again input');
     await page.waitForTimeout(200);
     const off = await page.evaluate(() => ({
-      preference: window.kline.editor.preferences.showGuideOnStart,
-      stored: JSON.parse(localStorage.getItem('kline.preferences') ?? '{}').showGuideOnStart,
+      preference: window.culpmixer.editor.preferences.showGuideOnStart,
+      stored: JSON.parse(localStorage.getItem('culpmixer.preferences') ?? '{}').showGuideOnStart,
     }));
     assert.equal(off.preference, false, 'the checkbox did not change the preference');
     assert.equal(off.stored, false, 'the choice was not written to storage, so it will come back');
@@ -869,7 +869,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // back is a dead end.
     await page.evaluate(() => {
       document.querySelector('.setup-guide').classList.add('hidden');
-      window.kline.run('help.guide');
+      window.culpmixer.run('help.guide');
     });
     await page.waitForTimeout(200);
     const reopened = await page.evaluate(
@@ -879,7 +879,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
 
     await page.evaluate(() => {
       document.querySelector('.setup-guide').classList.add('hidden');
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.applyPreferences({ ...ed.preferences, showGuideOnStart: false });
     });
   });
@@ -911,10 +911,10 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
 
   test('walking the guide to the end closes it without touching the preference', async () => {
     await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.applyPreferences({ ...ed.preferences, showGuideOnStart: true });
       document.querySelector('.setup-guide').classList.add('hidden');
-      window.kline.run('help.guide');
+      window.culpmixer.run('help.guide');
     });
     await page.waitForTimeout(200);
     const cards = await page.evaluate(() => document.querySelectorAll('.setup-dot').length);
@@ -924,7 +924,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     }
     const after = await page.evaluate(() => ({
       open: !document.querySelector('.setup-guide').classList.contains('hidden'),
-      preference: window.kline.editor.preferences.showGuideOnStart,
+      preference: window.culpmixer.editor.preferences.showGuideOnStart,
     }));
     assert.equal(after.open, false, 'reaching the last card did not close the guide');
     // Finishing it is not the same as asking never to see it again; only the
@@ -932,7 +932,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     assert.equal(after.preference, true, 'finishing the guide silently turned it off');
 
     await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.applyPreferences({ ...ed.preferences, showGuideOnStart: false });
     });
   });
@@ -946,7 +946,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
 
   /** The camera's orbit state, as the app currently holds it. */
   const cameraState = () => page.evaluate(() => {
-    const c = window.kline.editor.camera;
+    const c = window.culpmixer.editor.camera;
     return { yaw: c.yaw, pitch: c.pitch, distance: c.distance, target: [c.target.x, c.target.y, c.target.z] };
   });
 
@@ -1022,12 +1022,12 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // whatever was selected.
     await resetScene(page);
     await page.evaluate(() => {
-      window.kline.run('add.cube');
-      window.kline.editor.frameSelected();
+      window.culpmixer.run('add.cube');
+      window.culpmixer.editor.frameSelected();
     });
     await page.waitForTimeout(120);
     const before = await cameraState();
-    const selected = await page.evaluate(() => window.kline.editor.scene.selection.size);
+    const selected = await page.evaluate(() => window.culpmixer.editor.scene.selection.size);
     assert.equal(selected, 1, 'the cube should start selected');
 
     await page.mouse.move(centre.x, centre.y);
@@ -1041,12 +1041,12 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     const after = await cameraState();
     assert.notEqual(after.yaw, before.yaw, 'Option + drag did not orbit');
     assert.equal(
-      await page.evaluate(() => window.kline.editor.scene.selection.size),
+      await page.evaluate(() => window.culpmixer.editor.scene.selection.size),
       1,
       'releasing Option mid-orbit threw the selection away',
     );
     assert.equal(
-      await page.evaluate(() => !!window.kline.editor.boxSelectRect),
+      await page.evaluate(() => !!window.culpmixer.editor.boxSelectRect),
       false,
       'a box select was left running after the orbit',
     );
@@ -1080,9 +1080,9 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       g.putImageData(image, 0, 0);
       const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
       const file = new File([blob], 'subject.png', { type: 'image/png' });
-      window.kline.app.properties.openCreate(file);
+      window.culpmixer.app.properties.openCreate(file);
 
-      const editor = window.kline.editor;
+      const editor = window.culpmixer.editor;
       for (let i = 0; i < 200 && editor.scene.objects.size === 0; i++) {
         await new Promise((ok) => setTimeout(ok, 50));
       }
@@ -1138,7 +1138,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // The mesh existing and the mesh being drawn are different claims, and
     // the texture path in particular can fail without saying anything.
     await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       // Material shading is the only mode that shows a texture, and it lights
       // the scene from the scene's own lights — of which a wiped scene has
       // none. Both are set here rather than assumed: this test is about what
@@ -1186,7 +1186,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // The same sample, taken with the model selected. It still has to be the
     // blue of the photograph.
     await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       // At the flat white ambient the test above uses, the surface is bright
       // enough to survive even a tint that is wrong, so the bug hides. This
       // is a brightness a lit scene actually produces.
@@ -1218,7 +1218,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // gather where the surface turns edge-on, which is off to the side and
     // moves with the framing.
     const hits = await page.evaluate(async () => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       // Lit flat and bright, so "is this pixel the model" is not a judgement
       // call. Whether the hull comes through does not depend on the lighting
       // — the outline is drawn over the top of it — and the orange it is
@@ -1281,8 +1281,8 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // per slider event — hundreds of identical orphans in the material list
     // and every one of them written into the saved file.
     const counts = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      const panel = window.kline.app.properties.create;
+      const ed = window.culpmixer.editor;
+      const panel = window.culpmixer.app.properties.create;
       const before = { materials: ed.scene.materials.length, textures: ed.scene.textures.length };
       for (let i = 0; i < 12; i++) {
         panel.photo.depthScale = 0.5 + i * 0.05;
@@ -1312,8 +1312,8 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // a brush that did nothing because this route finds its subject with a
     // brightness threshold rather than the colour models the brush fed.
     const out = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      const panel = window.kline.app.properties.create;
+      const ed = window.culpmixer.editor;
+      const panel = window.culpmixer.app.properties.create;
       const buttons = [...document.querySelectorAll('.mode-btn')];
       const cutOut = buttons.find((b) => b.textContent.trim() === 'Cut Out');
       if (!cutOut) return { ok: false, why: 'no Cut Out button' };
@@ -1419,11 +1419,11 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // exactly like buttons that work, and said so only in a line at the bottom
     // of a crowded status bar.
     await resetScene(page);
-    await page.evaluate(() => window.kline.run('add.cube'));
+    await page.evaluate(() => window.culpmixer.run('add.cube'));
     await page.waitForTimeout(120);
     // Deselect, the way clicking empty space does.
     await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.scene.selection.clear();
       ed.scene.active = null;
       ed.changed();
@@ -1437,15 +1437,15 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     );
 
     await clickMode('Edit');
-    assert.equal(await page.evaluate(() => window.kline.editor.mode), 'edit', 'Edit did nothing');
+    assert.equal(await page.evaluate(() => window.culpmixer.editor.mode), 'edit', 'Edit did nothing');
     // And it selected what it chose, so leaving Edit Mode does not drop back
     // into a scene with nothing selected and a dead button again.
-    assert.equal(await page.evaluate(() => window.kline.editor.scene.selection.size), 1);
+    assert.equal(await page.evaluate(() => window.culpmixer.editor.scene.selection.size), 1);
 
     await clickMode('Sculpt');
-    assert.equal(await page.evaluate(() => window.kline.editor.mode), 'sculpt', 'Sculpt did nothing');
+    assert.equal(await page.evaluate(() => window.culpmixer.editor.mode), 'sculpt', 'Sculpt did nothing');
     await clickMode('Object');
-    assert.equal(await page.evaluate(() => window.kline.editor.mode), 'object');
+    assert.equal(await page.evaluate(() => window.culpmixer.editor.mode), 'object');
   });
 
   test('a button that cannot act looks like it and says why', async () => {
@@ -1459,17 +1459,17 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // Clicking anyway still answers, rather than swallowing the press: a
     // disabled button would explain nothing to the one person who tries it.
     await clickMode('Edit');
-    assert.equal(await page.evaluate(() => window.kline.editor.mode), 'object');
+    assert.equal(await page.evaluate(() => window.culpmixer.editor.mode), 'object');
     assert.match(
-      await page.evaluate(() => window.kline.editor.statusMessage ?? ''),
+      await page.evaluate(() => window.culpmixer.editor.statusMessage ?? ''),
       /Add a mesh first/,
     );
 
     // Two meshes and nothing selected is a real question, so it is asked.
     await page.evaluate(() => {
-      const ed = window.kline.editor;
-      window.kline.run('add.cube');
-      window.kline.run('add.uvsphere');
+      const ed = window.culpmixer.editor;
+      window.culpmixer.run('add.cube');
+      window.culpmixer.run('add.uvsphere');
       ed.scene.selection.clear();
       ed.scene.active = null;
       ed.changed();
@@ -1479,13 +1479,13 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     assert.equal(ambiguous.find((b) => b.label === 'Edit').dimmed, true, 'two candidates should not be guessed between');
     assert.match(ambiguous.find((b) => b.label === 'Edit').title, /Click the object/);
     await clickMode('Edit');
-    assert.equal(await page.evaluate(() => window.kline.editor.mode), 'object');
+    assert.equal(await page.evaluate(() => window.culpmixer.editor.mode), 'object');
   });
 
   test('an empty Build box asks for a sentence instead of doing nothing', async () => {
     await resetScene(page);
     const result = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const input = document.querySelector('.build-bar input, input.build-input');
       if (input) input.value = '';
       document.querySelector('button.build-go')?.click();
@@ -1505,11 +1505,11 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // checker on the model.
     await resetScene(page);
     const result = await page.evaluate(async () => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const settle = () => new Promise((ok) => setTimeout(ok, 120));
 
-      window.kline.run('add.cube');
-      window.kline.run('material.checker');
+      window.culpmixer.run('add.cube');
+      window.culpmixer.run('material.checker');
       await settle();
       ed.scene.timeline.end = 90;
       const file = JSON.parse(JSON.stringify(ed.scene.toJSON()));
@@ -1517,8 +1517,8 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       // Work on something else in between, as anyone would.
       ed.loadSceneJSON({ objects: [], order: [], materials: [], textures: [] });
       await settle();
-      window.kline.run('add.uvsphere');
-      window.kline.run('material.checker');
+      window.culpmixer.run('add.uvsphere');
+      window.culpmixer.run('material.checker');
       await settle();
       // Two more images than the file carries, pushed straight in so the test
       // is about what opening a file does rather than about which command
@@ -1555,13 +1555,13 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // document for good, and in every save from then on.
     await resetScene(page);
     const counts = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      window.kline.run('add.cube');
+      const ed = window.culpmixer.editor;
+      window.culpmixer.run('add.cube');
       const before = ed.scene.textures.length;
       for (let i = 0; i < 3; i++) {
-        window.kline.run('material.checker');
+        window.culpmixer.run('material.checker');
         await new Promise((ok) => setTimeout(ok, 80));
-        window.kline.run('edit.undo');
+        window.culpmixer.run('edit.undo');
         await new Promise((ok) => setTimeout(ok, 80));
       }
       return { before, after: ed.scene.textures.length, saved: ed.scene.toJSON().textures.length };
@@ -1576,7 +1576,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // session lived in a seam between two steps that each worked.
     await resetScene(page);
     const journey = await page.evaluate(async () => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const settle = (ms = 150) => new Promise((ok) => setTimeout(ok, ms));
 
       // 1. Drop a photograph on the window.
@@ -1597,7 +1597,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       }
       g.putImageData(img, 0, 0);
       const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
-      window.kline.app.properties.openCreate(new File([blob], 'thing.png', { type: 'image/png' }));
+      window.culpmixer.app.properties.openCreate(new File([blob], 'thing.png', { type: 'image/png' }));
       for (let i = 0; i < 200 && ed.scene.objects.size === 0; i++) await settle(50);
       const built = {
         faces: [...ed.scene.objects.values()][0]?.mesh?.faceCount ?? 0,
@@ -1610,8 +1610,8 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       // 3. Do something else, then reopen it — the seam that was broken.
       ed.loadSceneJSON({ objects: [], order: [], materials: [], textures: [] });
       await settle();
-      window.kline.run('add.cube');
-      window.kline.run('material.checker');
+      window.culpmixer.run('add.cube');
+      window.culpmixer.run('material.checker');
       await settle();
       ed.loadSceneJSON(file);
       await settle(250);
@@ -1632,11 +1632,11 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       ed.selectObject(null);
       ed.setMode('edit');
       const editing = { mode: ed.mode, selected: ed.scene.selection.size };
-      window.kline.run('select.all');
-      window.kline.run('mesh.subdivide');
+      window.culpmixer.run('select.all');
+      window.culpmixer.run('mesh.subdivide');
       await settle();
       const subdivided = ed.editMesh?.faceCount ?? 0;
-      window.kline.run('edit.undo');
+      window.culpmixer.run('edit.undo');
       await settle();
       const afterUndo = ed.editMesh?.faceCount ?? 0;
       ed.setMode('object');
@@ -1654,7 +1654,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       URL.createObjectURL = (blob) => { written.push(blob); return realCreate.call(URL, blob); };
       const realClick = HTMLAnchorElement.prototype.click;
       HTMLAnchorElement.prototype.click = function () {};
-      window.kline.run('file.exportGltf');
+      window.culpmixer.run('file.exportGltf');
       await settle();
       URL.createObjectURL = realCreate;
       HTMLAnchorElement.prototype.click = realClick;
@@ -1702,14 +1702,14 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // saved. Start something new after a photo model and you shipped the old
     // photograph inside it.
     const after = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      window.kline.run('add.cube');
-      window.kline.run('material.checker');
+      const ed = window.culpmixer.editor;
+      window.culpmixer.run('add.cube');
+      window.culpmixer.run('material.checker');
       await new Promise((ok) => setTimeout(ok, 120));
       const loaded = { materials: ed.scene.materials.length, textures: ed.scene.textures.length };
       // New Scene now asks before throwing away unsaved work, so this answers
       // it the way somebody starting fresh would.
-      window.kline.run('file.new');
+      window.culpmixer.run('file.new');
       await new Promise((ok) => setTimeout(ok, 60));
       const asked = document.querySelector('.unsaved-dialog');
       if (asked) {
@@ -1779,7 +1779,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       fire('drop');
       const afterDrop = veil();
 
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       for (let i = 0; i < 200 && ed.scene.objects.size === 0; i++) {
         await new Promise((ok) => setTimeout(ok, 50));
       }
@@ -1819,10 +1819,10 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       }, [key, opts]);
       await page.waitForTimeout(120);
     };
-    const mode = () => page.evaluate(() => window.kline.editor.mode);
-    const count = () => page.evaluate(() => window.kline.editor.scene.objects.size);
+    const mode = () => page.evaluate(() => window.culpmixer.editor.mode);
+    const count = () => page.evaluate(() => window.culpmixer.editor.scene.objects.size);
 
-    await page.evaluate(() => window.kline.run('add.cube'));
+    await page.evaluate(() => window.culpmixer.run('add.cube'));
     await page.waitForTimeout(120);
 
     await press('Tab', { code: 'Tab' });
@@ -1852,10 +1852,10 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // session came back with the geometry and none of the pictures on it.
     await resetScene(page);
     const recovery = await page.evaluate(async () => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const settle = (ms = 150) => new Promise((ok) => setTimeout(ok, ms));
-      window.kline.run('add.cube');
-      window.kline.run('material.checker');
+      window.culpmixer.run('add.cube');
+      window.culpmixer.run('material.checker');
       await settle();
       const saved = { objects: ed.scene.objects.size, textures: ed.scene.textures.length };
 
@@ -1898,8 +1898,8 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // never sees the bar. This one puts a scene in the store, asks for the
     // prompt, and then measures the shell.
     const shape = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      const shell = window.kline.app;
+      const ed = window.culpmixer.editor;
+      const shell = window.culpmixer.app;
       ed.addPrimitive('cube');
       await ed.autosaveNow(false);
       shell.offerRecovery();
@@ -1992,15 +1992,15 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       }
       g.putImageData(im, 0, 0);
       const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
-      window.kline.app.properties.openCreate(new File([blob], 'shoe.png', { type: 'image/png' }));
-      const ed = window.kline.editor;
+      window.culpmixer.app.properties.openCreate(new File([blob], 'shoe.png', { type: 'image/png' }));
+      const ed = window.culpmixer.editor;
       const started = ed.scene.objects.size;
       for (let i = 0; i < 300 && ed.scene.objects.size === started; i++) {
         await new Promise((r) => setTimeout(r, 50));
       }
       await new Promise((r) => setTimeout(r, 700));
 
-      const panel = window.kline.app.properties.create;
+      const panel = window.culpmixer.app.properties.create;
       const verdictText = () => document.querySelector('.create-verdict')?.textContent ?? '';
       const before = {
         coverage: panel.lastCoverage,
@@ -2092,8 +2092,8 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       }
       g.putImageData(im, 0, 0);
       const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
-      window.kline.app.properties.openCreate(new File([blob], 'corridor.png', { type: 'image/png' }));
-      const ed = window.kline.editor;
+      window.culpmixer.app.properties.openCreate(new File([blob], 'corridor.png', { type: 'image/png' }));
+      const ed = window.culpmixer.editor;
       const started = ed.scene.objects.size;
       for (let i = 0; i < 300 && ed.scene.objects.size === started; i++) {
         await new Promise((r) => setTimeout(r, 50));
@@ -2111,7 +2111,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       if (!build) return { error: 'there is no button to build a scene' };
       build.click();
 
-      const panel = window.kline.app.properties.create;
+      const panel = window.culpmixer.app.properties.create;
       for (let i = 0; i < 1500; i++) {
         await new Promise((r) => setTimeout(r, 100));
         const note = panel.sceneNote?.textContent ?? '';
@@ -2152,10 +2152,10 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
           // and the first result was gone for good.
           undoRestored: (() => {
             const before = model.mesh.faceCount;
-            window.kline.run('edit.undo');
+            window.culpmixer.run('edit.undo');
             const after = ed.scene.get(panel.targetId);
             const restored = !!after && !!after.mesh && after.mesh.faceCount !== before;
-            window.kline.run('edit.redo');
+            window.culpmixer.run('edit.redo');
             return restored;
           })(),
           textured: (() => {
@@ -2259,8 +2259,8 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('a staircase is revised to thirty steps with your work still on it', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      const bar = window.kline.app.buildBar;
+      const ed = window.culpmixer.editor;
+      const bar = window.culpmixer.app.buildBar;
 
       bar.focus('a staircase with 20 steps');
       await bar.run();
@@ -2322,8 +2322,8 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('a sculpted object reports a conflict instead of losing the sculpt', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      const bar = window.kline.app.buildBar;
+      const ed = window.culpmixer.editor;
+      const bar = window.culpmixer.app.buildBar;
       bar.focus('a staircase with 8 steps');
       await bar.run();
       const root = [...ed.scene.objects.values()].find((o) => o.provenance);
@@ -2362,8 +2362,8 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('rejecting a revision leaves the scene untouched; accepting it is one undo', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      const bar = window.kline.app.buildBar;
+      const ed = window.culpmixer.editor;
+      const bar = window.culpmixer.app.buildBar;
       bar.focus('a staircase with 12 steps');
       await bar.run();
       const root = [...ed.scene.objects.values()].find((o) => o.provenance);
@@ -2452,13 +2452,13 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       g.arc(80, 80, 22, 0, Math.PI * 2);
       g.fill();
       const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
-      window.kline.app.properties.openCreate(new File([blob], 'logo.png', { type: 'image/png' }));
+      window.culpmixer.app.properties.openCreate(new File([blob], 'logo.png', { type: 'image/png' }));
 
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       for (let i = 0; i < 200 && ed.scene.objects.size === 0; i++) {
         await new Promise((ok) => setTimeout(ok, 50));
       }
-      const panel = window.kline.app.properties.create;
+      const panel = window.culpmixer.app.properties.create;
       // Cut Out, so the setting being revised is an extrusion depth.
       [...document.querySelectorAll('.mode-btn')].find((b) => b.textContent.trim() === 'Cut Out').click();
       panel.mask.channel = 'luma';
@@ -2522,8 +2522,8 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // has already been made, because none of them look at the screen.
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      const bar = window.kline.app.buildBar;
+      const ed = window.culpmixer.editor;
+      const bar = window.culpmixer.app.buildBar;
       const panel = () => document.querySelector('.revision-panel');
       const shown = () => {
         const el = panel();
@@ -2570,8 +2570,8 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('the viewport retints when different faces move, not just when more do', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      const obj = ed.scene.add('mesh', 'Bar', window.kline.buildPrimitive('grid'));
+      const ed = window.culpmixer.editor;
+      const obj = ed.scene.add('mesh', 'Bar', window.culpmixer.buildPrimitive('grid'));
       ed.selectObject(obj.id);
       ed.renderNow();
       const before = JSON.parse(JSON.stringify(ed.scene.toJSON()));
@@ -2581,7 +2581,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       const pristine = ed.scene.get(obj.id).mesh.toJSON();
       const nudge = (from) => {
         const scene = ed.scene.get(obj.id);
-        scene.mesh = window.kline.meshFromJSON(pristine);
+        scene.mesh = window.culpmixer.meshFromJSON(pristine);
         const mesh = scene.mesh;
         for (const v of mesh.faces[from]) mesh.positions[v].z += 0.6;
         mesh.markDirty();
@@ -2617,8 +2617,8 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('only the asset under review is held; the rest of the scene is yours', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      const bar = window.kline.app.buildBar;
+      const ed = window.culpmixer.editor;
+      const bar = window.culpmixer.app.buildBar;
       bar.focus('a staircase with 8 steps');
       await bar.run();
       const root = [...ed.scene.objects.values()].find((o) => o.provenance);
@@ -2640,12 +2640,12 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       ed.selectObject(root.children[0]);
       blocked.editingTheAsset = ed.beginUndo('nudge a proposed step') === false;
       blocked.editableFlag = ed.editable === false;
-      window.kline.run('object.delete');
+      window.culpmixer.run('object.delete');
       blocked.deletingAPart = shape() === before;
 
       // Anything that would take the proposal out of the review is held too:
       // a file containing a version nobody agreed to is the whole problem.
-      window.kline.run('file.new');
+      window.culpmixer.run('file.new');
       blocked.newDocument = ed.revision.active && shape() === before;
       // Recovery is *not* held any more, and that is the repair: refusing it
       // for as long as a review was open meant the work underneath had no
@@ -2685,8 +2685,8 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('a deleted part stays deleted through revisions, save and reload', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      const bar = window.kline.app.buildBar;
+      const ed = window.culpmixer.editor;
+      const bar = window.culpmixer.app.buildBar;
       bar.focus('a staircase with 20 steps');
       await bar.run();
       const root = [...ed.scene.objects.values()].find((o) => o.provenance);
@@ -2732,8 +2732,8 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('an edited program revises the selected asset with no model connected', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      const bar = window.kline.app.buildBar;
+      const ed = window.culpmixer.editor;
+      const bar = window.culpmixer.app.buildBar;
       // Build from a program by hand — no model, which is the whole point.
       bar.codeArea.value =
         "part({shape:'cube', id:'top', name:'Top', at:[0,0,1], size:[2,1,0.1], color:'#8b5e34'});\n"
@@ -2795,8 +2795,8 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('a transform disagreement offers both values and settles at that scope', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      const bar = window.kline.app.buildBar;
+      const ed = window.culpmixer.editor;
+      const bar = window.culpmixer.app.buildBar;
       bar.focus('a staircase with 8 steps');
       await bar.run();
       const root = [...ed.scene.objects.values()].find((o) => o.provenance);
@@ -2850,13 +2850,13 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       g.fillStyle = '#fff';
       g.beginPath(); g.arc(80, 80, 52, 0, Math.PI * 2); g.fill();
       const blob = await new Promise((ok) => c.toBlob(ok, 'image/png'));
-      window.kline.app.properties.openCreate(new File([blob], 'badge.png', { type: 'image/png' }));
+      window.culpmixer.app.properties.openCreate(new File([blob], 'badge.png', { type: 'image/png' }));
 
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       for (let i = 0; i < 200 && ed.scene.objects.size === 0; i++) {
         await new Promise((ok) => setTimeout(ok, 50));
       }
-      const panel = window.kline.app.properties.create;
+      const panel = window.culpmixer.app.properties.create;
       [...document.querySelectorAll('.mode-btn')].find((b) => b.textContent.trim() === 'Cut Out').click();
       panel.mask.channel = 'luma';
       panel.mask.threshold = 0.5;
@@ -2930,8 +2930,8 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('you can keep modelling while a revision waits, and Reject spares it', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      const bar = window.kline.app.buildBar;
+      const ed = window.culpmixer.editor;
+      const bar = window.culpmixer.app.buildBar;
       bar.focus('a staircase with 8 steps');
       await bar.run();
       const root = [...ed.scene.objects.values()].find((o) => o.provenance);
@@ -2946,7 +2946,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       const worked = made !== null;
       if (made) made.position.x = 5;
       ed.selectObject(made.id);
-      window.kline.run('object.duplicate');
+      window.culpmixer.run('object.duplicate');
       // Duplicate leaves you dragging the copy; confirming keeps it, and
       // cancelling would roll the whole compound operation back.
       ed.confirmModal();
@@ -2990,7 +2990,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('a rejected revision cannot be brought back by undoing something else', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       const bar = k.app.buildBar;
       bar.focus('a staircase with 12 steps');
       await bar.run();
@@ -3062,7 +3062,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('accepting after unrelated work is one step, and the work below it is still undoable', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       const bar = k.app.buildBar;
       bar.focus('a staircase with 12 steps');
       await bar.run();
@@ -3129,7 +3129,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('undo during a live review moves your work and leaves the proposal on screen', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       const bar = k.app.buildBar;
       bar.focus('a staircase with 12 steps');
       await bar.run();
@@ -3182,7 +3182,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('a material edited during a review is undone and redone like any other work', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       const bar = k.app.buildBar;
 
       // Something of your own, with a material of its own, parked where the
@@ -3263,7 +3263,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('the viewport shows the undone material, not just the record of it', async () => {
     await resetScene(page);
     const setup = await page.evaluate(async () => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       const bar = k.app.buildBar;
       k.run('add.cube');
       const mine = ed.scene.get(ed.scene.active);
@@ -3298,7 +3298,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     const before = lean(await samplePixels(page, patch));
 
     await page.evaluate(async ({ slot, mine }) => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       const bar = k.app.buildBar;
       const root = [...ed.scene.objects.values()].find((o) => o.provenance);
       ed.selectObject(root.id);
@@ -3318,7 +3318,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     const edited = lean(await samplePixels(page, patch));
 
     await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.undo();
       ed.scene.selection.clear();
       ed.scene.active = null;
@@ -3326,7 +3326,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     });
 
     const undone = lean(await samplePixels(page, patch));
-    const reviewing = await page.evaluate(() => window.kline.editor.revision.active);
+    const reviewing = await page.evaluate(() => window.culpmixer.editor.revision.active);
 
     // Warm key light, so the surface is never a flat swatch of its base colour
     // and "is this pixel blue" is the wrong question. What the screen can
@@ -3343,7 +3343,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('a placement that had to be approximated is still on screen afterwards', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       const V = ed.scene.cursor.constructor;
 
       // An asset of one part, and a proposal that adds a badly skewed one.
@@ -3355,7 +3355,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     assert.equal(out.needsFixture, true);
 
     const result = await page.evaluate(async () => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       // Build the fixture through the real application: a cube asset, then a
       // hand-written proposal that introduces a non-uniformly scaled part.
       ed.newScene();
@@ -3446,7 +3446,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('an animation renders a frame sequence, reports progress, and can be stopped', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       k.run('add.uvsphere');
       const ball = ed.scene.get(ed.scene.active);
       ball.animation = [{
@@ -3496,7 +3496,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('an animation render stops when asked and says how far it got', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       k.run('add.cube');
       k.run('add.light.sun');
       ed.scene.timeline.start = 1;
@@ -3527,7 +3527,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('generated code cannot reach the network or storage, even through a fresh realm', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const k = window.kline, ed = k.editor, bar = k.app.buildBar;
+      const k = window.culpmixer, ed = k.editor, bar = k.app.buildBar;
       // Function('return this')() hands back the real global whatever the
       // parameter list says, so it is the route that matters: shadowing a name
       // only hides one spelling of it. Several of these live on
@@ -3574,13 +3574,13 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('a cancelled save never says the work is safe', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       k.run('add.cube');
 
       // Stand in for the desktop shell, which is the only place a save can be
       // cancelled or fail: a browser tab only ever starts a download.
       const answers = [];
-      window.klineDesktop = {
+      window.culpMixerDesktop = {
         platform: 'test',
         registerCommands: () => {},
         onCommand: () => {},
@@ -3609,7 +3609,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       results.saved = ed.statusMessage;
       results.cleanAfterSave = ed.hasUnsavedChanges === false;
 
-      delete window.klineDesktop;
+      delete window.culpMixerDesktop;
       return results;
     });
 
@@ -3628,8 +3628,8 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('a recovery copy does not count as saving the project', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      window.kline.run('add.cube');
+      const ed = window.culpmixer.editor;
+      window.culpmixer.run('add.cube');
       const dirtyBefore = ed.hasUnsavedChanges;
       const wrote = await ed.autosaveNow(false);
       return { dirtyBefore, wrote, dirtyAfter: ed.hasUnsavedChanges };
@@ -3643,7 +3643,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('replacing the document asks first, and Cancel really cancels', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       k.run('add.uvsphere');
       const before = ed.scene.objects.size;
 
@@ -3687,10 +3687,10 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
   test('a clean document is replaced without being asked', async () => {
     await resetScene(page);
     const out = await page.evaluate(async () => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       // resetScene leaves a freshly loaded document, which is not unsaved work.
       const dirty = ed.hasUnsavedChanges;
-      window.kline.run('file.new');
+      window.culpmixer.run('file.new');
       await new Promise((r) => setTimeout(r, 60));
       return { dirty, asked: !!document.querySelector('.unsaved-dialog') };
     });
@@ -3705,7 +3705,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     const wide = page.viewportSize();
     await page.setViewportSize({ width: 720, height: 800 });
     await resetScene(page);
-    await page.evaluate(() => window.kline.run('add.cube'));
+    await page.evaluate(() => window.culpmixer.run('add.cube'));
     // The drawer slides, so give the transition time to land before measuring
     // where it is; reading mid-transition says nothing about either state.
     await new Promise((r) => setTimeout(r, 400));
@@ -3758,7 +3758,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       return {
         onScreen: r.left < window.innerWidth - 10 && r.width > 100,
         sawRow: !!row,
-        active: window.kline.editor.scene.active,
+        active: window.culpmixer.editor.scene.active,
         named,
       };
     });
@@ -3797,7 +3797,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // success for something that could not have done anything.
     await resetScene(page);
     const said = await page.evaluate(() => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       k.run('add.cube');
       const out = {};
       for (const id of ['uv.unwrap', 'mesh.extrude', 'sculpt.cycleBrush']) {
@@ -3874,14 +3874,14 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // Not k.run(): the point is the path from the cursor to the operator,
     // which is exactly the part that was severed.
     await resetScene(page);
-    await page.evaluate(() => window.kline.run('add.cube'));
+    await page.evaluate(() => window.culpmixer.run('add.cube'));
     await page.waitForTimeout(150);
-    const before = await page.evaluate(() => window.kline.editor.scene.objects.size);
+    const before = await page.evaluate(() => window.culpmixer.editor.scene.objects.size);
     await page.click('.menu-label:text-is("Object")');
     await page.waitForTimeout(120);
     await page.click('.menu-item:has-text("Duplicate")');
     await page.waitForTimeout(250);
-    const after = await page.evaluate(() => window.kline.editor.scene.objects.size);
+    const after = await page.evaluate(() => window.culpmixer.editor.scene.objects.size);
     assert.equal(after, before + 1,
       `clicking Object > Duplicate went from ${before} objects to ${after}`);
   });
@@ -3909,7 +3909,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // is hidden" is not a security property on its own.
     await resetScene(page);
     const asCustomer = await page.evaluate(() => ({
-      licence: window.kline.editor.licence.status,
+      licence: window.culpmixer.editor.licence.status,
       button: !!document.querySelector('.issue-chip'),
     }));
     assert.equal(asCustomer.licence, 'trial', 'the harness user should be an ordinary trial');
@@ -3917,7 +3917,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
 
     // Opening the panel by hand from the console gets a refusal, not a form.
     const forced = await page.evaluate(() => {
-      window.kline.editor.panels.toggleIssue?.();
+      window.culpmixer.editor.panels.toggleIssue?.();
       const panel = document.querySelector('.issue-panel');
       return {
         open: panel ? !panel.classList.contains('hidden') : false,
@@ -3931,19 +3931,19 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     assert.match(forced.text, /Only the founder issues licences/);
 
     // The signer is not hung off the page object for anybody to call.
-    const reachable = await page.evaluate(() => !!window.kline.__issue || !!window.issueKey);
+    const reachable = await page.evaluate(() => !!window.culpmixer.__issue || !!window.issueKey);
     assert.equal(reachable, false, 'the signing function is exposed on the page');
 
     // And the honest case: somebody edits licence.status in devtools. They
     // reach the setup screen — which asks them for the signing key, the one
     // thing that is never shipped — and can mint nothing without it.
     const flipped = await page.evaluate(async () => {
-      window.kline.editor.licence = {
+      window.culpmixer.editor.licence = {
         status: 'owner',
         licence: { name: 'x', plan: 'x', seats: 0, issued: 0, expires: null, owner: true },
       };
       document.querySelector('.issue-panel')?.classList.add('hidden');
-      window.kline.editor.panels.toggleIssue?.();
+      window.culpmixer.editor.panels.toggleIssue?.();
       document.querySelector('.issue-go')?.click();
       await new Promise((done) => setTimeout(done, 400));
       const out = document.querySelector('.issue-out');
@@ -3960,16 +3960,16 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // The flip does not outlive the page: the real state is recomputed from a
     // stored signature at startup, so it is gone on the next load.
     await page.reload({ waitUntil: 'networkidle' });
-    await page.waitForFunction(() => !!window.kline?.editor?.renderer, null, { timeout: 30_000 });
+    await page.waitForFunction(() => !!window.culpmixer?.editor?.renderer, null, { timeout: 30_000 });
     await page.waitForTimeout(500);
     const afterReload = await page.evaluate(() => ({
-      licence: window.kline.editor.licence.status,
+      licence: window.culpmixer.editor.licence.status,
       button: !!document.querySelector('.issue-chip'),
     }));
     assert.notEqual(afterReload.licence, 'owner', 'an edited licence survived a reload');
     assert.equal(afterReload.button, false, 'the issuing button came back after a reload');
     await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.applyPreferences({ ...ed.preferences, showGuideOnStart: false });
       document.querySelector('.setup-guide')?.classList.add('hidden');
     });
@@ -3982,7 +3982,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // thing to be edited in code and redeployed.
     await resetScene(page);
     await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.licence = {
         status: 'owner',
         licence: { name: 'x', plan: 'x', seats: 0, issued: 0, expires: null, owner: true },
@@ -4006,12 +4006,12 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     await page.click('.issue-pay .issue-go');
     await page.waitForTimeout(250);
     const how = await page.$eval('.issue-pay .issue-out', (e) => e.textContent);
-    assert.match(how, /KLINE_PAYMENT_LINK/, 'it does not say how to publish the link');
+    assert.match(how, /CULPMIXER_PAYMENT_LINK/, 'it does not say how to publish the link');
     assert.match(how, /pay\.json/, 'it does not offer the no-backend way to publish it');
 
     // And the screen a customer actually meets when their time is up.
     const seen = await page.evaluate(async () => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.account = { status: 'locked', username: 'Dana', email: 'd@e.co', plan: 'Trial' };
       ed.previewLocked();
       await new Promise((done) => setTimeout(done, 600));
@@ -4031,15 +4031,15 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
 
     // Put it back so nothing after this meets a lock screen.
     await page.evaluate(() => {
-      try { localStorage.removeItem('kline.payment.link'); } catch { /* ignore */ }
+      try { localStorage.removeItem('culpmixer.payment.link'); } catch { /* ignore */ }
       document.querySelector('.home')?.classList.add('hidden');
       document.querySelector('.issue-panel')?.classList.add('hidden');
     });
     await page.reload({ waitUntil: 'networkidle' });
-    await page.waitForFunction(() => !!window.kline?.editor?.renderer, null, { timeout: 30_000 });
+    await page.waitForFunction(() => !!window.culpmixer?.editor?.renderer, null, { timeout: 30_000 });
     await page.waitForTimeout(400);
     await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.applyPreferences({ ...ed.preferences, showGuideOnStart: false });
       document.querySelector('.setup-guide')?.classList.add('hidden');
     });
@@ -4058,22 +4058,22 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     //    ended was mute.
     await resetScene(page);
     const unknown = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.setStatus('');
-      window.kline.run('add.thisIsNotACommand');
+      window.culpmixer.run('add.thisIsNotACommand');
       return ed.statusMessage;
     });
     assert.match(unknown, /no command called/i,
       `an unknown command said: "${unknown}"`);
 
     const locked = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const wasAccount = ed.account;
       ed.account = { status: 'locked', username: 'x', email: 'x@y.co', plan: 'Trial' };
       const message = ed.licenceBlockedMessage;
       ed.setStatus('');
       const before = ed.scene.objects.size;
-      window.kline.run('add.cube');
+      window.culpmixer.run('add.cube');
       const out = { message, said: ed.statusMessage, added: ed.scene.objects.size - before };
       ed.account = wasAccount;
       return out;

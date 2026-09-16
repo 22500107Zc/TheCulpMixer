@@ -15,10 +15,10 @@ export const env = (name: string): string =>
 
 /** Keys, kept in one place so the console and the server cannot disagree. */
 export const KEYS = {
-  trial: (install: string) => `kline:trial:${install}`,
-  account: (email: string) => `kline:account:${email.trim().toLowerCase()}`,
-  accountList: 'kline:accounts',
-  settings: 'kline:settings',
+  trial: (install: string) => `culpmixer:trial:${install}`,
+  account: (email: string) => `culpmixer:account:${email.trim().toLowerCase()}`,
+  accountList: 'culpmixer:accounts',
+  settings: 'culpmixer:settings',
 };
 
 /** Thirty-three hours. The one number the whole business runs on. */
@@ -91,7 +91,7 @@ const supabaseKey = (): string =>
   env('SUPABASE_SERVICE_ROLE_KEY') || env('SUPABASE_SERVICE_KEY') || env('SUPABASE_KEY');
 
 /** The table the rows live in. Created once, by the SQL in SELLING.md. */
-const TABLE = env('SUPABASE_TABLE') || 'kline_kv';
+const TABLE = env('SUPABASE_TABLE') || 'culpmixer_kv';
 
 const supabaseConfigured = (): boolean => !!supabaseUrl() && !!supabaseKey();
 const upstashConfigured = (): boolean => !!env('KV_REST_API_URL') && !!env('KV_REST_API_TOKEN');
@@ -246,9 +246,9 @@ export async function liveAccount(email: string): Promise<Account | null> {
 export async function settings(): Promise<Required<Settings>> {
   const stored = (await readJson<Settings>(KEYS.settings)) ?? {};
   return {
-    paymentLink: env('KLINE_PAYMENT_LINK') || stored.paymentLink || '',
+    paymentLink: env('CULPMIXER_PAYMENT_LINK') || stored.paymentLink || '',
     stripeSecretKey: env('STRIPE_SECRET_KEY') || stored.stripeSecretKey || '',
-    priceId: env('KLINE_PRICE_ID') || stored.priceId || '',
+    priceId: env('CULPMIXER_PRICE_ID') || stored.priceId || '',
   };
 }
 
@@ -310,13 +310,13 @@ export function generatePassword(): string {
  *
  * Never the password itself, and never a literal in this repository. A
  * password in source is a password every reader of the repository has, and
- * this repository has been public. `tools/kline-founder.mjs` prints the value
+ * this repository has been public. `tools/culpmixer-founder.mjs` prints the value
  * to paste into Vercel.
  *
  * Format: scrypt$<salt hex>$<hash hex>
  */
 export function checkPassword(password: string): boolean {
-  return verifyHash(password, env('KLINE_FOUNDER_HASH'));
+  return verifyHash(password, env('CULPMIXER_FOUNDER_HASH'));
 }
 
 /**
@@ -327,7 +327,7 @@ export function checkPassword(password: string): boolean {
  * is a second thing to get right on the way in, not a second password.
  */
 export const founderEmail = (): string =>
-  (env('KLINE_FOUNDER_EMAIL') || 'culpindustriesllc@gmail.com').trim().toLowerCase();
+  (env('CULPMIXER_FOUNDER_EMAIL') || 'culpindustriesllc@gmail.com').trim().toLowerCase();
 
 /** Both halves of the founder login, checked at one cost. */
 export function checkFounder(email: string, password: string): boolean {
@@ -388,7 +388,7 @@ export function hashPassword(password: string, salt = randomBytes(16)): string {
  * variable to set, and changing the password invalidates every session.
  */
 function sessionSecret(): string {
-  return `The Culp Mixer-console:${founderEmail()}:${env('KLINE_FOUNDER_HASH')}`;
+  return `The Culp Mixer-console:${founderEmail()}:${env('CULPMIXER_FOUNDER_HASH')}`;
 }
 
 /**
@@ -420,7 +420,7 @@ export function readAccountSession(token: string): string {
 }
 
 function accountSecret(): string {
-  return `The Culp Mixer-account:${env('KLINE_SIGNING_KEY')}`;
+  return `The Culp Mixer-account:${env('CULPMIXER_SIGNING_KEY')}`;
 }
 
 export function mintSession(hours = 12): string {
@@ -430,7 +430,7 @@ export function mintSession(hours = 12): string {
 }
 
 export function validSession(token: string): boolean {
-  if (!env('KLINE_FOUNDER_HASH')) return false;
+  if (!env('CULPMIXER_FOUNDER_HASH')) return false;
   const [expires, signature] = String(token ?? '').split('.');
   if (!expires || !signature) return false;
   if (!(Number(expires) > Date.now())) return false;

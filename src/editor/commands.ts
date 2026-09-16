@@ -208,7 +208,7 @@ export const COMMANDS: Command[] = [
     id: 'file.open', label: 'Open Scene (.mixer)', category: 'File', shortcut: 'Ctrl+O',
     run: async (ed) => {
       if (!await okToReplaceDocument(ed, 'Opening another project will replace them.')) return;
-      const file = await openTextFile('.mixer,.kline,.kiln,application/json');
+      const file = await openTextFile('.mixer,.culpmixer,.kiln,application/json');
       if (!file) return;
       try {
         ed.loadSceneJSON(JSON.parse(file.text));

@@ -228,7 +228,7 @@ test('a modifier keeps the values it does carry', () => {
 });
 
 /**
- * A `.kline` file is the only input to this application that nobody here
+ * A `.culpmixer` file is the only input to this application that nobody here
  * wrote. It can be truncated by a failed download, edited by hand, written by
  * an older build, or simply be some other JSON file the user picked by
  * mistake. Loading one has to end in a scene — possibly a smaller scene than

@@ -29,8 +29,8 @@
  * the lock.
  */
 
-const ACCOUNTS_KEY = 'kline.local.accounts';
-const CURRENT_KEY = 'kline.local.current';
+const ACCOUNTS_KEY = 'culpmixer.local.accounts';
+const CURRENT_KEY = 'culpmixer.local.current';
 
 /** Thirty-three hours. The same number everywhere. */
 const TRIAL_MS = 33 * 60 * 60 * 1000;

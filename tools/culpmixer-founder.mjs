@@ -2,10 +2,10 @@
 /**
  * Make the founder password hash.
  *
- *   node tools/kline-founder.mjs "your password here"
+ *   node tools/culpmixer-founder.mjs "your password here"
  *
  * Prints one line to paste into Vercel as the environment variable
- * KLINE_FOUNDER_HASH. The password itself is never written anywhere — not to
+ * CULPMIXER_FOUNDER_HASH. The password itself is never written anywhere — not to
  * this repository, not to a file, not to your shell history if you are careful
  * to run it with a leading space.
  *
@@ -24,7 +24,7 @@ import { randomBytes, scryptSync } from 'node:crypto';
 const password = process.argv.slice(2).join(' ').trim();
 
 if (!password) {
-  console.error('Usage: node tools/kline-founder.mjs "your password here"');
+  console.error('Usage: node tools/culpmixer-founder.mjs "your password here"');
   process.exit(1);
 }
 
@@ -40,7 +40,7 @@ const hash = scryptSync(password, salt, 32);
 console.log('');
 console.log('  Paste this into Vercel > Settings > Environment Variables, for Production:');
 console.log('');
-console.log('    Name:   KLINE_FOUNDER_HASH');
+console.log('    Name:   CULPMIXER_FOUNDER_HASH');
 console.log(`    Value:  scrypt$${salt.toString('hex')}$${hash.toString('hex')}`);
 console.log('');
 console.log('  Then redeploy, and sign in at  /founder.html  with the password itself.');

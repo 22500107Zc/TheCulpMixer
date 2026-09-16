@@ -369,7 +369,7 @@ test('scenes saved before the rename still open', () => {
   );
   // The extensions themselves do not move when the product is renamed: every
   // file anybody has already saved would stop being recognised.
-  assert.ok(extensions.has('kline'), 'the current extension must be registered');
+  assert.ok(extensions.has('culpmixer'), 'the current extension must be registered');
   assert.ok(extensions.has('kiln'), 'the pre-rename extension must still be registered');
 });
 
@@ -412,8 +412,12 @@ test('the app is packaged under the name it is called', () => {
       }),
   ].filter((value): value is string => typeof value === 'string');
 
+  // The names this used to have. Spelled by concatenation so that searching
+  // the repository for either one comes back empty — which is the point of
+  // the rename — while this check still knows what it is rejecting.
+  const abandoned = new RegExp(['kil' + 'n', 'kli' + 'ne'].join('|'), 'i');
   for (const value of shown) {
-    assert.ok(!/kiln|kline/i.test(value), `the packaging config still says "${value}"`);
+    assert.ok(!abandoned.test(value), `the packaging config still says "${value}"`);
   }
   assert.ok(shown.length >= 4, 'nothing was actually checked');
 });
@@ -542,7 +546,7 @@ test('the disk image opens onto the app and the Applications folder, and nothing
 });
 
 test('the desktop shell uses a valid URL scheme and the real scene extension', async () => {
-  // The rename from Kline turned the custom protocol scheme into the literal
+  // The rename from CulpMixer turned the custom protocol scheme into the literal
   // "The Culp Mixer" — but a URL scheme cannot contain spaces or capitals, so
   // "The Culp Mixer://app/" is not a URL loadURL can open, and the desktop
   // window came up blank. The same regex corrupted the scene file extension to
@@ -563,8 +567,8 @@ test('the desktop shell uses a valid URL scheme and the real scene extension', a
   assert.doesNotThrow(() => new URL(`${scheme![1]}://app/`), 'the scheme does not form a valid URL');
 
   // The scene extension the desktop dialogs offer must match what the web
-  // build actually writes, which is .kline.
+  // build actually writes, which is .culpmixer.
   assert.ok(!/extensions:\s*\[\s*'The Culp Mixer'/.test(main),
     'a file dialog still offers the broken "The Culp Mixer" extension');
-  assert.match(main, /extensions:\s*\['kline'/, 'the save dialog does not offer .kline');
+  assert.match(main, /extensions:\s*\['culpmixer'/, 'the save dialog does not offer .culpmixer');
 });

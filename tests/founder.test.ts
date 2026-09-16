@@ -77,10 +77,10 @@ async function run(
   const previousEnv = { ...process.env };
   const previousFetch = globalThis.fetch;
   Object.assign(process.env, {
-    KLINE_FOUNDER_HASH: HASH,
-    KLINE_SIGNING_KEY: PEM,
+    CULPMIXER_FOUNDER_HASH: HASH,
+    CULPMIXER_SIGNING_KEY: PEM,
     STRIPE_SECRET_KEY: '',
-    KLINE_PRICE_ID: '',
+    CULPMIXER_PRICE_ID: '',
     KV_REST_API_URL: options.kv ? 'https://kv.test' : '',
     KV_REST_API_TOKEN: options.kv ? 'token' : '',
     ...options.env,
@@ -97,7 +97,7 @@ async function run(
 
   const { res, out } = recorder();
   try {
-    await which({ method: 'POST', body, headers: { host: 'kline.test' } }, res);
+    await which({ method: 'POST', body, headers: { host: 'culpmixer.test' } }, res);
   } finally {
     globalThis.fetch = previousFetch;
     for (const key of Object.keys(process.env)) delete process.env[key];
@@ -125,7 +125,7 @@ test('the console refuses every login when no password is configured', async () 
   for (const action of ['login', 'state', 'accounts.create', 'settings.save']) {
     const result = await run(
       admin, { action, email: FOUNDER_EMAIL, password: PASSWORD },
-      { env: { KLINE_FOUNDER_HASH: '' } },
+      { env: { CULPMIXER_FOUNDER_HASH: '' } },
     );
     assert.equal(result.code, 503, `${action} did not fail shut`);
     assert.equal(result.body.error, 'no-founder-password');
@@ -162,12 +162,12 @@ test('the founder email and password get in, in any case', async () => {
 test('the founder email can be moved with an environment variable', async () => {
   const moved = 'someone@example.com';
   const result = await run(admin, { action: 'login', email: moved, password: PASSWORD }, {
-    env: { KLINE_FOUNDER_EMAIL: moved },
+    env: { CULPMIXER_FOUNDER_EMAIL: moved },
   });
   assert.equal(result.code, 200);
   // And the old one stops working the moment it moves.
   const old = await run(admin, { action: 'login', email: FOUNDER_EMAIL, password: PASSWORD }, {
-    env: { KLINE_FOUNDER_EMAIL: moved },
+    env: { CULPMIXER_FOUNDER_EMAIL: moved },
   });
   assert.equal(old.code, 401, 'the old founder address still opened the console');
 });
@@ -193,7 +193,7 @@ test('no session, a forged one, or an expired one is not a session', async () =>
 test('changing the password signs every open console out', async () => {
   const session = await signIn();
   const after = await run(admin, { action: 'state', session }, {
-    env: { KLINE_FOUNDER_HASH: hashPassword('a completely different password') },
+    env: { CULPMIXER_FOUNDER_HASH: hashPassword('a completely different password') },
   });
   assert.equal(after.code, 401, 'an old session survived a password change');
 });
@@ -273,7 +273,7 @@ test('removing an account takes the access away', async () => {
 
 test('an account that ran out is not an account', async () => {
   const kv = store();
-  kv.data.set('kline:account:lapsed@example.com', JSON.stringify({
+  kv.data.set('culpmixer:account:lapsed@example.com', JSON.stringify({
     email: 'lapsed@example.com', plan: 'Studio', expires: Date.now() - 1000, created: 0,
   }));
   const state = await run(licence, {
@@ -442,8 +442,8 @@ test('an account that ran out cannot sign in', async () => {
 
   // Wind both clocks back: the paid-through date and the trial, or it is
   // still inside its thirty-three hours and correctly still working.
-  const raw = JSON.parse(kv.data.get('kline:account:lapsing@example.com') as string);
-  kv.data.set('kline:account:lapsing@example.com', JSON.stringify({
+  const raw = JSON.parse(kv.data.get('culpmixer:account:lapsing@example.com') as string);
+  kv.data.set('culpmixer:account:lapsing@example.com', JSON.stringify({
     ...raw, expires: Date.now() - 1, trialEndsAt: Date.now() - 1,
   }));
 
@@ -506,7 +506,7 @@ test('a password hash never leaves the server', async () => {
   assert.ok(!JSON.stringify(state.body).includes('scrypt$'), 'the account list carried a hash');
 
   // It is genuinely stored, though — only a hash, never the password.
-  const stored = kv.data.get('kline:account:hash@example.com') as string;
+  const stored = kv.data.get('culpmixer:account:hash@example.com') as string;
   assert.match(stored, /scrypt\$/, 'no password was stored at all');
   assert.ok(!stored.includes(String(made.body.password)), 'the password was stored in the clear');
 });

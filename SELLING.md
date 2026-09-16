@@ -23,17 +23,17 @@ Project → **Settings** → **Environment Variables**, for **Production**:
 
 | Name | Value |
 |---|---|
-| `KLINE_SIGNING_KEY` | The entire contents of `kline-private-key.pem`, including the `-----BEGIN` and `-----END` lines. |
-| `KLINE_FOUNDER_HASH` | Run `node tools/kline-founder.mjs "your password"` and paste the line it prints. |
+| `CULPMIXER_SIGNING_KEY` | The entire contents of `culpmixer-private-key.pem`, including the `-----BEGIN` and `-----END` lines. |
+| `CULPMIXER_FOUNDER_HASH` | Run `node tools/culpmixer-founder.mjs "your password"` and paste the line it prints. |
 
 The founder login is **culpindustriesllc@gmail.com** plus that password. The
 address is built in, so there is nothing to set for it. To move it later, add
-`KLINE_FOUNDER_EMAIL` — the old address stops working the moment you do.
+`CULPMIXER_FOUNDER_EMAIL` — the old address stops working the moment you do.
 
-`KLINE_SIGNING_KEY` is the only thing that can mint a licence. It is not in
+`CULPMIXER_SIGNING_KEY` is the only thing that can mint a licence. It is not in
 this repository and must never be.
 
-`KLINE_FOUNDER_HASH` is your founder password, hashed. **The password itself
+`CULPMIXER_FOUNDER_HASH` is your founder password, hashed. **The password itself
 never goes in the repository** — this repository is readable, and the founder
 console can let people in and see every customer you have. The hash is safe to
 paste into Vercel and cannot be turned back into the password.
@@ -51,14 +51,14 @@ Free tier, and it is a real database you can open and look at.
 **b.** In your project: **SQL Editor** → **New query** → paste this and Run:
 
 ```sql
-create table if not exists kline_kv (
+create table if not exists culpmixer_kv (
   key   text primary key,
   value text not null
 );
 
 -- Nothing but the server touches this. The service role key bypasses RLS;
 -- turning RLS on with no policies means a leaked anon key reads nothing.
-alter table kline_kv enable row level security;
+alter table culpmixer_kv enable row level security;
 ```
 
 **c.** **Project Settings** → **API**, and copy two things into Vercel
@@ -132,10 +132,10 @@ anyone who ever gets into the console.
 - Sessions last 12 hours and are signed; a forged or expired one is refused.
 - Changing the password signs every open console out immediately.
 - Never indexed by search engines, never loadable in a frame.
-- No `KLINE_FOUNDER_HASH` means **every** login is refused, rather than the
+- No `CULPMIXER_FOUNDER_HASH` means **every** login is refused, rather than the
   console falling open.
 
-To change the password: run `tools/kline-founder.mjs` with a new one, replace
+To change the password: run `tools/culpmixer-founder.mjs` with a new one, replace
 the variable in Vercel, redeploy.
 
 ---
@@ -147,7 +147,7 @@ You are never charged for The Culp Mixer. Three ways, any one is enough:
 - Running from source (`npm run dev`) is never gated at all.
 - Make yourself an account in the console — it is paid from the moment it
   exists. Set it to **never expires**.
-- Or mint a perpetual key: `node tools/kline-licence.mjs owner --name "You"`,
+- Or mint a perpetual key: `node tools/culpmixer-licence.mjs owner --name "You"`,
   then **Help ▸ Licence ▸ Have a licence key?**
 
 ## What it costs to run
@@ -167,9 +167,9 @@ Misconfiguration says so rather than guessing:
 
 - `no-storage` — Supabase is not connected. Nobody can sign up and nobody is
   gated. Fix this first: step 2.
-- `no-signing-key` — `KLINE_SIGNING_KEY` is missing. Nobody can be let in
+- `no-signing-key` — `CULPMIXER_SIGNING_KEY` is missing. Nobody can be let in
   until it is set.
-- `no-founder-password` — `KLINE_FOUNDER_HASH` is missing, so the console
+- `no-founder-password` — `CULPMIXER_FOUNDER_HASH` is missing, so the console
   cannot be opened by anybody, including you.
 
 ## Is it working? Open this in a browser

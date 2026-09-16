@@ -1,5 +1,5 @@
 {
-  "name": "kline",
+  "name": "culpmixer",
   "version": "0.12.0",
   "private": false,
   "description": "The Culp Mixer \u2014 a proprietary 3D modelling application. 33-hour free trial, then $199/month. Runs in a browser tab or as a desktop app.",
@@ -46,7 +46,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/22500107Zc/Kline.git"
+    "url": "https://github.com/22500107Zc/CulpMixer.git"
   },
   "main": "electron/main.cjs",
   "build": {
@@ -71,7 +71,7 @@
     "afterPack": "build/adhoc-sign.cjs",
     "fileAssociations": [
       {
-        "ext": "kline",
+        "ext": "culpmixer",
         "name": "The Culp Mixer Scene",
         "description": "The Culp Mixer 3D scene",
         "role": "Editor",

@@ -138,7 +138,7 @@ export function createConstraint(kind: BoneConstraint['type']): BoneConstraint {
 /**
  * Copy a constraint, keeping only what the type actually has.
  *
- * This is also the load path — a `.kline` file can have been written by
+ * This is also the load path — a `.culpmixer` file can have been written by
  * anything — so it is deliberately a rebuild rather than a spread. An unknown
  * type comes back null and is dropped, which is better than handing the solver
  * a rule it cannot evaluate and finding out mid-render.

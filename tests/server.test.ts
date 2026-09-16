@@ -62,9 +62,9 @@ async function call(
   const previousEnv = { ...process.env };
   const previousFetch = globalThis.fetch;
   Object.assign(process.env, {
-    KLINE_SIGNING_KEY: PEM,
+    CULPMIXER_SIGNING_KEY: PEM,
     STRIPE_SECRET_KEY: '',
-    KLINE_PRICE_ID: '',
+    CULPMIXER_PRICE_ID: '',
     KV_REST_API_URL: '',
     KV_REST_API_TOKEN: '',
     ...options.env,
@@ -94,7 +94,7 @@ async function call(
 
   const { res, out } = recorder();
   try {
-    await handler({ method: 'POST', body, headers: { host: 'kline.test' } }, res);
+    await handler({ method: 'POST', body, headers: { host: 'culpmixer.test' } }, res);
   } finally {
     globalThis.fetch = previousFetch;
     for (const key of Object.keys(process.env)) delete process.env[key];
@@ -154,7 +154,7 @@ test('a client clock is honoured only when it makes the trial shorter', async ()
 });
 
 test('a trial that has run out says expired, and says it every time', async () => {
-  const kv = new Map<string, string>([['kline:trial:install-d', String(Date.now() - 40 * HOUR)]]);
+  const kv = new Map<string, string>([['culpmixer:trial:install-d', String(Date.now() - 40 * HOUR)]]);
   const env = { KV_REST_API_URL: 'https://kv.test', KV_REST_API_TOKEN: 't' };
   for (let i = 0; i < 3; i++) {
     const answer = await call({ action: 'state', install: 'install-d' }, { env, kv });
@@ -249,7 +249,7 @@ test('checkout hands back a Stripe page', async () => {
   const answer = await call(
     { action: 'checkout', install: 'install-i', email: 'buyer@example.com' },
     {
-      env: { STRIPE_SECRET_KEY: 'sk_test', KLINE_PRICE_ID: 'price_199' },
+      env: { STRIPE_SECRET_KEY: 'sk_test', CULPMIXER_PRICE_ID: 'price_199' },
       routes: { '/checkout/sessions': { url: 'https://checkout.stripe.com/c/pay/cs_test' } },
     },
   );
@@ -263,7 +263,7 @@ test('checkout refuses a page that is not Stripe', async () => {
   const answer = await call(
     { action: 'checkout', install: 'install-i2' },
     {
-      env: { STRIPE_SECRET_KEY: 'sk_test', KLINE_PRICE_ID: 'price_199' },
+      env: { STRIPE_SECRET_KEY: 'sk_test', CULPMIXER_PRICE_ID: 'price_199' },
       routes: { '/checkout/sessions': { error: { message: 'no such price' } } },
     },
   );
@@ -284,7 +284,7 @@ test('a deployment with no signing key fails loudly', async () => {
   const answer = await call(
     { action: 'state', install: 'install-k' },
     {
-      env: { KLINE_SIGNING_KEY: '', STRIPE_SECRET_KEY: 'sk_test' },
+      env: { CULPMIXER_SIGNING_KEY: '', STRIPE_SECRET_KEY: 'sk_test' },
       routes: { '/subscriptions/search': { data: [live(Date.now() + 24 * HOUR)] } },
     },
   );
@@ -309,7 +309,7 @@ test('Stripe being down leaves the trial answer standing', async () => {
 
 test('the browser is allowed to ask, and the answer is never cached', async () => {
   const previousEnv = { ...process.env };
-  process.env.KLINE_SIGNING_KEY = PEM;
+  process.env.CULPMIXER_SIGNING_KEY = PEM;
   const { res, out } = recorder();
   await handler({ method: 'OPTIONS', headers: {} }, res);
   for (const key of Object.keys(process.env)) delete process.env[key];

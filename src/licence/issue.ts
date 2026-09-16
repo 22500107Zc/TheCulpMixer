@@ -33,7 +33,7 @@
 
 import { LicencePayload, encodePayload } from './licence';
 
-const SIGNING_KEY_STORE = 'kline.signing.key';
+const SIGNING_KEY_STORE = 'culpmixer.signing.key';
 
 const bytesToBase64url = (bytes: Uint8Array): string => {
   let binary = '';

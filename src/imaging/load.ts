@@ -150,7 +150,7 @@ export function blobFromReference(reference: Reference, maxSize = 768): Promise<
  * The current frame as a PNG data URL, for use as a texture.
  *
  * A data URL rather than an object URL because the scene embeds its textures:
- * a saved .kline that points at a blob from a page that has since closed is a
+ * a saved .culpmixer that points at a blob from a page that has since closed is a
  * file that opens grey.
  */
 export function textureFromReference(

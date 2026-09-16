@@ -17,12 +17,12 @@
  *
  * Configuration, all of it in Vercel's environment variables:
  *
- *   KLINE_SIGNING_KEY   the P-256 private key, PEM, the same one that signs
+ *   CULPMIXER_SIGNING_KEY   the P-256 private key, PEM, the same one that signs
  *                       keys by hand. Without it this refuses to pretend, and
  *                       says so, rather than handing out unsigned tokens.
  *   STRIPE_SECRET_KEY   a Stripe secret key (sk_live_... or sk_test_...).
- *   KLINE_PRICE_ID      the Stripe price for $199/month (price_...).
- *   KLINE_APP_URL       where to send somebody back to after paying.
+ *   CULPMIXER_PRICE_ID      the Stripe price for $199/month (price_...).
+ *   CULPMIXER_APP_URL       where to send somebody back to after paying.
  *                       Optional; defaults to the request's own origin.
  *   KV_REST_API_URL     optional. Any Upstash-compatible REST KV. With one,
  *   KV_REST_API_TOKEN   the trial clock lives on the server and clearing the
@@ -73,7 +73,7 @@ const base64url = (b: Buffer | Uint8Array): string =>
  * well formed and never verifies.
  */
 function mint(payload: Record<string, unknown>): string {
-  const pem = env('KLINE_SIGNING_KEY');
+  const pem = env('CULPMIXER_SIGNING_KEY');
   if (!pem) throw new Error('no-signing-key');
   const body = base64url(Buffer.from(JSON.stringify(payload)));
   const signature = sign('sha256', Buffer.from(body), {
@@ -229,14 +229,14 @@ export default async function handler(req: Req, res: Res): Promise<void> {
         res.status(503).json({ error: 'not-selling-yet' });
         return;
       }
-      const origin = env('KLINE_APP_URL') || originOf(req);
+      const origin = env('CULPMIXER_APP_URL') || originOf(req);
       const params: Record<string, string> = {
         mode: 'subscription',
         'line_items[0][price]': price,
         'line_items[0][quantity]': '1',
         client_reference_id: install,
         'subscription_data[metadata][install]': install,
-        success_url: `${origin}/?kline_session={CHECKOUT_SESSION_ID}`,
+        success_url: `${origin}/?culpmixer_session={CHECKOUT_SESSION_ID}`,
         cancel_url: `${origin}/`,
         allow_promotion_codes: 'true',
       };

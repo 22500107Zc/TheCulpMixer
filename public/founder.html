@@ -216,7 +216,7 @@
     <script>
       const $ = (id) => document.getElementById(id);
       const API = '/api/admin';
-      let session = sessionStorage.getItem('kline.founder') || '';
+      let session = sessionStorage.getItem('culpmixer.founder') || '';
 
       const say = (el, message, kind) => {
         el.textContent = message;
@@ -253,7 +253,7 @@
           return;
         }
         session = result.body.session;
-        sessionStorage.setItem('kline.founder', session);
+        sessionStorage.setItem('culpmixer.founder', session);
         $('password').value = '';
         say($('gateNote'), '');
         await load();
@@ -265,7 +265,7 @@
           // An expired session lands here; show the gate again rather than an
           // empty console that silently does nothing.
           session = '';
-          sessionStorage.removeItem('kline.founder');
+          sessionStorage.removeItem('culpmixer.founder');
           $('console').classList.add('hidden');
           $('gate').classList.remove('hidden');
           if (result.body.detail) say($('gateNote'), result.body.detail, 'bad');

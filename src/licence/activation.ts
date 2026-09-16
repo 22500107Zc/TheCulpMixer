@@ -25,10 +25,10 @@ import { LICENCE_KEY, TRIAL_KEY, TRIAL_MS, clearLicence, storeLicence } from './
 const FALLBACK_API = 'https://theculpmixer.vercel.app/api/licence';
 
 /** This installation, so the server can keep one trial clock for it. */
-const INSTALL_KEY = 'kline.install';
+const INSTALL_KEY = 'culpmixer.install';
 
 /** The query parameter Stripe sends people back with after paying. */
-const SESSION_PARAM = 'kline_session';
+const SESSION_PARAM = 'culpmixer_session';
 
 /** Long enough for a cold serverless function, short enough not to be felt. */
 const TIMEOUT_MS = 6000;
@@ -73,7 +73,7 @@ export function installId(): string {
 
 export function licenceApi(): string {
   const configured = (import.meta as unknown as { env?: Record<string, string> })
-    .env?.VITE_KLINE_LICENCE_API;
+    .env?.VITE_CULPMIXER_LICENCE_API;
   if (configured) return configured;
   // The web app asks its own origin, so this keeps working if the domain
   // changes. A desktop build has no useful origin and asks the web app.

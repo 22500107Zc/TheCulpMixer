@@ -17,7 +17,7 @@
  *   founder gives access to the address that paid. One account covers a whole
  *   team, so that is a feature rather than a problem.
  *
- * Configuration: KLINE_SIGNING_KEY, plus a KV store. Nothing else is required
+ * Configuration: CULPMIXER_SIGNING_KEY, plus a KV store. Nothing else is required
  * — in particular no Stripe key, because nothing here talks to Stripe.
  */
 
@@ -48,7 +48,7 @@ const base64url = (b: Buffer | Uint8Array): string =>
 
 /** Mint the two-part key the application verifies offline. */
 function mint(payload: Record<string, unknown>): string {
-  const pem = env('KLINE_SIGNING_KEY');
+  const pem = env('CULPMIXER_SIGNING_KEY');
   if (!pem) throw new Error('no-signing-key');
   const body = base64url(Buffer.from(JSON.stringify(payload)));
   const signature = sign('sha256', Buffer.from(body), {
@@ -126,7 +126,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   if (req.method === 'GET') {
     const configured = await settings();
     const storage = kvConfigured();
-    const signingKey = !!env('KLINE_SIGNING_KEY');
+    const signingKey = !!env('CULPMIXER_SIGNING_KEY');
     res.status(200).json({
       service: 'The Culp Mixer accounts',
       ready: storage && signingKey,
@@ -136,8 +136,8 @@ export default async function handler(req: Req, res: Res): Promise<void> {
       paymentLink: !!configured.paymentLink,
       trialHours: TRIAL_MS / 3600000,
       missing: [
-        ...(storage ? [] : ['SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, and the kline_kv table']),
-        ...(signingKey ? [] : ['KLINE_SIGNING_KEY']),
+        ...(storage ? [] : ['SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY, and the culpmixer_kv table']),
+        ...(signingKey ? [] : ['CULPMIXER_SIGNING_KEY']),
         ...(configured.paymentLink ? [] : ['a payment link, set in /founder.html']),
       ],
     });
@@ -163,7 +163,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   // deployment that is half set up, which is exactly when they most need to
   // get in and look. No database, no account row, no trial — just the two
   // things they already know.
-  if ((action === 'signin' || action === 'refresh') && env('KLINE_FOUNDER_HASH')) {
+  if ((action === 'signin' || action === 'refresh') && env('CULPMIXER_FOUNDER_HASH')) {
     const who = action === 'refresh'
       ? readAccountSession(clean(body?.session, 500))
       : '';
@@ -197,7 +197,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
     res.status(503).json({
       error: 'no-storage',
       detail: 'The Culp Mixer cannot take accounts until Supabase is connected. Set SUPABASE_URL and '
-        + 'SUPABASE_SERVICE_ROLE_KEY in Vercel and make the kline_kv table.',
+        + 'SUPABASE_SERVICE_ROLE_KEY in Vercel and make the culpmixer_kv table.',
     });
     return;
   }

@@ -6,7 +6,7 @@ import { SceneTexture } from '../scene/Texture';
 /**
  * Wavefront OBJ. The Culp Mixer is Z-up like Blender, while OBJ is conventionally Y-up,
  * so both directions convert axes the way Blender's default importer/exporter
- * does: (x, y, z)_kline <-> (x, z, -y)_obj.
+ * does: (x, y, z)_culpmixer <-> (x, z, -y)_obj.
  */
 
 function toObjAxes(p: Vec3): Vec3 {

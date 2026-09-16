@@ -6,29 +6,29 @@
  * whole system. There is no server, no account and no payment code anywhere
  * near it — selling happens wherever you like, and ends with you running this.
  *
- *   node tools/kline-licence.mjs keygen
- *       Make a signing keypair. Writes kline-private-key.pem (KEEP THIS, and
+ *   node tools/culpmixer-licence.mjs keygen
+ *       Make a signing keypair. Writes culpmixer-private-key.pem (KEEP THIS, and
  *       keep it out of the repository) and prints the public key to paste into
  *       src/licence/licence.ts.
  *
- *   node tools/kline-licence.mjs owner --name "Your Name"
+ *   node tools/culpmixer-licence.mjs owner --name "Your Name"
  *       Your own licence. Never expires, costs nothing, and is the reason you
  *       can never be charged to use your own application.
  *
- *   node tools/kline-licence.mjs issue --name "Acme Studio" --plan Studio \
+ *   node tools/culpmixer-licence.mjs issue --name "Acme Studio" --plan Studio \
  *        --seats 5 --months 1
  *       One month of a subscription. Run it again each month they pay.
  *
- *   node tools/kline-licence.mjs issue --name "Acme" --plan Perpetual --forever
+ *   node tools/culpmixer-licence.mjs issue --name "Acme" --plan Perpetual --forever
  *       A licence with no expiry.
  *
- *   node tools/kline-licence.mjs check --key "<key>"
+ *   node tools/culpmixer-licence.mjs check --key "<key>"
  *       Read a key back, to see exactly what a customer has.
  */
 import { generateKeyPairSync, createPrivateKey, createPublicKey, sign, verify } from 'node:crypto';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
-const PRIVATE_PATH = process.env.KLINE_LICENCE_KEY ?? 'kline-private-key.pem';
+const PRIVATE_PATH = process.env.CULPMIXER_LICENCE_KEY ?? 'culpmixer-private-key.pem';
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -55,7 +55,7 @@ const base64url = (buf) =>
 function loadPrivateKey() {
   if (!existsSync(PRIVATE_PATH)) {
     console.error(`No signing key at ${PRIVATE_PATH}.`);
-    console.error('Run:  node tools/kline-licence.mjs keygen');
+    console.error('Run:  node tools/culpmixer-licence.mjs keygen');
     process.exit(1);
   }
   return createPrivateKey(readFileSync(PRIVATE_PATH, 'utf8'));
@@ -108,7 +108,7 @@ switch (command) {
     console.log('');
     console.log('  Then mint yourself the licence you will never pay for:');
     console.log('');
-    console.log('    node tools/kline-licence.mjs owner --name "Your Name"');
+    console.log('    node tools/culpmixer-licence.mjs owner --name "Your Name"');
     console.log('');
     break;
   }

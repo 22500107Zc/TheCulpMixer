@@ -58,12 +58,12 @@ if (app.skip) {
     });
     const page = await context.newPage();
     await page.goto(app.page.url(), { waitUntil: 'networkidle' });
-    await page.waitForFunction(() => !!window.kline?.editor?.renderer, null, { timeout: 30_000 });
+    await page.waitForFunction(() => !!window.culpmixer?.editor?.renderer, null, { timeout: 30_000 });
     await page.waitForTimeout(1200);
     // Past the front door, and with the panels that overlay the viewport out
     // of the way, so what is measured is the application itself.
     await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.account = {
         status: 'trial', username: 'm', email: 'm@example.com', plan: 'Trial',
         trialEndsAt: Date.now() + 9e6,
@@ -105,7 +105,7 @@ if (app.skip) {
   }
 
   const cameraState = (page) => page.evaluate(() => {
-    const c = window.kline.editor.camera;
+    const c = window.culpmixer.editor.camera;
     return JSON.stringify([c.yaw ?? c.theta, c.pitch ?? c.phi, c.distance ?? c.radius, c.target]);
   });
 
@@ -153,7 +153,7 @@ if (app.skip) {
     const cx = box.x + box.width / 2;
     const cy = box.y + box.height / 2;
     await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.scene.selection.clear();
       ed.scene.active = null;
       ed.requestRender();
@@ -162,7 +162,7 @@ if (app.skip) {
     const before = await cameraState(page);
     // A finger that barely moves is a tap, not a drag.
     await drag(page, [{ id: 1, x0: cx, y0: cy, x1: cx + 1, y1: cy }], 2);
-    const selected = await page.evaluate(() => window.kline.editor.scene.active);
+    const selected = await page.evaluate(() => window.culpmixer.editor.scene.active);
     const after = await cameraState(page);
     await context.close();
     assert.notEqual(selected, null, 'tapping an object on a phone did not select it');
@@ -224,7 +224,7 @@ if (app.skip) {
     const { context, page } = await phone();
     await page.tap('.menu-label:text-is("Add")');
     await page.waitForTimeout(350);
-    const before = await page.evaluate(() => window.kline.editor.scene.objects.size);
+    const before = await page.evaluate(() => window.culpmixer.editor.scene.objects.size);
     // Tapped at its real position: the sheet animates, and a locator tap can
     // refuse a moving target that a finger hits perfectly well.
     const at = await page.evaluate(() => {
@@ -235,7 +235,7 @@ if (app.skip) {
     });
     await page.touchscreen.tap(at.x, at.y);
     await page.waitForTimeout(500);
-    const after = await page.evaluate(() => window.kline.editor.scene.objects.size);
+    const after = await page.evaluate(() => window.culpmixer.editor.scene.objects.size);
     const stillOpen = await page.evaluate(() => !!document.querySelector('.menu.open'));
     await context.close();
     assert.equal(after, before + 1, `Add > Cube on a phone went from ${before} objects to ${after}`);
@@ -272,24 +272,24 @@ if (app.skip) {
     const results = [];
     for (const kind of ['translate', 'rotate', 'scale']) {
       const before = await page.evaluate(() => {
-        const ed = window.kline.editor;
+        const ed = window.culpmixer.editor;
         const o = [...ed.scene.objects.values()][0];
         ed.scene.selection.clear();
         ed.scene.selection.add(o.id);
         ed.scene.active = o.id;
         return JSON.stringify([o.position, o.rotation, o.scale]);
       });
-      await page.evaluate((k) => window.kline.editor.startTransform(k), kind);
+      await page.evaluate((k) => window.culpmixer.editor.startTransform(k), kind);
       // A drag that starts nowhere near where the tool was chosen, which is
       // the normal case on a phone: the button is in the header, the finger
       // lands in the middle of the model.
       await drag(page, [{ id: 1, x0: cx - 60, y0: cy - 40, x1: cx + 80, y1: cy + 60 }]);
       const after = await page.evaluate(() => {
-        const ed = window.kline.editor;
+        const ed = window.culpmixer.editor;
         const o = [...ed.scene.objects.values()][0];
         return JSON.stringify([o.position, o.rotation, o.scale]);
       });
-      results.push({ kind, changed: before !== after, open: await page.evaluate(() => window.kline.editor.modalLabel ?? null) });
+      results.push({ kind, changed: before !== after, open: await page.evaluate(() => window.culpmixer.editor.modalLabel ?? null) });
     }
     await context.close();
     for (const r of results) {
@@ -304,14 +304,14 @@ if (app.skip) {
     const cx = box.x + box.width / 2;
     const cy = box.y + box.height / 2;
     const before = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const o = [...ed.scene.objects.values()][0];
       ed.scene.selection.clear();
       ed.scene.selection.add(o.id);
       ed.scene.active = o.id;
       return JSON.stringify(o.position);
     });
-    await page.evaluate(() => window.kline.editor.startTransform('translate'));
+    await page.evaluate(() => window.culpmixer.editor.startTransform('translate'));
     await page.waitForTimeout(150);
     const targets = await page.evaluate(() => {
       const size = (sel) => {
@@ -341,12 +341,12 @@ if (app.skip) {
       send('pointermove', cx + 60, cy, 1);
     }, { cx, cy });
     await page.waitForTimeout(150);
-    const moved = await page.evaluate(() => JSON.stringify([...window.kline.editor.scene.objects.values()][0].position));
+    const moved = await page.evaluate(() => JSON.stringify([...window.culpmixer.editor.scene.objects.values()][0].position));
     await page.click('.modal-act.cancel');
     await page.waitForTimeout(250);
     const restored = await page.evaluate(() => ({
-      position: JSON.stringify([...window.kline.editor.scene.objects.values()][0].position),
-      modal: window.kline.editor.modalLabel ?? null,
+      position: JSON.stringify([...window.culpmixer.editor.scene.objects.values()][0].position),
+      modal: window.culpmixer.editor.modalLabel ?? null,
     }));
     await context.close();
     assert.notEqual(moved, before, 'the drag never moved anything, so cancelling proves nothing');
@@ -360,7 +360,7 @@ if (app.skip) {
     const cx = box.x + box.width / 2;
     const cy = box.y + box.height / 2;
     const before = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const o = [...ed.scene.objects.values()][0];
       ed.scene.selection.clear();
       ed.scene.selection.add(o.id);
@@ -371,7 +371,7 @@ if (app.skip) {
     await page.waitForTimeout(400);
     await drag(page, [{ id: 1, x0: cx - 20, y0: cy, x1: cx + 20, y1: cy }], 16);
     const after = await page.evaluate(
-      () => JSON.stringify([...[...window.kline.editor.scene.objects.values()][0].mesh.positions]),
+      () => JSON.stringify([...[...window.culpmixer.editor.scene.objects.values()][0].mesh.positions]),
     );
     await context.close();
     assert.notEqual(after, before, 'a finger dragged across the mesh in Sculpt Mode changed nothing');
@@ -380,7 +380,7 @@ if (app.skip) {
   test('a fingertip can hit a vertex in Edit Mode', async () => {
     const { context, page } = await phone();
     await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const o = [...ed.scene.objects.values()][0];
       ed.scene.selection.clear();
       ed.scene.selection.add(o.id);
@@ -391,7 +391,7 @@ if (app.skip) {
     // Swept rather than aimed: what matters is how much of the screen selects
     // something, because that is what decides whether a tap lands.
     const area = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const c = ed.canvas;
       c.setPointerCapture = () => {};
       const rect = c.getBoundingClientRect();
@@ -432,7 +432,7 @@ if (app.skip) {
     });
     const page = await context.newPage();
     await page.goto(app.page.url(), { waitUntil: 'networkidle' });
-    await page.waitForFunction(() => !!window.kline?.editor?.renderer, null, { timeout: 30_000 });
+    await page.waitForFunction(() => !!window.culpmixer?.editor?.renderer, null, { timeout: 30_000 });
     await page.waitForTimeout(1200);
     await page.evaluate(() => {
       for (const s of ['.home', '.setup-guide', '.build-bar']) document.querySelector(s)?.classList.add('hidden');
@@ -453,14 +453,14 @@ if (app.skip) {
   test('the application knows what it was opened on', async () => {
     const { context, page } = await phone();
     const seen = await page.evaluate(() => ({
-      label: window.kline.editor.device.label,
-      pointing: window.kline.editor.device.pointing,
-      radius: window.kline.editor.device.pickRadius,
+      label: window.culpmixer.editor.device.label,
+      pointing: window.culpmixer.editor.device.pointing,
+      radius: window.culpmixer.editor.device.pickRadius,
       // Published to the document so the stylesheet can size targets by what
       // is pointing at them rather than by how wide the window happens to be.
       attr: document.documentElement.dataset.pointing,
       coarse: document.documentElement.dataset.coarse,
-      status: window.kline.editor.statusMessage,
+      status: window.culpmixer.editor.statusMessage,
     }));
     await context.close();
     assert.equal(seen.label, 'phone', `a 390x844 touch screen was called a ${seen.label}`);
@@ -483,10 +483,10 @@ if (app.skip) {
     });
     const page = await context.newPage();
     await page.goto(app.page.url(), { waitUntil: 'networkidle' });
-    await page.waitForFunction(() => !!window.kline?.editor?.renderer, null, { timeout: 30_000 });
+    await page.waitForFunction(() => !!window.culpmixer?.editor?.renderer, null, { timeout: 30_000 });
     await page.waitForTimeout(1000);
     const seen = await page.evaluate(() => ({
-      label: window.kline.editor.device.label,
+      label: window.culpmixer.editor.device.label,
       coarse: document.documentElement.dataset.coarse,
       menuPad: getComputedStyle(document.querySelector('.menu-item') ?? document.body).paddingTop,
     }));
@@ -501,7 +501,7 @@ if (app.skip) {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await context.newPage();
     await page.goto(app.page.url(), { waitUntil: 'networkidle' });
-    await page.waitForFunction(() => !!window.kline?.editor?.renderer, null, { timeout: 30_000 });
+    await page.waitForFunction(() => !!window.culpmixer?.editor?.renderer, null, { timeout: 30_000 });
     await page.waitForTimeout(1000);
 
     const wheel = async (events) => {
@@ -512,10 +512,10 @@ if (app.skip) {
       await page.waitForTimeout(150);
     };
     const now = () => page.evaluate(() => ({
-      pointing: window.kline.editor.device.pointing,
-      label: window.kline.editor.device.label,
-      certain: window.kline.editor.device.certain,
-      status: window.kline.editor.statusMessage,
+      pointing: window.culpmixer.editor.device.pointing,
+      label: window.culpmixer.editor.device.label,
+      certain: window.culpmixer.editor.device.certain,
+      status: window.culpmixer.editor.statusMessage,
     }));
 
     const fresh = await now();
@@ -558,11 +558,11 @@ if (app.skip) {
     });
     const page = await context.newPage();
     await page.goto(app.page.url(), { waitUntil: 'networkidle' });
-    await page.waitForFunction(() => !!window.kline?.editor?.renderer, null, { timeout: 30_000 });
+    await page.waitForFunction(() => !!window.culpmixer?.editor?.renderer, null, { timeout: 30_000 });
     await page.waitForTimeout(1200);
     await page.evaluate(() => {
       for (const s of ['.home', '.setup-guide', '.build-bar']) document.querySelector(s)?.classList.add('hidden');
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.addPrimitive('cube');
       ed.addPrimitive('uvSphere');
     });

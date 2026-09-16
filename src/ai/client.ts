@@ -11,7 +11,7 @@ import { importOBJ } from '../io/obj';
  */
 
 export const DEFAULT_ENDPOINT = 'http://127.0.0.1:8017';
-const STORAGE_KEY = 'kline.ai.endpoint';
+const STORAGE_KEY = 'culpmixer.ai.endpoint';
 
 export interface BackendInfo {
   name: string;

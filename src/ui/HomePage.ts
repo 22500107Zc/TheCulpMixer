@@ -266,7 +266,7 @@ export class HomePage {
       }),
       h('div', { class: 'home-actions' }, [
         button('Log in with another account', () => {
-          this.editor.signOutOfKline();
+          this.editor.signOut();
           this.mode = 'signin';
           this.render();
         }),

@@ -74,13 +74,13 @@ async function run(
   const previousEnv = { ...process.env };
   const previousFetch = globalThis.fetch;
   Object.assign(process.env, {
-    KLINE_FOUNDER_HASH: FOUNDER_HASH,
-    KLINE_SIGNING_KEY: PEM,
+    CULPMIXER_FOUNDER_HASH: FOUNDER_HASH,
+    CULPMIXER_SIGNING_KEY: PEM,
     KV_REST_API_URL: 'https://kv.test',
     KV_REST_API_TOKEN: 'token',
     STRIPE_SECRET_KEY: '',
-    KLINE_PRICE_ID: '',
-    KLINE_PAYMENT_LINK: '',
+    CULPMIXER_PRICE_ID: '',
+    CULPMIXER_PAYMENT_LINK: '',
     ...env,
   });
   globalThis.fetch = (async (input: string | URL, init?: RequestInit) =>
@@ -102,7 +102,7 @@ const signUp = (kv: ReturnType<typeof store>, over: Json = {}) => run(account, {
 
 /** Move an account's clock so a trial can be watched running out. */
 function windBack(kv: ReturnType<typeof store>, email: string, hours: number): void {
-  const key = `kline:account:${email}`;
+  const key = `culpmixer:account:${email}`;
   const raw = JSON.parse(kv.data.get(key) as string);
   kv.data.set(key, JSON.stringify({ ...raw, trialEndsAt: Date.now() - hours * HOUR }));
 }
@@ -194,7 +194,7 @@ test('when the trial runs out they are locked and sent to the link', async () =>
 
   const after = await run(account, {
     action: 'signin', email: 'zed@example.com', password: 'a-good-password',
-  }, kv, { KLINE_PAYMENT_LINK: 'https://buy.stripe.com/test' });
+  }, kv, { CULPMIXER_PAYMENT_LINK: 'https://buy.stripe.com/test' });
 
   // Still a correct sign-in — being out of trial is not a wrong password.
   assert.equal(after.code, 200, 'a real password was refused after the trial');
@@ -348,7 +348,7 @@ test('nothing here ever talks to Stripe', async () => {
   const previousFetch = globalThis.fetch;
   const previousEnv = { ...process.env };
   Object.assign(process.env, {
-    KLINE_SIGNING_KEY: PEM,
+    CULPMIXER_SIGNING_KEY: PEM,
     KV_REST_API_URL: 'https://kv.test',
     KV_REST_API_TOKEN: 'token',
   });
@@ -379,12 +379,12 @@ test('opening the endpoint in a browser says what is still missing', async () =>
   const previousEnv = { ...process.env };
   const previousFetch = globalThis.fetch;
   Object.assign(process.env, {
-    KLINE_SIGNING_KEY: '',
+    CULPMIXER_SIGNING_KEY: '',
     KV_REST_API_URL: '',
     KV_REST_API_TOKEN: '',
     SUPABASE_URL: '',
     SUPABASE_SERVICE_ROLE_KEY: '',
-    KLINE_PAYMENT_LINK: '',
+    CULPMIXER_PAYMENT_LINK: '',
   });
   globalThis.fetch = (async () => json({ result: null })) as typeof fetch;
   const bare = recorder();
@@ -412,10 +412,10 @@ test('opening the endpoint in a browser says what is still missing', async () =>
   const good = recorder();
   const env2 = { ...process.env };
   Object.assign(process.env, {
-    KLINE_SIGNING_KEY: PEM,
+    CULPMIXER_SIGNING_KEY: PEM,
     KV_REST_API_URL: 'https://kv.test',
     KV_REST_API_TOKEN: 'token',
-    KLINE_PAYMENT_LINK: 'https://buy.example.com/x',
+    CULPMIXER_PAYMENT_LINK: 'https://buy.example.com/x',
   });
   const f2 = globalThis.fetch;
   globalThis.fetch = (async (i: string | URL, init?: RequestInit) =>

@@ -12,7 +12,7 @@
  *
  * Configuration:
  *
- *   KLINE_FOUNDER_HASH   from `node tools/kline-founder.mjs "<password>"`.
+ *   CULPMIXER_FOUNDER_HASH   from `node tools/culpmixer-founder.mjs "<password>"`.
  *                        Without it the console refuses every login rather
  *                        than falling open.
  *   KV_REST_API_URL      the store accounts live in. Without it the console
@@ -85,13 +85,13 @@ export default async function handler(req: Req, res: Res): Promise<void> {
     Record<string, unknown> | null;
   const action = clean(body?.action, 40);
 
-  if (!env('KLINE_FOUNDER_HASH')) {
+  if (!env('CULPMIXER_FOUNDER_HASH')) {
     // Falling open here would mean anybody who found the URL could issue
     // themselves a licence, so it fails shut and says exactly what is wrong.
     res.status(503).json({
       error: 'no-founder-password',
-      detail: 'KLINE_FOUNDER_HASH is not set in this deployment. Run '
-        + 'node tools/kline-founder.mjs "<your password>" and paste the line it prints '
+      detail: 'CULPMIXER_FOUNDER_HASH is not set in this deployment. Run '
+        + 'node tools/culpmixer-founder.mjs "<your password>" and paste the line it prints '
         + 'into Vercel, then redeploy.',
     });
     return;
@@ -127,7 +127,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
     res.status(503).json({
       error: 'no-storage',
       detail: 'This deployment has nowhere to keep accounts. Connect Supabase — set '
-        + 'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel and make the kline_kv '
+        + 'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel and make the culpmixer_kv '
         + 'table — then redeploy. SELLING.md has the SQL.',
     });
     return;
@@ -151,7 +151,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
             mode: current.stripeSecretKey.startsWith('sk_live') ? 'live'
               : current.stripeSecretKey.startsWith('sk_test') ? 'test' : 'unset',
             priceId: current.priceId,
-            priceFromEnvironment: !!env('KLINE_PRICE_ID'),
+            priceFromEnvironment: !!env('CULPMIXER_PRICE_ID'),
           },
           accounts: kvConfigured() ? await visibleAccounts() : [],
         });

@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const DIST = join(ROOT, 'dist');
-const PEM = join(ROOT, 'kline-private-key.pem');
+const PEM = join(ROOT, 'culpmixer-private-key.pem');
 
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
@@ -122,9 +122,9 @@ if (app.skip) {
       { timeout: 10000 },
     );
     const state = await page.evaluate(() => ({
-      status: window.kline.editor.account?.status,
-      local: window.kline.editor.account?.local,
-      canUse: window.kline.editor.canUse,
+      status: window.culpmixer.editor.account?.status,
+      local: window.culpmixer.editor.account?.local,
+      canUse: window.culpmixer.editor.canUse,
     }));
     assert.equal(state.status, 'trial', 'signing up did not start a trial');
     assert.equal(state.local, true, 'it did not say the account is on this machine');
@@ -134,9 +134,9 @@ if (app.skip) {
   test('3 · the application works, and the countdown is on screen', async () => {
     const page = carried.page;
     const added = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const before = ed.scene.objects.size;
-      window.kline.run('add.cube');
+      window.culpmixer.run('add.cube');
       return ed.scene.objects.size - before;
     });
     assert.equal(added, 1, 'a signed-up person could not use it');
@@ -148,8 +148,8 @@ if (app.skip) {
   test('4 · logging back in works, and a wrong password does not', async () => {
     const page = carried.page;
     const results = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      ed.signOutOfKline();
+      const ed = window.culpmixer.editor;
+      ed.signOut();
       const wrong = await ed.logIn('offline@example.com', 'not-it');
       const right = await ed.logIn('offline@example.com', 'a-good-password');
       return { wrong, right, canUse: ed.canUse };
@@ -162,7 +162,7 @@ if (app.skip) {
 
   test('5 · the same email cannot sign up twice', async () => {
     const again = await carried.page.evaluate(
-      async () => window.kline.editor.createAccount('Someone', 'offline@example.com', 'another-one'),
+      async () => window.culpmixer.editor.createAccount('Someone', 'offline@example.com', 'another-one'),
     );
     assert.equal(again.ok, false);
     assert.match(again.message, /already an account/i);
@@ -172,16 +172,16 @@ if (app.skip) {
     const page = carried.page;
     // Wind the account's own clock back, the way time would.
     await page.evaluate(() => {
-      const all = JSON.parse(localStorage.getItem('kline.local.accounts'));
+      const all = JSON.parse(localStorage.getItem('culpmixer.local.accounts'));
       all['offline@example.com'].trialEndsAt = Date.now() - 1000;
-      localStorage.setItem('kline.local.accounts', JSON.stringify(all));
+      localStorage.setItem('culpmixer.local.accounts', JSON.stringify(all));
     });
     await page.reload({ waitUntil: 'networkidle' });
     await page.waitForSelector('.home:not(.hidden)', { timeout: 10000 });
 
     const locked = await page.evaluate(() => ({
-      status: window.kline.editor.account?.status,
-      canUse: window.kline.editor.canUse,
+      status: window.culpmixer.editor.account?.status,
+      canUse: window.culpmixer.editor.canUse,
       text: document.querySelector('.home-card')?.textContent ?? '',
       href: document.querySelector('.home-card a.home-go')?.getAttribute('href') ?? '',
     }));
@@ -221,9 +221,9 @@ if (app.skip) {
       { timeout: 10000 },
     );
     const works = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const before = ed.scene.objects.size;
-      window.kline.run('add.cube');
+      window.culpmixer.run('add.cube');
       return { added: ed.scene.objects.size - before, canUse: ed.canUse };
     });
     assert.equal(works.canUse, true, 'a valid key did not unlock it');
@@ -240,7 +240,7 @@ if (app.skip) {
     await page.waitForSelector('.home:not(.hidden)', { timeout: 10000 });
 
     const result = await page.evaluate(async () => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const wrong = await ed.logIn('culpindustriesllc@gmail.com', 'not-the-password');
       const right = await ed.logIn('culpindustriesllc@gmail.com', 'founder10082004');
       return {
@@ -273,8 +273,8 @@ if (app.skip) {
     // It survives a reload, because the key is stored and verified offline.
     await page.reload({ waitUntil: 'networkidle' });
     const after = await page.evaluate(() => ({
-      canUse: window.kline.editor.canUse,
-      licence: window.kline.editor.licence.status,
+      canUse: window.culpmixer.editor.canUse,
+      licence: window.culpmixer.editor.licence.status,
       home: document.querySelector('.home')?.classList.contains('hidden'),
     }));
     assert.equal(after.canUse, true, 'the founder was locked out by a reload');
@@ -289,7 +289,7 @@ if (app.skip) {
     const page = await app.browser.newContext().then((c) => c.newPage());
     await page.goto(`${app.origin}/`, { waitUntil: 'networkidle' });
     const attempts = await page.evaluate(async () => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const tried = [];
       for (const guess of ['', 'password', 'founder', 'Founder10082004', 'founder1008200']) {
         const r = await ed.logIn('culpindustriesllc@gmail.com', guess);
@@ -317,17 +317,17 @@ if (app.skip) {
     });
     const page = await phone.newPage();
     await page.goto(`${app.origin}/?founder`, { waitUntil: 'networkidle' });
-    await page.waitForFunction(() => !!window.kline?.editor, null, { timeout: 15000 });
+    await page.waitForFunction(() => !!window.culpmixer?.editor, null, { timeout: 15000 });
 
-    assert.equal(await page.evaluate(() => !!localStorage.getItem('kline.signing.key')), false,
+    assert.equal(await page.evaluate(() => !!localStorage.getItem('culpmixer.signing.key')), false,
       'a signing key was already present before anybody logged in');
 
     const signedIn = await page.evaluate(async (pw) => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const res = await ed.logIn('culpindustriesllc@gmail.com', pw);
       await new Promise((done) => setTimeout(done, 600));
       return { ok: res.ok, founder: ed.account?.founder === true, licence: ed.licence.status,
-        signing: !!localStorage.getItem('kline.signing.key') };
+        signing: !!localStorage.getItem('culpmixer.signing.key') };
     }, 'founder10082004');
     assert.equal(signedIn.ok, true, 'the founder password did not log in');
     assert.equal(signedIn.founder, true);
@@ -337,7 +337,7 @@ if (app.skip) {
     // Mint one for somebody who has paid.
     const key = await page.evaluate(async () => {
       const mod = await import('./assets/index.js').catch(() => null);
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       return ed.issueLicenceKey
         ? await ed.issueLicenceKey({ email: 'buyer@example.com', name: 'Buyer', months: 1 })
         : null;
@@ -346,7 +346,7 @@ if (app.skip) {
     // Whether or not a direct helper exists, the panel is the real path and it
     // must be reachable with the fields a sale needs.
     const panel = await page.evaluate(async () => {
-      window.kline.editor.panels.toggleIssue?.();
+      window.culpmixer.editor.panels.toggleIssue?.();
       await new Promise((done) => setTimeout(done, 400));
       return {
         pemBox: !!document.querySelector('textarea[placeholder*="PRIVATE KEY"]'),
@@ -405,9 +405,9 @@ if (app.skip) {
       { timeout: 10000 },
     );
     const state = await page.evaluate(() => ({
-      founder: window.kline.editor.account?.founder,
-      licence: window.kline.editor.licence.status,
-      canUse: window.kline.editor.canUse,
+      founder: window.culpmixer.editor.account?.founder,
+      licence: window.culpmixer.editor.licence.status,
+      canUse: window.culpmixer.editor.canUse,
     }));
     assert.equal(state.founder, true, 'the Founder tab did not sign in the founder');
     assert.equal(state.licence, 'owner', `they hold a "${state.licence}" licence`);

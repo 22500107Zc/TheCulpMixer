@@ -560,7 +560,7 @@ export class App {
                 reloaded = true;
                 location.reload();
               });
-              worker.postMessage({ type: 'kline:activate-update' });
+              worker.postMessage({ type: 'culpmixer:activate-update' });
               this.updateBar.classList.add('hidden');
             },
           },

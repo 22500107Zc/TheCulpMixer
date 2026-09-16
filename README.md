@@ -23,11 +23,11 @@ point at the newest release, so they never go stale.
 
 | | |
 |---|---|
-| **macOS — Apple Silicon** (M1/M2/M3/M4) | **[Download CulpMixer-arm64.dmg](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-arm64.dmg)** |
-| **macOS — Intel** | **[Download CulpMixer-x64.dmg](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-x64.dmg)** |
-| **macOS — installer** (either chip) | [CulpMixer-universal.pkg](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-universal.pkg) |
-| **Windows** | **[Download CulpMixer-Setup.exe](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-Setup.exe)** · [portable](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer-portable.exe) |
-| **Linux** | **[Download CulpMixer.AppImage](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer.AppImage)** · [.deb](https://github.com/22500107Zc/Kline/releases/latest/download/CulpMixer.deb) |
+| **macOS — Apple Silicon** (M1/M2/M3/M4) | **[Download CulpMixer-arm64.dmg](https://github.com/22500107Zc/CulpMixer/releases/latest/download/CulpMixer-arm64.dmg)** |
+| **macOS — Intel** | **[Download CulpMixer-x64.dmg](https://github.com/22500107Zc/CulpMixer/releases/latest/download/CulpMixer-x64.dmg)** |
+| **macOS — installer** (either chip) | [CulpMixer-universal.pkg](https://github.com/22500107Zc/CulpMixer/releases/latest/download/CulpMixer-universal.pkg) |
+| **Windows** | **[Download CulpMixer-Setup.exe](https://github.com/22500107Zc/CulpMixer/releases/latest/download/CulpMixer-Setup.exe)** · [portable](https://github.com/22500107Zc/CulpMixer/releases/latest/download/CulpMixer-portable.exe) |
+| **Linux** | **[Download CulpMixer.AppImage](https://github.com/22500107Zc/CulpMixer/releases/latest/download/CulpMixer.AppImage)** · [.deb](https://github.com/22500107Zc/CulpMixer/releases/latest/download/CulpMixer.deb) |
 
 Not sure which Mac you have?  ▸ **About This Mac**. "Apple M1/M2/M3/M4" means
 Apple Silicon; "Intel" means Intel.
@@ -51,14 +51,14 @@ each system asks once whether you meant it. Once, not every time.
   **Run anyway**.
 - **Linux** — `chmod +x CulpMixer.AppImage`, then run it.
 
-The Culp Mixer gets a Dock or Start-menu entry, opens `.kline` files on double-click
+The Culp Mixer gets a Dock or Start-menu entry, opens `.culpmixer` files on double-click
 (and `.kiln` files saved before the rename), and has a real menu bar with
 native Open and Save dialogs.
 
 ### Or build it yourself
 
 ```bash
-git clone https://github.com/22500107Zc/Kline.git
+git clone https://github.com/22500107Zc/CulpMixer.git
 cd The Culp Mixer
 npm install
 
@@ -378,7 +378,7 @@ or an explicit conflict — never silent loss.
 
 ### What is recorded, and what is not
 
-Every generated object carries, in the `.kline` file: what made it (a recipe, a
+Every generated object carries, in the `.culpmixer` file: what made it (a recipe, a
 generated program, a reference image), the prompt, the program, the settings as
 named values, a schema and generator version, a stable identity for the asset
 and for each of its parts, and the geometry the generator produced.
@@ -629,7 +629,7 @@ the UI are all in this repository, and each piece is readable on its own.
   happens while the walk keeps walking, something a single channel list cannot
   express at all
 - Exported into glTF as real animation samplers. Location, rotation and scale
-  travel; light, camera and material curves stay in the `.kline` file, because
+  travel; light, camera and material curves stay in the `.culpmixer` file, because
   glTF animates node transforms only — and the exporter says so rather than
   letting you find out in the other application
 
@@ -698,7 +698,7 @@ the UI are all in this repository, and each piece is readable on its own.
 - Orbit/pan/zoom, orthographic toggle, numpad axis views, frame selected/all
 
 **Files**
-- Save and open scenes as `.kline` (plain JSON — diffable, scriptable), and
+- Save and open scenes as `.culpmixer` (plain JSON — diffable, scriptable), and
   open `.kiln` files saved before the rename
 - Import OBJ; export OBJ + MTL (written together, so the material file and the
   textures it names arrive with the geometry), binary STL, and glTF 2.0 with
@@ -936,7 +936,7 @@ build; without either it skips with a reason and the rest still runs.
 Honest list of what Blender has that The Culp Mixer does not:
 
 - **Geometry nodes** and **Python scripting.** The Build box writes JavaScript
-  against a sandboxed geometry API instead, and `kline.editor` in the browser
+  against a sandboxed geometry API instead, and `culpmixer.editor` in the browser
   console reaches the live scene.
 - **Drivers and shape keys.** A value cannot yet be wired to another value, and
   there is no per-vertex blend-shape channel.

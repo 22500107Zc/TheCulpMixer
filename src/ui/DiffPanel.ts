@@ -208,7 +208,7 @@ export class DiffPanel {
   }
 
   private async compareWithFile(): Promise<void> {
-    const file = await openTextFile('.mixer,.kline,.kiln,application/json');
+    const file = await openTextFile('.mixer,.culpmixer,.kiln,application/json');
     if (!file) return;
     try {
       const parsed = JSON.parse(file.text);

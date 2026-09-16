@@ -80,9 +80,9 @@ test('a save writes to a file the person picked, and says so', async () => {
     const { saveText, forgetSaveTargets, canSaveToFile } = await import('../src/io/files');
     forgetSaveTargets();
     assert.equal(canSaveToFile(), true, 'the picker was not detected');
-    const outcome = await saveText('scene.kline', '{"a":1}', 'application/json');
-    assert.deepEqual(outcome, { status: 'saved', path: 'scene.kline' });
-    assert.deepEqual(h.picks, ['scene.kline']);
+    const outcome = await saveText('scene.culpmixer', '{"a":1}', 'application/json');
+    assert.deepEqual(outcome, { status: 'saved', path: 'scene.culpmixer' });
+    assert.deepEqual(h.picks, ['scene.culpmixer']);
     assert.equal(h.written.length, 1, 'nothing was written');
   } finally {
     restore();
@@ -97,12 +97,12 @@ test('saving again goes to the same file rather than asking once per save', asyn
   try {
     const { saveText, forgetSaveTargets, savedAs } = await import('../src/io/files');
     forgetSaveTargets();
-    await saveText('scene.kline', 'one');
-    await saveText('scene.kline', 'two');
-    await saveText('scene.kline', 'three');
-    assert.deepEqual(h.picks, ['scene.kline'], 'the picker opened more than once');
+    await saveText('scene.culpmixer', 'one');
+    await saveText('scene.culpmixer', 'two');
+    await saveText('scene.culpmixer', 'three');
+    assert.deepEqual(h.picks, ['scene.culpmixer'], 'the picker opened more than once');
     assert.equal(h.written.length, 3, 'later saves did not write');
-    assert.equal(savedAs('scene.kline'), 'scene.kline');
+    assert.equal(savedAs('scene.culpmixer'), 'scene.culpmixer');
   } finally {
     restore();
   }
@@ -116,10 +116,10 @@ test('a new document forgets where the last one was saved', async () => {
   try {
     const { saveText, forgetSaveTargets, savedAs } = await import('../src/io/files');
     forgetSaveTargets();
-    await saveText('scene.kline', 'one');
+    await saveText('scene.culpmixer', 'one');
     forgetSaveTargets();
-    assert.equal(savedAs('scene.kline'), null);
-    await saveText('scene.kline', 'two');
+    assert.equal(savedAs('scene.culpmixer'), null);
+    await saveText('scene.culpmixer', 'two');
     assert.equal(h.picks.length, 2, 'the second document reused the first one’s file');
   } finally {
     restore();
@@ -133,7 +133,7 @@ test('a dismissed picker is a cancellation, not a save', async () => {
   try {
     const { saveText, saveWorked, forgetSaveTargets } = await import('../src/io/files');
     forgetSaveTargets();
-    const outcome = await saveText('scene.kline', '{}');
+    const outcome = await saveText('scene.culpmixer', '{}');
     assert.equal(outcome.status, 'cancelled');
     assert.equal(saveWorked(outcome), false, 'a cancelled save counted as a save');
     assert.equal(h.written.length, 0);
@@ -151,9 +151,9 @@ test('a picker that fails for another reason is a failure, not a cancellation', 
   try {
     const { saveText, describeSave, forgetSaveTargets } = await import('../src/io/files');
     forgetSaveTargets();
-    const outcome = await saveText('scene.kline', '{}');
+    const outcome = await saveText('scene.culpmixer', '{}');
     assert.equal(outcome.status, 'failed');
-    assert.match(describeSave(outcome, 'scene.kline'), /Not allowed by policy/);
+    assert.match(describeSave(outcome, 'scene.culpmixer'), /Not allowed by policy/);
   } finally {
     restore();
   }
@@ -166,14 +166,14 @@ test('a write that fails reports the reason and does not keep the file', async (
   try {
     const { saveText, saveWorked, savedAs, forgetSaveTargets } = await import('../src/io/files');
     forgetSaveTargets();
-    const outcome = await saveText('scene.kline', '{}');
+    const outcome = await saveText('scene.culpmixer', '{}');
     assert.equal(outcome.status, 'failed');
     assert.match((outcome as { reason: string }).reason, /No space left/);
     assert.equal(saveWorked(outcome), false);
     assert.equal(h.aborted, 1, 'the half-written file was not abandoned');
     // Keeping a handle that will not write means every later save fails the
     // same way with no chance to pick somewhere else.
-    assert.equal(savedAs('scene.kline'), null, 'a broken file handle was kept');
+    assert.equal(savedAs('scene.culpmixer'), null, 'a broken file handle was kept');
   } finally {
     restore();
   }
@@ -186,9 +186,9 @@ test('a browser with no picker still downloads, and still says only that', async
     const { saveText, canSaveToFile, describeSave, forgetSaveTargets } = await import('../src/io/files');
     forgetSaveTargets();
     assert.equal(canSaveToFile(), false);
-    const outcome = await saveText('scene.kline', '{}');
+    const outcome = await saveText('scene.culpmixer', '{}');
     assert.equal(outcome.status, 'started');
-    assert.match(describeSave(outcome, 'scene.kline'), /Downloading/);
+    assert.match(describeSave(outcome, 'scene.culpmixer'), /Downloading/);
   } finally {
     restore();
   }

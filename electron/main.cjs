@@ -131,14 +131,14 @@ function createWindow() {
     const proceed = (ok) => {
       if (answered) return;
       answered = true;
-      ipcMain.removeListener('kline:close-answer', onAnswer);
+      ipcMain.removeListener('culpmixer:close-answer', onAnswer);
       if (!ok) return;
       closeApproved = true;
       mainWindow.close();
     };
     const onAnswer = (_e, ok) => proceed(!!ok);
-    ipcMain.once('kline:close-answer', onAnswer);
-    mainWindow.webContents.send('kline:confirm-close');
+    ipcMain.once('culpmixer:close-answer', onAnswer);
+    mainWindow.webContents.send('culpmixer:confirm-close');
     setTimeout(() => proceed(true), 10000);
   });
   mainWindow.on('closed', () => { mainWindow = null; });
@@ -151,7 +151,7 @@ function createWindow() {
 
   mainWindow.loadURL('culpmixer://app/');
 
-  // Smoke-test hook: `KLINE_SMOKE=<png path> electron .` boots the shell, puts
+  // Smoke-test hook: `CULPMIXER_SMOKE=<png path> electron .` boots the shell, puts
   // it through a short piece of real work, saves a screenshot and exits — so
   // CI can prove the packaged app on each platform *works*, not merely that it
   // opened a window. A build that renders a grey box and then throws on the
@@ -159,7 +159,7 @@ function createWindow() {
   //
   // KILN_SMOKE is the pre-rename name, still honoured so an older workflow or
   // a script someone has locally keeps working.
-  const smokeTarget = process.env.KLINE_SMOKE || process.env.KILN_SMOKE;
+  const smokeTarget = process.env.CULPMIXER_SMOKE || process.env.KILN_SMOKE;
   if (smokeTarget) {
     mainWindow.webContents.once('did-finish-load', () => {
       setTimeout(async () => {
@@ -200,8 +200,8 @@ function createWindow() {
  */
 const SMOKE_SCRIPT = `(() => {
   try {
-    const k = window.kline;
-    if (!k) return { ok: false, error: 'The Culp Mixer did not start: window.kline is missing' };
+    const k = window.culpmixer;
+    if (!k) return { ok: false, error: 'The Culp Mixer did not start: window.culpmixer is missing' };
     const ed = k.editor;
     const notes = {};
 
@@ -282,7 +282,7 @@ function toAccelerator(shortcut) {
 const MENU_ORDER = ['File', 'Edit', 'Add', 'Object', 'Mesh', 'Select', 'View'];
 
 function buildMenu(commands) {
-  const send = (id) => () => mainWindow?.webContents.send('kline:command', id);
+  const send = (id) => () => mainWindow?.webContents.send('culpmixer:command', id);
   const byCategory = new Map();
   for (const cmd of commands ?? []) {
     const list = byCategory.get(cmd.category) ?? [];
@@ -329,11 +329,11 @@ function buildMenu(commands) {
   template.push({
     label: 'Help',
     submenu: [
-      { label: 'Keyboard Shortcuts', click: () => mainWindow?.webContents.send('kline:shortcuts') },
+      { label: 'Keyboard Shortcuts', click: () => mainWindow?.webContents.send('culpmixer:shortcuts') },
       { type: 'separator' },
       {
         label: 'The Culp Mixer on GitHub',
-        click: () => shell.openExternal('https://github.com/22500107Zc/Kline'),
+        click: () => shell.openExternal('https://github.com/22500107Zc/CulpMixer'),
       },
     ],
   });
@@ -343,7 +343,7 @@ function buildMenu(commands) {
 
 function queueOpen(filePath) {
   if (!filePath || !/\.(The Culp Mixer|kiln)$/.test(filePath)) return;
-  if (mainWindow) mainWindow.webContents.send('kline:open-file', readScene(filePath));
+  if (mainWindow) mainWindow.webContents.send('culpmixer:open-file', readScene(filePath));
   else pendingOpen = filePath;
 }
 
@@ -389,16 +389,16 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 // The renderer owns the command registry, so it tells the shell what to show.
-ipcMain.on('kline:register-commands', (_event, commands) => {
+ipcMain.on('culpmixer:register-commands', (_event, commands) => {
   buildMenu(commands);
   if (pendingOpen && mainWindow) {
-    mainWindow.webContents.send('kline:open-file', readScene(pendingOpen));
+    mainWindow.webContents.send('culpmixer:open-file', readScene(pendingOpen));
     pendingOpen = null;
   }
 });
 
 const FILTERS = {
-  kline: { name: 'The Culp Mixer Scene', extensions: ['kline'] },
+  culpmixer: { name: 'The Culp Mixer Scene', extensions: ['culpmixer'] },
   obj: { name: 'Wavefront OBJ', extensions: ['obj'] },
   mtl: { name: 'Material Library', extensions: ['mtl'] },
   stl: { name: 'STL', extensions: ['stl'] },
@@ -421,7 +421,7 @@ const FILTERS = {
  * that turns a crash into an empty file with a valid name.
  */
 function writeAtomic(filePath, data, binary) {
-  const tmp = `${filePath}.kline-tmp-${process.pid}-${Date.now()}`;
+  const tmp = `${filePath}.culpmixer-tmp-${process.pid}-${Date.now()}`;
   let handle = null;
   try {
     handle = fs.openSync(tmp, 'wx');
@@ -437,7 +437,7 @@ function writeAtomic(filePath, data, binary) {
   }
 }
 
-ipcMain.handle('kline:save-file', async (_event, { defaultName, data, binary }) => {
+ipcMain.handle('culpmixer:save-file', async (_event, { defaultName, data, binary }) => {
   const ext = String(defaultName ?? '').split('.').pop()?.toLowerCase() ?? '';
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
     title: 'Export',
@@ -463,7 +463,7 @@ ipcMain.handle('kline:save-file', async (_event, { defaultName, data, binary }) 
  * A save dialog per frame is not a workflow; it is a way of making somebody
  * press Enter four hundred times.
  */
-ipcMain.handle('kline:choose-folder', async (_event, { title }) => {
+ipcMain.handle('culpmixer:choose-folder', async (_event, { title }) => {
   const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
     title: title || 'Choose a folder',
     properties: ['openDirectory', 'createDirectory'],
@@ -472,7 +472,7 @@ ipcMain.handle('kline:choose-folder', async (_event, { title }) => {
   return { status: 'saved', path: filePaths[0] };
 });
 
-ipcMain.handle('kline:write-in-folder', async (_event, { folder, name, data }) => {
+ipcMain.handle('culpmixer:write-in-folder', async (_event, { folder, name, data }) => {
   // The name is built by the application, never typed, but it still gets
   // flattened: a path separator arriving here would write outside the folder
   // the person chose.
@@ -486,11 +486,11 @@ ipcMain.handle('kline:write-in-folder', async (_event, { folder, name, data }) =
   }
 });
 
-ipcMain.handle('kline:open-scene', async () => {
+ipcMain.handle('culpmixer:open-scene', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
     title: 'Open Scene',
     properties: ['openFile'],
-    filters: [{ name: 'The Culp Mixer Scene', extensions: ['kline', 'kiln'] }],
+    filters: [{ name: 'The Culp Mixer Scene', extensions: ['culpmixer', 'kiln'] }],
   });
   if (canceled || filePaths.length === 0) return null;
   return readScene(filePaths[0]);

@@ -10,7 +10,7 @@
  * 2. **Take money.** There is no payment code here and there never should be.
  *    This file checks a signature. Selling happens somewhere else entirely —
  *    any processor, or a bank transfer, or a handshake — and ends with a key
- *    being minted by `tools/kline-licence.mjs`.
+ *    being minted by `tools/culpmixer-licence.mjs`.
  * 3. **Destroy somebody's work.** The trial ends by locking the application,
  *    not by deleting anything. Files already on disk stay on disk, and a key
  *    unlocks everything again immediately.
@@ -70,13 +70,13 @@ export const PRICE = '$199/month';
 /** The one sentence, used everywhere the terms are stated. */
 export const TERMS = `33-hour free trial. After that ${PRICE} to use The Culp Mixer at all.`;
 
-export const LICENCE_KEY = 'kline.licence';
-export const TRIAL_KEY = 'kline.trial.start';
+export const LICENCE_KEY = 'culpmixer.licence';
+export const TRIAL_KEY = 'culpmixer.trial.start';
 
 /**
  * The public half of the signing key, as base64 SPKI.
  *
- * Replaced by whoever ships the build, using `tools/kline-licence.mjs keygen`.
+ * Replaced by whoever ships the build, using `tools/culpmixer-licence.mjs keygen`.
  * Empty means no key was ever installed — in which case nothing is gated,
  * because a build that cannot verify anything must not punish the person
  * running it for that.

@@ -15,7 +15,7 @@
  * public half baked into the bundle.
  *
  * It needs the real signing key, because the built bundle verifies against the
- * real public one. Without kline-private-key.pem it says so and skips rather
+ * real public one. Without culpmixer-private-key.pem it says so and skips rather
  * than pretending.
  */
 import test from 'node:test';
@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const DIST = join(ROOT, 'dist');
-const PEM = join(ROOT, 'kline-private-key.pem');
+const PEM = join(ROOT, 'culpmixer-private-key.pem');
 const BUILD = join(ROOT, '.test-build', 'api');
 
 const FOUNDER_PASSWORD = 'console-test-founder-password';
@@ -111,7 +111,7 @@ function adapt(res) {
 
 const app = await (async () => {
   if (!existsSync(PEM)) {
-    return { skip: 'kline-private-key.pem is not on this machine' };
+    return { skip: 'culpmixer-private-key.pem is not on this machine' };
   }
   let playwright;
   try {
@@ -187,14 +187,14 @@ const app = await (async () => {
     server.listen(0, '127.0.0.1', () => ok(server.address().port));
   });
 
-  process.env.KLINE_FOUNDER_HASH = hash(FOUNDER_PASSWORD);
-  process.env.KLINE_FOUNDER_EMAIL = 'culpindustriesllc@gmail.com';
-  process.env.KLINE_SIGNING_KEY = readFileSync(PEM, 'utf8');
+  process.env.CULPMIXER_FOUNDER_HASH = hash(FOUNDER_PASSWORD);
+  process.env.CULPMIXER_FOUNDER_EMAIL = 'culpindustriesllc@gmail.com';
+  process.env.CULPMIXER_SIGNING_KEY = readFileSync(PEM, 'utf8');
   process.env.STRIPE_SECRET_KEY = '';
-  process.env.KLINE_PRICE_ID = '';
+  process.env.CULPMIXER_PRICE_ID = '';
   process.env.KV_REST_API_URL = '';
   process.env.KV_REST_API_TOKEN = '';
-  process.env.KLINE_PAYMENT_LINK = '';
+  process.env.CULPMIXER_PAYMENT_LINK = '';
 
   const browser = await chromium.launch({
     executablePath,
@@ -217,7 +217,7 @@ if (app.skip) {
   test.before(() => {
     process.env.KV_REST_API_URL = `${app.origin}/kv`;
     process.env.KV_REST_API_TOKEN = 'test-token';
-    process.env.KLINE_PAYMENT_LINK = 'https://buy.example.com/The Culp Mixer';
+    process.env.CULPMIXER_PAYMENT_LINK = 'https://buy.example.com/The Culp Mixer';
   });
 
   const carried = {};
@@ -306,9 +306,9 @@ if (app.skip) {
       { timeout: 10000 },
     );
     const state = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const before = ed.scene.objects.size;
-      window.kline.run('add.cube');
+      window.culpmixer.run('add.cube');
       return {
         status: ed.account?.status,
         canUse: ed.canUse,
@@ -325,7 +325,7 @@ if (app.skip) {
     const page = await app.browser.newContext().then((c) => c.newPage());
     await page.goto(`${app.origin}/`, { waitUntil: 'networkidle' });
     const unlocked = await page.evaluate(async ({ email, password }) => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const result = await ed.logIn(email, password);
       return { ok: result.ok, message: result.message, canUse: ed.canUse };
     }, { email: 'journey-customer@example.com', password: carried.password });
@@ -338,7 +338,7 @@ if (app.skip) {
     const page = await app.browser.newContext().then((c) => c.newPage());
     await page.goto(`${app.origin}/`, { waitUntil: 'networkidle' });
     const refused = await page.evaluate(
-      async () => window.kline.editor.logIn('journey-customer@example.com', 'definitely-not-it'),
+      async () => window.culpmixer.editor.logIn('journey-customer@example.com', 'definitely-not-it'),
     );
     assert.equal(refused.ok, false, 'a wrong password logged in');
     // Not "could not reach the server": that would send somebody to support
@@ -365,7 +365,7 @@ if (app.skip) {
     const fresh = await app.browser.newContext().then((c) => c.newPage());
     await fresh.goto(`${app.origin}/`, { waitUntil: 'networkidle' });
     const after = await fresh.evaluate(
-      async ({ email, password }) => window.kline.editor.logIn(email, password),
+      async ({ email, password }) => window.culpmixer.editor.logIn(email, password),
       { email: 'journey-customer@example.com', password: carried.password },
     );
     assert.equal(after.ok, false, 'a removed account still logged in');
@@ -402,9 +402,9 @@ if (app.skip) {
       { timeout: 10000 },
     );
     const state = await page.evaluate(() => ({
-      status: window.kline.editor.account?.status,
-      username: window.kline.editor.account?.username,
-      canUse: window.kline.editor.canUse,
+      status: window.culpmixer.editor.account?.status,
+      username: window.culpmixer.editor.account?.username,
+      canUse: window.culpmixer.editor.canUse,
     }));
     assert.equal(state.status, 'trial');
     assert.equal(state.username, 'Journey Person');
@@ -420,9 +420,9 @@ if (app.skip) {
   test('10 · during the 33 hours there is no pay screen at all', async () => {
     const page = carried.customer;
     const added = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const before = ed.scene.objects.size;
-      window.kline.run('add.cube');
+      window.culpmixer.run('add.cube');
       return ed.scene.objects.size - before;
     });
     assert.equal(added, 1, 'a signed-up customer in trial could not use The Culp Mixer');
@@ -432,14 +432,14 @@ if (app.skip) {
     // lock screen would come back.
     await page.reload({ waitUntil: 'networkidle' });
     await page.waitForFunction(
-      () => window.kline?.editor?.account?.status === 'trial',
+      () => window.culpmixer?.editor?.account?.status === 'trial',
       { timeout: 10000 },
     );
     const during = await page.evaluate(() => ({
       homeHidden: document.querySelector('.home')?.classList.contains('hidden') ?? false,
       wallHidden: document.querySelector('.licence-panel')?.classList.contains('hidden') ?? true,
       payButtons: document.querySelectorAll('a.home-go, .licence-buy').length,
-      canUse: window.kline.editor.canUse,
+      canUse: window.culpmixer.editor.canUse,
     }));
     assert.equal(during.homeHidden, true, 'the pay screen showed during the trial');
     assert.equal(during.wallHidden, true, 'the licence wall showed during the trial');
@@ -450,11 +450,11 @@ if (app.skip) {
   test('11 · when the 33 hours are up they meet the payment link', async () => {
     const page = carried.customer;
     // Wind their account's clock past the end, the way time would.
-    await fetch(`${app.origin}/kv/get/${encodeURIComponent('kline:account:selfserve@example.com')}`)
+    await fetch(`${app.origin}/kv/get/${encodeURIComponent('culpmixer:account:selfserve@example.com')}`)
       .then((r) => r.json())
       .then(({ result }) => {
         const raw = JSON.parse(result);
-        return fetch(`${app.origin}/kv/set/${encodeURIComponent('kline:account:selfserve@example.com')}`, {
+        return fetch(`${app.origin}/kv/set/${encodeURIComponent('culpmixer:account:selfserve@example.com')}`, {
           method: 'POST',
           body: JSON.stringify({ ...raw, trialEndsAt: Date.now() - 1000 }),
         });
@@ -464,10 +464,10 @@ if (app.skip) {
     await page.waitForSelector('.home:not(.hidden)', { timeout: 10000 });
 
     const locked = await page.evaluate(() => ({
-      status: window.kline.editor.account?.status,
+      status: window.culpmixer.editor.account?.status,
       text: document.querySelector('.home-card')?.textContent ?? '',
       href: document.querySelector('.home-card a.home-go')?.getAttribute('href') ?? '',
-      canUse: window.kline.editor.canUse,
+      canUse: window.culpmixer.editor.canUse,
     }));
     assert.equal(locked.status, 'locked');
     assert.equal(locked.canUse, false, 'The Culp Mixer was still usable after the trial ended');
@@ -527,9 +527,9 @@ if (app.skip) {
       { timeout: 10000 },
     );
     const state = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const before = ed.scene.objects.size;
-      window.kline.run('add.cube');
+      window.culpmixer.run('add.cube');
       return {
         status: ed.account?.status,
         canUse: ed.canUse,

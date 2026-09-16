@@ -21,7 +21,7 @@
  * who loads the page. The only thing between a determined stranger and the
  * owner key is how hard the password is to guess. A long passphrase holds. A
  * word joined to a date does not — it is worth changing, and
- * `tools/kline-founder-seal.mjs` reseals this with a new one in one command.
+ * `tools/culpmixer-founder-seal.mjs` reseals this with a new one in one command.
  */
 
 export const FOUNDER_EMAIL = 'culpindustriesllc@gmail.com';
@@ -50,7 +50,7 @@ export const SEALED_OWNER_KEY = {
  * who loads the site. The owner key sealed above only ever unlocked one
  * person's own copy; this one MINTS LICENCES. The password is therefore the
  * whole security of the product and has to be chosen like it — see
- * tools/kline-seal-signing-key.mjs, which re-seals under a new password
+ * tools/culpmixer-seal-signing-key.mjs, which re-seals under a new password
  * without changing the keypair, so nothing already issued breaks.
  */
 export const SEALED_SIGNING_KEY = {

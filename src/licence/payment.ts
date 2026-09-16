@@ -12,7 +12,7 @@
  * three places, most authoritative first, and the founder's own machine is
  * deliberately last:
  *
- *   1. The account service, if it is answering. It reads KLINE_PAYMENT_LINK,
+ *   1. The account service, if it is answering. It reads CULPMIXER_PAYMENT_LINK,
  *      an environment variable and nothing more — no database involved — so
  *      this works on a deployment with one variable set and nothing else.
  *   2. /pay.json, a plain file served next to the application. No functions,
@@ -28,7 +28,7 @@
  * mailto, which is a real way for one person to sell something.
  */
 
-const LOCAL_KEY = 'kline.payment.link';
+const LOCAL_KEY = 'culpmixer.payment.link';
 
 /** Only http(s) and mailto. A link on the lock screen is a link people click. */
 export function safePaymentLink(value: string): string | null {

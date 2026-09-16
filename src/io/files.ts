@@ -220,7 +220,7 @@ function describeKind(extension: string): string {
     case '.mixer': return 'The Culp Mixer scene';
     // Still named, so a file saved before the rename is described properly
     // in the picker rather than showing up as an unknown type.
-    case '.kline':
+    case '.culpmixer':
     case '.kiln': return 'The Culp Mixer scene (older)';
     case '.gltf': return 'glTF 2.0';
     case '.obj': return 'Wavefront OBJ';

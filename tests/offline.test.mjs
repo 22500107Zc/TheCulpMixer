@@ -23,7 +23,7 @@ async function freshVisit() {
   const context = await app.browser.newContext();
   const page = await context.newPage();
   await page.goto(app.origin, { waitUntil: 'load' });
-  await page.waitForFunction(() => !!window.kline, null, { timeout: 20000 });
+  await page.waitForFunction(() => !!window.culpmixer, null, { timeout: 20000 });
   await page.evaluate(() => navigator.serviceWorker.ready);
   // The precache runs during install, which finishes before `ready` resolves,
   // but the claim that puts this page under the worker can land just after.
@@ -64,7 +64,7 @@ async function bootsOffline(context, page) {
   await context.setOffline(true);
   try {
     await page.goto(app.origin, { waitUntil: 'load', timeout: 15000 });
-    await page.waitForFunction(() => !!window.kline, null, { timeout: 15000 });
+    await page.waitForFunction(() => !!window.culpmixer, null, { timeout: 15000 });
     return true;
   } catch {
     return false;
@@ -130,7 +130,7 @@ test('an update clears The Culp Mixer’s old caches and nothing else', { skip: 
       if (!reg) return;
       await reg.update().catch(() => undefined);
       const waiting = reg.waiting ?? reg.installing;
-      if (waiting) waiting.postMessage({ type: 'kline:activate-update' });
+      if (waiting) waiting.postMessage({ type: 'culpmixer:activate-update' });
     });
     await release();
     const after = await waitForCaches(
@@ -183,7 +183,7 @@ test('a waiting update is offered to the creator, not forced on them', { skip: a
     );
 
     await page.locator('.update-bar .btn.primary').click();
-    await page.waitForFunction(() => !!window.kline, null, { timeout: 25000 });
+    await page.waitForFunction(() => !!window.culpmixer, null, { timeout: 25000 });
     await waitForCaches(page, 'the reload did not land on the new build',
       (names) => !names.includes(before) && names.some((n) => n.startsWith('The Culp Mixer-shell-')));
   } finally {

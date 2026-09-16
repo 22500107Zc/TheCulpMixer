@@ -238,7 +238,7 @@ export class LicencePanel {
       // paid Stripe and is unlocking another machine — the same button,
       // because a customer should not have to know which kind they are.
       const result = password
-        ? await this.editor.signInToKline(email, password)
+        ? await this.editor.signIn(email, password)
         : await this.restoreByEmail(email);
       this.say(result.message, !result.ok);
       if (result.ok) {

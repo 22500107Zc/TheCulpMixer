@@ -818,7 +818,7 @@ export class Editor {
   }
 
   /** Forget the session on this machine. Their work and account are untouched. */
-  signOutOfKline(): void {
+  signOut(): void {
     forgetSession();
     this.account = null;
     void this.refreshLicence();
@@ -876,7 +876,7 @@ export class Editor {
    * same answer, because anything else is a way to find out which emails have
    * accounts.
    */
-  async signInToKline(email: string, password: string): Promise<{ ok: boolean; message: string }> {
+  async signIn(email: string, password: string): Promise<{ ok: boolean; message: string }> {
     if (!email || !password) {
       return { ok: false, message: 'Both the email and the password, please.' };
     }
@@ -1048,7 +1048,7 @@ export class Editor {
     this.changed();
   }
 
-  /** Replace the whole scene from a parsed .kline document. */
+  /** Replace the whole scene from a parsed .culpmixer document. */
   loadSceneJSON(data: SerializedScene): void {
     this.revision.discard();
     const restored = Scene.fromJSON(data);

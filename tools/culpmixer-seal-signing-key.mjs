@@ -2,7 +2,7 @@
 /**
  * Seal the signing key with the founder password.
  *
- *   node tools/kline-seal-signing-key.mjs "<founder password>"
+ *   node tools/culpmixer-seal-signing-key.mjs "<founder password>"
  *
  * Prints a block to paste into src/licence/founder.ts.
  *
@@ -41,7 +41,7 @@ import { readFileSync, existsSync } from 'node:fs';
 
 const password = process.argv.slice(2).join(' ').trim();
 if (!password) {
-  console.error('Usage: node tools/kline-seal-signing-key.mjs "<founder password>"');
+  console.error('Usage: node tools/culpmixer-seal-signing-key.mjs "<founder password>"');
   process.exit(1);
 }
 if (password.includes('\0')) {
@@ -54,7 +54,7 @@ if (password.length < 12) {
   process.exit(1);
 }
 
-const PEM = 'kline-private-key.pem';
+const PEM = 'culpmixer-private-key.pem';
 if (!existsSync(PEM)) {
   console.error(`${PEM} is not here. It is the key the shipped public key was derived from;`);
   console.error('without it this cannot be sealed, and a new one would invalidate every');

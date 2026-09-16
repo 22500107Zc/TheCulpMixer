@@ -34,7 +34,7 @@ if (app.skip) {
    * carry the geometry, so measuring the root's own mesh finds nothing.
    */
   const spanX = (id) => page.evaluate((rootId) => {
-    const ed = window.kline.editor;
+    const ed = window.culpmixer.editor;
     let lo = Infinity, hi = -Infinity;
     const walk = (objId) => {
       const o = ed.scene.get(objId);
@@ -67,7 +67,7 @@ if (app.skip) {
   test('1 · model it, unwrap it, sculpt it', async () => {
     await resetScene(page);
     const shaped = await page.evaluate(() => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       k.run('add.uvsphere');
       const id = ed.scene.active;
       const o = ed.scene.get(id);
@@ -95,14 +95,14 @@ if (app.skip) {
     await drag({ x: centre.x - 30, y: centre.y });
 
     const sculpted = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const o = ed.scene.get(ed.scene.active);
       let moved = 0;
       o.mesh.positions.forEach((p, i) => {
         const q = window.__before[i];
         if (Math.hypot(p.x - q[0], p.y - q[1], p.z - q[2]) > 1e-6) moved++;
       });
-      window.kline.run('mode.object');
+      window.culpmixer.run('mode.object');
       return { moved, uvsKept: (o.mesh.faceUV ?? []).filter(Boolean).length };
     });
     assert.ok(sculpted.moved > 10, `the stroke moved ${sculpted.moved} vertices`);
@@ -112,7 +112,7 @@ if (app.skip) {
 
   test('2 · paint a texture onto it', async () => {
     const painted = await page.evaluate(async () => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       k.run('paint.newTexture');
       await new Promise((r) => setTimeout(r, 200));
       const o = ed.scene.get(ed.scene.active);
@@ -131,7 +131,7 @@ if (app.skip) {
 
   test('3 · rig it and bind it', async () => {
     const rigged = await page.evaluate(() => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       const meshId = ed.scene.active;
       k.run('add.armature');
       const rigId = ed.scene.active;
@@ -162,7 +162,7 @@ if (app.skip) {
 
   test('4 · animate it, and scrub it', async () => {
     const animated = await page.evaluate(({ rigId }) => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       ed.scene.timeline.start = 1;
       ed.scene.timeline.end = 12;
       ed.scene.selection.clear();
@@ -200,7 +200,7 @@ if (app.skip) {
     // The code panel is the revision path that needs no model, and it is the
     // one a person without a local model actually has.
     await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.scene.selection.clear();
       ed.scene.active = null;
     });
@@ -209,13 +209,13 @@ if (app.skip) {
     await area.fill("box(0, 0, 0.5, 2, 1, 1, '#c0392b');\nbox(0, 0, 1.6, 1, 1, 1.2, '#2d6a4f');");
     await page.locator('.build-code button', { hasText: 'Run as New' }).click();
     await page.waitForFunction(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const o = ed.scene.get(ed.scene.active);
       return !!o?.provenance;
     }, null, { timeout: 20000 });
 
     const assetId = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const o = ed.scene.get(ed.scene.active);
       // Edit it by hand, so the merge has something of the creator's to keep.
       o.position.y = 3;
@@ -228,15 +228,15 @@ if (app.skip) {
     await page.locator('.build-code button', { hasText: 'Preview Revision of Selected' }).click();
     await page.locator('.revision-panel:not(.hidden)').waitFor({ timeout: 20000 });
     const duringPreview = await page.evaluate(() => ({
-      active: window.kline.editor.revision.active,
-      historyDepth: window.kline.editor.history.depth,
+      active: window.culpmixer.editor.revision.active,
+      historyDepth: window.culpmixer.editor.history.depth,
     }));
     assert.equal(duringPreview.active, true, 'the revision did not start');
 
     await page.locator('.revision-actions button', { hasText: 'Reject' }).click();
     await page.waitForTimeout(200);
     const afterReject = await page.evaluate(({ id }) => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const o = ed.scene.get(id);
       return { active: ed.revision.active, y: o.position.y, historyDepth: ed.history.depth };
     }, { id: assetId.id });
@@ -260,7 +260,7 @@ if (app.skip) {
     await page.waitForTimeout(300);
 
     const after = await page.evaluate(({ id }) => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const o = ed.scene.get(id);
       return { active: ed.revision.active, y: o.position.y, revision: o.provenance.revision };
     }, { id: carried.asset.id });
@@ -269,18 +269,18 @@ if (app.skip) {
     assert.ok(after.width > carried.rejectedWidth,
       `Accept did not widen the asset (${after.width} vs ${carried.rejectedWidth})`);
     assert.ok(Math.abs(after.y - 3) < 1e-6, 'Accept discarded the hand edit it was merged with');
-    await page.evaluate(() => window.kline.run('edit.undo'));
+    await page.evaluate(() => window.culpmixer.run('edit.undo'));
     await page.waitForTimeout(150);
     const undone = await spanX(carried.asset.id);
     assert.ok(Math.abs(undone - carried.rejectedWidth) < 1e-6,
       'undo did not take the accepted revision back off');
-    await page.evaluate(() => window.kline.run('edit.redo'));
+    await page.evaluate(() => window.culpmixer.run('edit.redo'));
     await page.waitForTimeout(150);
   });
 
   test('7 · save the document, replace it, and open it again', async () => {
     const saved = await page.evaluate(async () => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const json = JSON.stringify(ed.scene.toJSON());
       window.__saved = json;
       return { bytes: json.length, objects: ed.scene.objects.size, dirty: ed.hasUnsavedChanges };
@@ -290,7 +290,7 @@ if (app.skip) {
 
     // Replace the document, then read the saved one back through the loader.
     const reopened = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.newScene();
       const emptied = ed.scene.objects.size;
       ed.loadSceneJSON(JSON.parse(window.__saved));
@@ -318,7 +318,7 @@ if (app.skip) {
 
   test('8 · bake physics under an animated parent', async () => {
     const baked = await page.evaluate(() => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       ed.scene.timeline.start = 1;
       ed.scene.timeline.end = 20;
 
@@ -387,7 +387,7 @@ if (app.skip) {
 
   test('9 · render a still and a short sequence', async () => {
     const still = await page.evaluate(async () => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.renderSettings.width = 64;
       ed.renderSettings.height = 48;
       ed.renderSettings.samples = 4;
@@ -409,7 +409,7 @@ if (app.skip) {
       `only ${still.lit} of ${still.pixels} pixels carry any light`);
 
     const sequence = await page.evaluate(async () => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.renderSettings.frameStart = 1;
       ed.renderSettings.frameEnd = 3;
       ed.renderSettings.frameStep = 1;
@@ -439,7 +439,7 @@ if (app.skip) {
 
   test('10 · cancel a sequence part way through', async () => {
     const cancelled = await page.evaluate(async () => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.renderSettings.frameStart = 1;
       ed.renderSettings.frameEnd = 8;
       let seen = 0;
@@ -467,7 +467,7 @@ if (app.skip) {
     // The export has to carry each camera's own settings rather than one
     // default applied to all of them, so the scene needs two that differ.
     const cams = await page.evaluate(() => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       k.run('add.camera');
       const wide = ed.scene.get(ed.scene.active);
       wide.name = 'Wide';
@@ -526,16 +526,16 @@ if (app.skip) {
 
     const grab = async (commandId, expected = 1) => {
       await installPickers();
-      await page.evaluate((id) => window.kline.run(id), commandId);
+      await page.evaluate((id) => window.culpmixer.run(id), commandId);
       await page.waitForFunction(
         (want) => (window.__saved ?? []).length >= want, expected, { timeout: 20000 },
       ).catch(async () => {
-        const why = await page.evaluate(() => window.kline.editor.statusMessage);
+        const why = await page.evaluate(() => window.culpmixer.editor.statusMessage);
         throw new Error(`${commandId} wrote ${(await page.evaluate(() => window.__saved.length))}`
           + ` of ${expected} files. Status bar: "${why}"`);
       });
       const files = await page.evaluate(() => window.__saved);
-      const status = await page.evaluate(() => window.kline.editor.statusMessage);
+      const status = await page.evaluate(() => window.culpmixer.editor.statusMessage);
       assert.doesNotMatch(status, /cancel|could not|failed/i,
         `after saving, the status bar said: ${status}`);
       return { files, status, ...files[0] };
@@ -694,9 +694,9 @@ if (app.skip) {
     // shell is stood in for here. What is being tested is The Culp Mixer's half: that
     // "cancelled" is not quietly treated as "saved".
     const result = await page.evaluate(async () => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const calls = [];
-      window.klineDesktop = {
+      window.culpMixerDesktop = {
         platform: 'test',
         registerCommands() {}, onCommand() {}, onShowShortcuts() {}, onOpenFile() {},
         async openScene() { return null; },
@@ -707,7 +707,7 @@ if (app.skip) {
       ed.touch?.();
       ed.unsavedChanges = true;
       ed.setStatus('');
-      window.kline.run('file.save');
+      window.culpmixer.run('file.save');
       await new Promise((r) => setTimeout(r, 300));
       return { calls, status: ed.statusMessage, dirty: ed.hasUnsavedChanges };
     });
@@ -718,14 +718,14 @@ if (app.skip) {
 
   test('14 · a write that fails says so, and says why', async () => {
     const result = await page.evaluate(async () => {
-      const ed = window.kline.editor;
-      window.klineDesktop.saveFile = async () => ({ status: 'failed', reason: 'the disk is full' });
+      const ed = window.culpmixer.editor;
+      window.culpMixerDesktop.saveFile = async () => ({ status: 'failed', reason: 'the disk is full' });
       ed.unsavedChanges = true;
       ed.setStatus('');
-      window.kline.run('file.save');
+      window.culpmixer.run('file.save');
       await new Promise((r) => setTimeout(r, 300));
       const out = { status: ed.statusMessage, dirty: ed.hasUnsavedChanges };
-      delete window.klineDesktop;
+      delete window.culpMixerDesktop;
       return out;
     });
     assert.match(result.status, /disk is full/,
@@ -740,7 +740,7 @@ if (app.skip) {
     // thread, which drops the time limit and every removed global at once. The
     // program here is an infinite loop, so a fallback would hang the tab.
     // The render window is still up from step 9 and sits over the build bar.
-    await page.evaluate(() => window.kline.app.renderWindow?.hide?.());
+    await page.evaluate(() => window.culpmixer.app.renderWindow?.hide?.());
     const panel = page.locator('.build-code');
     if (await panel.evaluate((el) => el.classList.contains('hidden'))) {
       await page.locator('.build-row button', { hasText: 'Code' }).first().click();
@@ -753,8 +753,8 @@ if (app.skip) {
       delete URL.createObjectURL;
       const log = document.querySelector('.code-log');
       if (log) log.textContent = '';
-      window.kline.editor.setStatus('');
-      return window.kline.editor.scene.objects.size;
+      window.culpmixer.editor.setStatus('');
+      return window.culpmixer.editor.scene.objects.size;
     });
     await page.locator('.build-code button', { hasText: 'Run as New' }).click();
     await page.waitForFunction(
@@ -766,9 +766,9 @@ if (app.skip) {
       window.Worker = window.__savedWorker;
       URL.createObjectURL = window.__savedUrl;
       return {
-        objects: window.kline.editor.scene.objects.size,
+        objects: window.culpmixer.editor.scene.objects.size,
         log: document.querySelector('.code-log')?.textContent ?? '',
-        status: window.kline.editor.statusMessage,
+        status: window.culpmixer.editor.statusMessage,
       };
     });
     assert.equal(after.objects, before,
@@ -781,7 +781,7 @@ if (app.skip) {
 
   test('16 · a reload finds the work again', async () => {
     const saved = await page.evaluate(async () => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       await ed.autosaveNow(true);
       const copies = await ed.recovery.list();
       return { objects: ed.scene.objects.size, copies: copies.length };
@@ -789,14 +789,14 @@ if (app.skip) {
     assert.ok(saved.copies >= 1, 'nothing was written to recover from');
 
     await page.reload({ waitUntil: 'load' });
-    await page.waitForFunction(() => !!window.kline, null, { timeout: 20000 });
+    await page.waitForFunction(() => !!window.culpmixer, null, { timeout: 20000 });
     await page.locator('.recovery-bar:not(.hidden)').waitFor({ timeout: 20000 });
     const offered = await page.evaluate(() => {
-      const objects = [...window.kline.editor.scene.objects.values()];
+      const objects = [...window.culpmixer.editor.scene.objects.values()];
       return {
         text: document.querySelector('.recovery-bar')?.textContent ?? '',
         skinned: objects.some((o) => o.mesh?.skin),
-        textures: window.kline.editor.scene.textures.length,
+        textures: window.culpmixer.editor.scene.textures.length,
       };
     });
     assert.match(offered.text, /last session/i, `the recovery bar said: ${offered.text}`);
@@ -807,16 +807,16 @@ if (app.skip) {
 
     await page.locator('.recovery-bar button', { hasText: 'Restore' }).click();
     await page.waitForFunction(
-      (want) => window.kline.editor.scene.objects.size === want,
+      (want) => window.culpmixer.editor.scene.objects.size === want,
       saved.objects,
       { timeout: 20000 },
     );
     const back = await page.evaluate(() => {
-      const objects = [...window.kline.editor.scene.objects.values()];
+      const objects = [...window.culpmixer.editor.scene.objects.values()];
       return {
         objects: objects.length,
         skinned: objects.some((o) => o.mesh?.skin),
-        textured: window.kline.editor.scene.textures.length,
+        textured: window.culpmixer.editor.scene.textures.length,
         animated: objects.some((o) => (o.animation ?? []).length > 0),
       };
     });
@@ -831,7 +831,7 @@ if (app.skip) {
 
     // Build a two-bone arm with a control bone, in the interface.
     const built = await page.evaluate(() => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       k.run('add.armature');
       const rigId = ed.scene.active;
       const rig = ed.scene.get(rigId);
@@ -861,7 +861,7 @@ if (app.skip) {
     // Bind a mesh to the rig, so what is measured is the geometry a person
     // would see move — not an internal matrix that might not reach it.
     const reach = await page.evaluate(({ rigId, controlName }) => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       const rig = ed.scene.get(rigId);
       const lower = rig.armature.bones.find((b) => b.name === 'lower');
       const ik = (lower.constraints ?? [])[0];
@@ -911,7 +911,7 @@ if (app.skip) {
 
     // Blended actions, driven by the commands the buttons run.
     const blended = await page.evaluate(() => {
-      const k = window.kline, ed = k.editor;
+      const k = window.culpmixer, ed = k.editor;
       k.run('add.cube');
       const id = ed.scene.active;
       const obj = ed.scene.get(id);
@@ -969,7 +969,7 @@ if (app.skip) {
 
     // And the strips survive the document, which is what makes them worth having.
     const round = await page.evaluate(({ id }) => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const json = JSON.stringify(ed.scene.toJSON());
       ed.newScene();
       ed.loadSceneJSON(JSON.parse(json));
@@ -989,7 +989,7 @@ if (app.skip) {
     // getting this wrong bricks every copy at once.
     await resetScene(page);
     const state = await page.evaluate(async () => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       await ed.refreshLicence();
       return {
         status: ed.licence.status,
@@ -1019,10 +1019,10 @@ if (app.skip) {
           };
         },
       });
-      window.kline.run('add.cube');
-      window.kline.run('file.save');
+      window.culpmixer.run('add.cube');
+      window.culpmixer.run('file.save');
       await new Promise((r) => setTimeout(r, 600));
-      return { files: window.__saved, status: window.kline.editor.statusMessage };
+      return { files: window.__saved, status: window.culpmixer.editor.statusMessage };
     });
     assert.deepEqual(saved.files, ['scene.mixer'],
       `saving was refused on a fresh install: ${saved.status}`);
@@ -1032,7 +1032,7 @@ if (app.skip) {
     // The customer-facing half, driven through the real command path. The key
     // is minted here with the same scheme the selling tool uses.
     const result = await page.evaluate(async () => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const enc = new TextEncoder();
       const b64u = (b) => btoa(String.fromCharCode(...new Uint8Array(b)))
         .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -1051,8 +1051,8 @@ if (app.skip) {
 
       // Self-contained: this test owns its scene, so it cannot be thrown by
       // whatever ran before it.
-      window.kline.run('add.cube');
-      const mod = window.__klineLicence;
+      window.culpmixer.run('add.cube');
+      const mod = window.__culpmixerLicence;
       const now = Date.now();
       const live = await mint({ name: 'Acme', plan: 'Studio', seats: 5, issued: now, expires: now + 8.64e7 });
       const dead = await mint({ name: 'Acme', plan: 'Studio', seats: 5, issued: 0, expires: now - 1 });
@@ -1091,7 +1091,7 @@ if (app.skip) {
     // nobody was recording; and stop() came the instant the last frame was
     // drawn, before the encoder had emitted anything.
     const result = await page.evaluate(async () => {
-      const deliver = window.__klineDeliver;
+      const deliver = window.__culpmixerDeliver;
       const dest = deliver.videoDestination(24);
       if (!dest) return { supported: false };
 
@@ -1139,7 +1139,7 @@ if (app.skip) {
     // The half that matters more: when the encoder genuinely yields nothing,
     // the application must not hand somebody an empty file and call it done.
     const message = await page.evaluate(async () => {
-      const deliver = window.__klineDeliver;
+      const deliver = window.__culpmixerDeliver;
       const dest = deliver.videoDestination(24);
       if (!dest) return null;
       // finish() without a single write(): the recorder was never started.
@@ -1157,10 +1157,10 @@ if (app.skip) {
     // The wall covers the window, it has no way out but a key, and it says
     // $199/month on it.
     const before = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       window.__licenceWas = ed.licence;
       window.__accountWas = ed.account;
-      window.kline.run('add.cube');
+      window.culpmixer.run('add.cube');
       const objects = ed.scene.objects.size;
       // An install with no account, past its trial — the desktop build, or
       // anyone who never signed up. Somebody with an account meets the front
@@ -1180,13 +1180,13 @@ if (app.skip) {
     await page.keyboard.press('g');
 
     const locked = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const wall = document.querySelector('.licence-panel');
       const objectsBefore = ed.scene.objects.size;
       // Every route in: the command path, and the palette's own path.
-      window.kline.run('add.cube');
-      window.kline.run('add.sphere');
-      window.kline.run('render.image');
+      window.culpmixer.run('add.cube');
+      window.culpmixer.run('add.sphere');
+      window.culpmixer.run('render.image');
       return {
         visible: !wall.classList.contains('hidden'),
         isWall: wall.classList.contains('licence-wall'),
@@ -1228,15 +1228,15 @@ if (app.skip) {
 
     // Put it back, so the rest of the suite runs against an unlocked editor.
     await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.licence = window.__licenceWas;
       ed.emit('licence');
       ed.panels.toggleLicence?.();
     });
     const freed = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const n = ed.scene.objects.size;
-      window.kline.run('add.cube');
+      window.culpmixer.run('add.cube');
       return {
         added: ed.scene.objects.size - n,
         hidden: document.querySelector('.licence-panel').classList.contains('hidden'),
@@ -1255,7 +1255,7 @@ if (app.skip) {
    * overlay.
    */
   const signedIn = () => page.evaluate(() => {
-    const ed = window.kline.editor;
+    const ed = window.culpmixer.editor;
     ed.account = {
       status: 'trial',
       username: 'Test',
@@ -1335,10 +1335,10 @@ if (app.skip) {
     // With the panel closed the viewport is reachable, which is the point of
     // being able to close it.
     const picked = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       // Object mode: in Edit or Sculpt a click picks geometry, not objects,
       // and the journey has been through both by now.
-      if (ed.mode !== 'object') window.kline.run('edit.toggleMode');
+      if (ed.mode !== 'object') window.culpmixer.run('edit.toggleMode');
       for (const id of [...ed.scene.objects.keys()]) ed.scene.remove(id);
       const id = ed.addPrimitive('cube');
       ed.frameSelected();
@@ -1359,7 +1359,7 @@ if (app.skip) {
     await new Promise((r) => setTimeout(r, 250));
 
     const after = await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       const id = [...ed.scene.selection][0];
       return {
         selected: ed.scene.selection.size,
@@ -1381,13 +1381,13 @@ if (app.skip) {
     // the window.
     await signedIn();
     await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.scene.timeline.loop = true;
       ed.startPlayback();
     });
     await new Promise((r) => setTimeout(r, 400));
 
-    const running = await page.evaluate(() => window.kline.editor.scene.timeline.playing);
+    const running = await page.evaluate(() => window.culpmixer.editor.scene.timeline.playing);
     assert.equal(running, true, 'playback did not start, so nothing was proved');
 
     // Click it the way a person does, while it is moving.
@@ -1399,14 +1399,14 @@ if (app.skip) {
     await new Promise((r) => setTimeout(r, 200));
 
     const state = await page.evaluate(() => ({
-      playing: window.kline.editor.scene.timeline.playing,
-      frame: window.kline.editor.scene.timeline.current,
+      playing: window.culpmixer.editor.scene.timeline.playing,
+      frame: window.culpmixer.editor.scene.timeline.current,
     }));
     assert.equal(state.playing, false, 'the pause button did not stop playback');
 
     // And it stays stopped, rather than a stray frame callback restarting it.
     await new Promise((r) => setTimeout(r, 300));
-    const later = await page.evaluate(() => window.kline.editor.scene.timeline.current);
+    const later = await page.evaluate(() => window.culpmixer.editor.scene.timeline.current);
     assert.equal(later, state.frame, 'the frame kept moving after pause');
   });
 
@@ -1415,7 +1415,7 @@ if (app.skip) {
     // new elements after a second of playback, they are being rebuilt and a
     // click can land between the press and the release again.
     await page.evaluate(() => {
-      const ed = window.kline.editor;
+      const ed = window.culpmixer.editor;
       ed.scene.timeline.loop = true;
       ed.startPlayback();
       const btn = document.querySelector('.tl-controls .tl-btn:nth-child(3)');
@@ -1444,7 +1444,7 @@ if (app.skip) {
     assert.equal(typed.value, '7', 'a half-typed value was overwritten mid-playback');
     assert.equal(typed.focused, true, 'the field lost focus mid-playback');
 
-    await page.evaluate(() => window.kline.editor.stopPlayback());
+    await page.evaluate(() => window.culpmixer.editor.stopPlayback());
   });
 
   test('28 · nothing logged an error along the whole journey', () => {

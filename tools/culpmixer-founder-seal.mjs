@@ -2,7 +2,7 @@
 /**
  * Seal an owner key with the founder password.
  *
- *   node tools/kline-founder-seal.mjs "<founder password>"
+ *   node tools/culpmixer-founder-seal.mjs "<founder password>"
  *
  * Prints a block to paste into src/licence/founder.ts.
  *
@@ -27,17 +27,17 @@ import { execFileSync } from 'node:child_process';
 
 const password = process.argv.slice(2).join(' ').trim();
 if (!password) {
-  console.error('Usage: node tools/kline-founder-seal.mjs "<founder password>"');
+  console.error('Usage: node tools/culpmixer-founder-seal.mjs "<founder password>"');
   process.exit(1);
 }
 
 // Mint a fresh owner key to seal, so this never depends on an old one.
-const minted = execFileSync('node', ['tools/kline-licence.mjs', 'owner', '--name', 'Founder'], {
+const minted = execFileSync('node', ['tools/culpmixer-licence.mjs', 'owner', '--name', 'Founder'], {
   encoding: 'utf8',
 });
 const key = minted.split('\n').map((l) => l.trim()).find((l) => /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(l));
 if (!key) {
-  console.error('Could not mint an owner key. Is kline-private-key.pem here?');
+  console.error('Could not mint an owner key. Is culpmixer-private-key.pem here?');
   process.exit(1);
 }
 

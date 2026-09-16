@@ -18,7 +18,7 @@ import {
 const base64url = (buf: Buffer | Uint8Array): string =>
   Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
-/** A signing keypair, and a minter that matches tools/kline-licence.mjs. */
+/** A signing keypair, and a minter that matches tools/culpmixer-licence.mjs. */
 function issuer() {
   const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
   const spki = base64url(publicKey.export({ type: 'spki', format: 'der' }));
@@ -276,7 +276,7 @@ test('nothing The Culp Mixer ships describes The Culp Mixer as open source or MI
       // A third-party component's own MIT licence is legitimate and required
       // to be reproduced; a claim that *The Culp Mixer* is MIT is not.
       if (/\bMIT\b/.test(line)) {
-        assert.ok(!/\bKline\b/i.test(line),
+        assert.ok(!/\bCulpMixer\b/i.test(line),
           `${file} claims The Culp Mixer is MIT licensed: ${line.trim()}`);
       }
     }
