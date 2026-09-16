@@ -304,6 +304,69 @@ if (app.skip) {
     await page.context().close();
   });
 
+  test('11 · logging in as the founder is all it takes to issue a licence', async () => {
+    // The whole sale, on a phone, with no server and no file.
+    //
+    // Issuing a licence means signing one, and signing needs the private key.
+    // That used to mean holding a .pem and pasting it in before the Issue
+    // button did anything — a file to keep, a file to lose, and a file to go
+    // looking for at the moment somebody wants to pay. The founder password
+    // unseals it now, so getting in IS getting the ability to issue.
+    const phone = await app.browser.newContext({
+      viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2,
+    });
+    const page = await phone.newPage();
+    await page.goto(`${app.origin}/?founder`, { waitUntil: 'networkidle' });
+    await page.waitForFunction(() => !!window.kline?.editor, null, { timeout: 15000 });
+
+    assert.equal(await page.evaluate(() => !!localStorage.getItem('kline.signing.key')), false,
+      'a signing key was already present before anybody logged in');
+
+    const signedIn = await page.evaluate(async (pw) => {
+      const ed = window.kline.editor;
+      const res = await ed.logIn('culpindustriesllc@gmail.com', pw);
+      await new Promise((done) => setTimeout(done, 600));
+      return { ok: res.ok, founder: ed.account?.founder === true, licence: ed.licence.status,
+        signing: !!localStorage.getItem('kline.signing.key') };
+    }, 'founder10082004');
+    assert.equal(signedIn.ok, true, 'the founder password did not log in');
+    assert.equal(signedIn.founder, true);
+    assert.equal(signedIn.signing, true,
+      'logging in did not bring the signing key, so the Issue button is still dead');
+
+    // Mint one for somebody who has paid.
+    const key = await page.evaluate(async () => {
+      const mod = await import('./assets/index.js').catch(() => null);
+      const ed = window.kline.editor;
+      return ed.issueLicenceKey
+        ? await ed.issueLicenceKey({ email: 'buyer@example.com', name: 'Buyer', months: 1 })
+        : null;
+    });
+
+    // Whether or not a direct helper exists, the panel is the real path and it
+    // must be reachable with the fields a sale needs.
+    const panel = await page.evaluate(async () => {
+      window.kline.editor.panels.toggleIssue?.();
+      await new Promise((done) => setTimeout(done, 400));
+      return {
+        pemBox: !!document.querySelector('textarea[placeholder*="PRIVATE KEY"]'),
+        placeholders: [...document.querySelectorAll('input')].map((i) => i.placeholder),
+        buttons: [...document.querySelectorAll('button')].map((b) => b.textContent.trim()),
+      };
+    });
+    await phone.close();
+
+    assert.equal(panel.pemBox, false,
+      'the founder is still greeted by a box asking for a private key file');
+    assert.ok(panel.buttons.some((b) => /issue a key/i.test(b)),
+      `there is no Issue button: ${panel.buttons.join(', ')}`);
+    // The payment link travels with the key, so the customer can see it works
+    // before they are asked for money.
+    assert.ok(panel.placeholders.some((p) => /stripe|buy\./i.test(p ?? '')),
+      `there is nowhere to put the payment link: ${panel.placeholders.join(', ')}`);
+    if (key) assert.match(key, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/, `the issued key looks wrong: ${key}`);
+  });
+
   test('10 · the Founder tab is hidden from customers and reachable by the owner', async () => {
     // It used to be a third tab on the first screen every customer sees.
     // Whatever it does, what it SAYS to somebody deciding whether to pay is

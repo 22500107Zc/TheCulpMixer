@@ -47,7 +47,8 @@ import {
   AccountState, forgetSession, hasSession, logIn as logInToAccount, refreshAccount,
   signUp as signUpForAccount,
 } from '../licence/account';
-import { FOUNDER_EMAIL, isFounderEmail, unsealOwnerKey } from '../licence/founder';
+import { FOUNDER_EMAIL, isFounderEmail, unsealOwnerKey, unsealSigningKey } from '../licence/founder';
+import { rememberSigningKey } from '../licence/issue';
 import { RenderJob } from '../render/pathtrace/RenderJob';
 import { RenderSettings, defaultRenderSettings } from '../render/pathtrace/types';
 import { buildTraceScene, cameraFromObject, cameraFromViewport } from '../render/pathtrace/build';
@@ -783,6 +784,22 @@ export class Editor {
             paidUntil: null,
             founder: true,
           };
+          // The same password unseals the key that signs licences, so getting
+          // in is getting the ability to issue. There is no file to have kept
+          // and none to go looking for: somebody offers to pay, and the Issue
+          // button already works, on whatever machine is to hand.
+          //
+          // Deliberately after the account is set, and deliberately unable to
+          // throw. Doing it first meant a failure here — storage refused in a
+          // private window, a probe signature that would not verify — took the
+          // whole login down with it, and the founder could not get in at all.
+          // Issuing is the thing that can wait; being locked out is not.
+          try {
+            const signing = await unsealSigningKey(password);
+            if (signing) await rememberSigningKey(signing);
+          } catch {
+            /* Issuing will ask for a key when it is needed. Getting in worked. */
+          }
           this.emit('licence');
           return { ok: true, message: '' };
         }

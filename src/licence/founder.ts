@@ -34,6 +34,32 @@ export const SEALED_OWNER_KEY = {
   iterations: 310000,
 };
 
+/**
+ * The signing key, sealed with the same founder password.
+ *
+ * Issuing a licence means signing one, and signing needs the private key.
+ * That used to mean holding a .pem file and pasting it in before the Issue
+ * button would do anything — a file to keep, a file to lose, and a file to go
+ * looking for on a phone at the moment somebody wants to pay. Losing it is
+ * unrecoverable: the public half is baked into every shipped build, so a
+ * replacement keypair invalidates every licence already sold.
+ *
+ * Signing in as the founder is what makes issuing possible now. No file.
+ *
+ * The honest limit, and it is a real one: this ciphertext ships to everybody
+ * who loads the site. The owner key sealed above only ever unlocked one
+ * person's own copy; this one MINTS LICENCES. The password is therefore the
+ * whole security of the product and has to be chosen like it — see
+ * tools/kline-seal-signing-key.mjs, which re-seals under a new password
+ * without changing the keypair, so nothing already issued breaks.
+ */
+export const SEALED_SIGNING_KEY = {
+  salt: 'yWlC8i1R0Ysux2YemAKOrA==',
+  iv: 'qOBfwWj1GK7tjQyE',
+  data: 'hefSz+9gPcuSYwjNcuQ1/2NuRiSVMxrKildsGxu4Xt1UOJrvKy3lhyE9aUvTYAwkj+7ou5QHQkr2AWY6Fft8n+lzYohmSs0trUaDNzLa/zZ2M6mGpdPR1QZyvl6Kr021brHep60tBsVrtQD2LdQ2GkWWvUi10m44X/PoQy2V7nvMI4p2T9pGeNJzug7hHyp3KYGGZOIUi7L127k12FnHVlvkSi6gejTRoYANGUXcODbIdU+vFcXTiJQU2z5U6hqtx6ShxJLALKufenZ9j4BcBKRBRsJjBZ8DncJ0WtT1wUIpq28GzgMM8onoCcAC9alSIRwO6cvDdFRL2Gyp/tBQdg==',
+  iterations: 310000,
+};
+
 const bytes = (base64: string): Uint8Array =>
   Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 
@@ -49,6 +75,29 @@ export const isFounderEmail = (email: string): boolean =>
  * flip. Either the password produces the key or nothing comes out.
  */
 export async function unsealOwnerKey(password: string): Promise<string | null> {
+  return unseal(SEALED_OWNER_KEY, password);
+}
+
+/**
+ * Unseal the signing key with the founder password.
+ *
+ * Returns the private key in PEM form, ready to sign licences with, or null
+ * for the wrong password. Same guarantee as the owner key: there is no "close
+ * enough" and no boolean to flip, because AES-GCM's tag check either produces
+ * the plaintext or throws.
+ */
+export async function unsealSigningKey(password: string): Promise<string | null> {
+  const pem = await unseal(SEALED_SIGNING_KEY, password);
+  // Shape-checked before it is handed on: a blob that decrypts to something
+  // that is not a key would otherwise fail later, at the moment somebody is
+  // waiting to be given a licence they have already paid for.
+  if (!pem || !pem.includes('PRIVATE KEY')) return null;
+  return pem;
+}
+
+interface Sealed { salt: string; iv: string; data: string; iterations: number }
+
+async function unseal(blob: Sealed, password: string): Promise<string | null> {
   if (!password) return null;
   // A trailing NUL is absorbed into HMAC's key padding, so PBKDF2 derives the
   // same key for "pw" and "pw\0" — which would let "pw\0junk" unseal what "pw"
@@ -62,8 +111,8 @@ export async function unsealOwnerKey(password: string): Promise<string | null> {
     const key = await crypto.subtle.deriveKey(
       {
         name: 'PBKDF2',
-        salt: bytes(SEALED_OWNER_KEY.salt) as BufferSource,
-        iterations: SEALED_OWNER_KEY.iterations,
+        salt: bytes(blob.salt) as BufferSource,
+        iterations: blob.iterations,
         hash: 'SHA-256',
       },
       material,
@@ -72,9 +121,9 @@ export async function unsealOwnerKey(password: string): Promise<string | null> {
       ['decrypt'],
     );
     const plain = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv: bytes(SEALED_OWNER_KEY.iv) as BufferSource },
+      { name: 'AES-GCM', iv: bytes(blob.iv) as BufferSource },
       key,
-      bytes(SEALED_OWNER_KEY.data) as BufferSource,
+      bytes(blob.data) as BufferSource,
     );
     return new TextDecoder().decode(plain);
   } catch {
