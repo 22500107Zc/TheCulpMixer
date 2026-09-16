@@ -20,7 +20,8 @@
  */
 
 import {
-  Account, TRIAL_MS, checkFounder, deleteAccount, findAccount, founderEmail, generatePassword,
+  Account, TRIAL_MS, callerKey, checkFounder, clearFailures, deleteAccount, findAccount,
+  founderEmail, generatePassword, rateLimited, recordFailure,
   hashPassword, kvConfigured, listAccounts, mintSession, readJson, saveAccount, settings,
   standing, storeName, validSession, writeJson, KEYS, env,
 } from './_store.js';
@@ -100,13 +101,26 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   if (action === 'login') {
     const password = typeof body?.password === 'string' ? body.password : '';
     const email = clean(body?.email, 200);
+    // Checked before the password is: a source that has already spent its
+    // attempts is turned away without the cost of hashing, which also stops
+    // the limiter becoming its own denial of service.
+    const who = callerKey(req.headers);
+    if (rateLimited(who)) {
+      res.status(429).json({
+        error: 'too-many-attempts',
+        detail: 'Too many failed sign-ins from this address. Wait ten minutes and try again.',
+      });
+      return;
+    }
     if (!checkFounder(email, password)) {
+      recordFailure(who);
       // Deliberately vague and deliberately slow to be useful: one message for
       // every kind of wrong.
       await new Promise((done) => setTimeout(done, 400));
       res.status(401).json({ error: 'wrong-password' });
       return;
     }
+    clearFailures(who);
     res.status(200).json({
       session: mintSession(),
       storage: kvConfigured(),

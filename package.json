@@ -47,7 +47,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/22500107Zc/CulpMixer.git"
+    "url": "https://github.com/22500107Zc/TheCulpMixer.git"
   },
   "main": "electron/main.cjs",
   "build": {
@@ -191,5 +191,9 @@
   },
   "dependencies": {
     "onnxruntime-web": "^1.29.0"
+  },
+  "homepage": "https://theculpmixer.vercel.app",
+  "bugs": {
+    "url": "https://github.com/22500107Zc/TheCulpMixer/issues"
   }
 }

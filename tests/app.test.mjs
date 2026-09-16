@@ -3908,11 +3908,21 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     // licences for other people. Four ways in are checked, because "the button
     // is hidden" is not a security property on its own.
     await resetScene(page);
+    // The precondition is "this is an ordinary customer, not the founder".
+    //
+    // It used to be spelled `licence.status === 'trial'`, which was incidental
+    // rather than the point: a signed-in account is the authority on access
+    // and deliberately does not consult the licence server at all, so its
+    // licence status is legitimately not 'trial'. What has to be true before
+    // the four checks below mean anything is that this session holds no owner
+    // licence — which is the thing issuing is gated on.
     const asCustomer = await page.evaluate(() => ({
       licence: window.culpmixer.editor.licence.status,
+      canUse: window.culpmixer.editor.canUse,
       button: !!document.querySelector('.issue-chip'),
     }));
-    assert.equal(asCustomer.licence, 'trial', 'the harness user should be an ordinary trial');
+    assert.notEqual(asCustomer.licence, 'owner', 'the harness user holds an owner licence');
+    assert.equal(asCustomer.canUse, true, 'the harness user cannot use the application at all');
     assert.equal(asCustomer.button, false, 'a trial user can see the issuing button');
 
     // Opening the panel by hand from the console gets a refusal, not a form.

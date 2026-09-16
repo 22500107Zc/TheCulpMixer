@@ -990,7 +990,12 @@ if (app.skip) {
     await resetScene(page);
     const state = await page.evaluate(async () => {
       const ed = window.culpmixer.editor;
-      await ed.refreshLicence();
+      // What the application itself does on a first launch. A trial is now
+      // started by the licence server rather than by the browser writing
+      // itself a timestamp, so refreshLicence alone reads the state before
+      // anybody has been given one — which is the state a first launch is in
+      // for the length of one request, and not what this test is about.
+      await ed.syncLicence();
       return {
         status: ed.licence.status,
         canExport: ed.canExport,
@@ -1230,6 +1235,11 @@ if (app.skip) {
     await page.evaluate(() => {
       const ed = window.culpmixer.editor;
       ed.licence = window.__licenceWas;
+      // The account was captured above and never put back, which only went
+      // unnoticed while an unstarted trial still counted as usable. It is the
+      // account that decides access for a signed-in customer, so restoring
+      // half the state left the editor locked.
+      ed.account = window.__accountWas;
       ed.emit('licence');
       ed.panels.toggleLicence?.();
     });

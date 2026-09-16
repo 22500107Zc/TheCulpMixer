@@ -402,3 +402,58 @@ test('the session fuzz does real work', () => {
   assert.ok(built > 100, `the primitives together produced only ${built} faces`);
   assert.equal(structuralProblem(scene), null);
 });
+
+/**
+ * A file that will not load must never cost somebody the project they have open.
+ *
+ * The scene is the customer's asset. A stranger's file — truncated, from a
+ * newer build, hand-edited, not ours at all — is allowed to be refused. It is
+ * not allowed to take the open document with it, and it is not allowed to
+ * leave the application half-loaded.
+ *
+ * Asserted against the parse-then-replace boundary directly: the new document
+ * is built completely before the live one is touched, so a throw anywhere in
+ * parsing leaves the original whole.
+ */
+test('a file that fails to load leaves the open project untouched', () => {
+  const hostile: unknown[] = [
+    'not json', '{"objects":', null, 42, [],
+    { objects: 'no' },
+    { objects: [{ id: 1, mesh: { positions: 'no', faces: 'no' } }] },
+    { objects: [{ id: 1, mesh: { positions: [], faces: [[9, 9, 9]] } }] },
+    { objects: [{ id: 1, parent: 7777 }] },
+    { objects: Array.from({ length: 500 }, (_, i) => ({ id: i, parent: i - 1 })) },
+  ];
+
+  for (const [i, doc] of hostile.entries()) {
+    // A project somebody has been working on.
+    const open = new Scene();
+    open.add('mesh', 'Important', buildPrimitive('cube'));
+    open.add('mesh', 'Also important', buildPrimitive('uvSphere'));
+    const before = JSON.stringify(open.toJSON());
+
+    // What Open does: build the new one first, and only adopt it if that
+    // worked. Nothing above this line may be reached by a failure below it.
+    let replacement: Scene | null = null;
+    try {
+      replacement = Scene.fromJSON(
+        typeof doc === 'string' ? (JSON.parse(doc) as never) : (doc as never),
+      );
+    } catch {
+      replacement = null;
+    }
+    if (replacement) {
+      const problem = structuralProblem(replacement);
+      if (problem) replacement = null;
+    }
+    if (replacement) open.adopt(replacement);
+
+    // Either the file loaded into something sound, or the project is intact.
+    const after = JSON.stringify(open.toJSON());
+    if (replacement === null) {
+      assert.equal(after, before, `document ${i} damaged the open project`);
+    } else {
+      assert.equal(structuralProblem(open), null, `document ${i} loaded into a broken scene`);
+    }
+  }
+});

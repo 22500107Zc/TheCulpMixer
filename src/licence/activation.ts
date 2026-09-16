@@ -1,4 +1,4 @@
-import { LICENCE_KEY, TRIAL_KEY, TRIAL_MS, clearLicence, storeLicence } from './licence';
+import { LICENCE_KEY, TRIAL_KEY, TRIAL_MS, beginTrialAt, clearLicence, storeLicence } from './licence';
 
 /**
  * Turning a link into a paying customer, without anybody touching a key.
@@ -163,10 +163,11 @@ export async function syncLicence(options: { email?: string; session?: string } 
   const endsAt = Number(answer.endsAt);
   if (!Number.isFinite(endsAt) || endsAt <= 0) return { status: 'offline' };
 
-  // The server owns the trial clock. It is written back in the form the
-  // offline check already reads, so there is one notion of "when does this
-  // run out" rather than two that can disagree.
-  write(TRIAL_KEY, String(endsAt - TRIAL_MS));
+  // The server owns the trial clock, and is now the ONLY thing that can start
+  // one: the offline check reads this timestamp and no longer writes one of
+  // its own. Written in the form that check already reads, so there is one
+  // notion of "when does this run out" rather than two that can disagree.
+  beginTrialAt(endsAt - TRIAL_MS);
   // Anything stored from a lapsed subscription is cleared here rather than
   // left to expire, so the application says "your trial ended" instead of
   // arguing with a stale key.

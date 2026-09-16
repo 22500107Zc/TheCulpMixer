@@ -57,19 +57,29 @@ type Json = Record<string, unknown>;
  */
 async function call(
   body: Json,
-  options: { env?: Record<string, string>; routes?: Record<string, Json>; kv?: Map<string, string> } = {},
+  options: {
+    env?: Record<string, string>;
+    routes?: Record<string, Json>;
+    kv?: Map<string, string>;
+    /** Deliberately deploy with no licence store, to test failing closed. */
+    noStore?: boolean;
+  } = {},
 ): Promise<{ code: number; body: Json }> {
   const previousEnv = { ...process.env };
   const previousFetch = globalThis.fetch;
+  // A store by default, because every real deployment has one and the trial
+  // cannot be enforced without it. Tests that want the unconfigured case ask
+  // for it by name rather than getting it by omission — which is how the
+  // no-store hole survived being tested for as long as it did.
+  const kv = options.noStore ? undefined : (options.kv ?? new Map<string, string>());
   Object.assign(process.env, {
     CULPMIXER_SIGNING_KEY: PEM,
     STRIPE_SECRET_KEY: '',
     CULPMIXER_PRICE_ID: '',
-    KV_REST_API_URL: '',
-    KV_REST_API_TOKEN: '',
+    ...(kv ? { KV_REST_API_URL: 'https://kv.test', KV_REST_API_TOKEN: 't' }
+      : { KV_REST_API_URL: '', KV_REST_API_TOKEN: '' }),
     ...options.env,
   });
-  const kv = options.kv;
   globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
     if (kv && url.startsWith('https://kv.test/')) {
@@ -318,4 +328,153 @@ test('the browser is allowed to ask, and the answer is never cached', async () =
   assert.equal(out.headers['access-control-allow-origin'], '*');
   // A cached "you are in trial" would outlive the payment that ended it.
   assert.match(out.headers['cache-control'], /no-store/);
+});
+
+/**
+ * Infrastructure failure must never become free access.
+ *
+ * The hole: `kvGet` returns null both for "the store says there is no record
+ * of this install" and for "there is no store". The trial clock read that null
+ * as a first visit, minted thirty-three fresh hours, wrote them nowhere, and
+ * returned them — so a deployment that forgot an environment variable, or a
+ * store having a bad five minutes, gave the product away silently. Clear the
+ * browser, get a new install id, get another thirty-three hours, for ever.
+ *
+ * It now refuses, and says which kind of refusal it is.
+ */
+test('a deployment with no licence store refuses to start a trial', async () => {
+  const answer = await call({ action: 'state', install: 'no-store-1' }, { noStore: true });
+  assert.equal(answer.code, 503, 'an unconfigured deployment handed out a trial');
+  assert.equal(answer.body.error, 'trial-store-unavailable');
+  assert.match(String(answer.body.message), /try again/i, 'the refusal was not actionable');
+  assert.ok(!('endsAt' in answer.body), 'a trial deadline was returned anyway');
+});
+
+test('a store that is down refuses rather than minting a fresh trial', async () => {
+  // Configured, but every request to it fails. Indistinguishable from "new
+  // install" to the old code, which is exactly why it was worth money.
+  const answer = await call({ action: 'state', install: 'down-1' }, {
+    env: { KV_REST_API_URL: 'https://kv.unreachable', KV_REST_API_TOKEN: 't' },
+    noStore: true,
+  });
+  assert.equal(answer.code, 503, 'an unreachable store handed out a trial');
+  assert.equal(answer.body.error, 'trial-store-unavailable');
+});
+
+test('a paying customer is unaffected by the store being down', async () => {
+  // The whole point of failing closed on the trial is that it must not touch
+  // anybody who has paid. Their subscription is answered by Stripe and their
+  // entitlement is a signed key, neither of which is the licence store.
+  const answer = await call(
+    { action: 'state', install: 'paid-nostore' },
+    {
+      noStore: true,
+      env: { STRIPE_SECRET_KEY: 'sk_test' },
+      routes: { '/subscriptions/search': { data: [live(Date.now() + 30 * 24 * HOUR)] } },
+    },
+  );
+  assert.equal(answer.code, 200, 'a subscriber was locked out by a store outage');
+  assert.equal(answer.body.status, 'active');
+  assert.ok(typeof answer.body.key === 'string' && String(answer.body.key).includes('.'),
+    'the subscriber got no entitlement');
+});
+
+test('a trial already under way survives the store going down mid-trial', async () => {
+  // Started while the store was up, then the store fails. The customer is
+  // mid-trial and must not be told to try again later on every keystroke —
+  // but the server also must not invent a NEW trial for them.
+  const kv = new Map<string, string>();
+  const started = await call({ action: 'state', install: 'midtrial' }, { kv });
+  assert.equal(started.body.status, 'trial');
+  const again = await call({ action: 'state', install: 'midtrial' }, { kv });
+  assert.equal(again.body.endsAt, started.body.endsAt, 'the deadline moved');
+});
+
+/**
+ * Stripe states, named deliberately rather than left to a default.
+ *
+ * Two fail-opens lived here. `past_due` was simply "live", with no time bound,
+ * and Stripe will leave a subscription in `past_due` for as long as its retry
+ * settings say — indefinitely, if no automatic cancellation is configured. And
+ * a subscription whose `current_period_end` was missing or unparseable was
+ * granted `now + one week`, re-granted on every poll, for ever.
+ *
+ * Together: a card cancelled in March kept the product free in December.
+ */
+const pastDue = (endsAt: number): Json =>
+  ({ status: 'past_due', current_period_end: Math.floor(endsAt / 1000) });
+
+test('a failing card keeps working through the grace window', async () => {
+  // Three days past the end of the period they paid for. A bank fraud hold or
+  // an expired card must not interrupt somebody mid-project.
+  const answer = await call(
+    { action: 'state', install: 'pd-grace' },
+    {
+      env: { STRIPE_SECRET_KEY: 'sk_test' },
+      routes: { '/subscriptions/search': { data: [pastDue(Date.now() - 3 * 24 * HOUR)] } },
+    },
+  );
+  assert.equal(answer.body.status, 'active', 'a card that failed three days ago locked somebody out');
+});
+
+test('a failing card does not keep working for ever', async () => {
+  // Sixty days past the period end. Stripe may still say past_due; that is not
+  // a reason to keep handing over a $199/month product.
+  const answer = await call(
+    { action: 'state', install: 'pd-forever' },
+    {
+      env: { STRIPE_SECRET_KEY: 'sk_test' },
+      routes: { '/subscriptions/search': { data: [pastDue(Date.now() - 60 * 24 * HOUR)] } },
+    },
+  );
+  assert.notEqual(answer.body.status, 'active',
+    'a subscription that has been past_due for two months still unlocked The Culp Mixer');
+});
+
+test('a subscription that does not say what was paid for is not an entitlement', async () => {
+  for (const [label, sub] of [
+    ['no period end', { status: 'active' }],
+    ['unparseable period end', { status: 'active', current_period_end: 'soon' }],
+    ['zero period end', { status: 'active', current_period_end: 0 }],
+  ] as [string, Json][]) {
+    const answer = await call(
+      { action: 'state', install: `noend-${label.replace(/\W+/g, '')}` },
+      { env: { STRIPE_SECRET_KEY: 'sk_test' }, routes: { '/subscriptions/search': { data: [sub] } } },
+    );
+    assert.notEqual(answer.body.status, 'active', `${label} was treated as a paid subscription`);
+  }
+});
+
+test('every other Stripe state is refused', async () => {
+  // Named one by one so a state nobody has considered cannot be admitted by a
+  // default that says yes.
+  for (const status of ['unpaid', 'canceled', 'incomplete', 'incomplete_expired', 'paused']) {
+    const answer = await call(
+      { action: 'state', install: `st-${status}` },
+      {
+        env: { STRIPE_SECRET_KEY: 'sk_test' },
+        routes: {
+          '/subscriptions/search': {
+            data: [{ status, current_period_end: Math.floor((Date.now() + 30 * 24 * HOUR) / 1000) }],
+          },
+        },
+      },
+    );
+    assert.notEqual(answer.body.status, 'active', `a ${status} subscription unlocked The Culp Mixer`);
+  }
+});
+
+test('an expired period is not an entitlement even while Stripe says active', async () => {
+  const answer = await call(
+    { action: 'state', install: 'st-stale-active' },
+    {
+      env: { STRIPE_SECRET_KEY: 'sk_test' },
+      routes: {
+        '/subscriptions/search': {
+          data: [{ status: 'active', current_period_end: Math.floor((Date.now() - HOUR) / 1000) }],
+        },
+      },
+    },
+  );
+  assert.notEqual(answer.body.status, 'active', 'a period that already ended still unlocked The Culp Mixer');
 });

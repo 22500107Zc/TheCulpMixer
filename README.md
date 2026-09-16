@@ -23,11 +23,11 @@ point at the newest release, so they never go stale.
 
 | | |
 |---|---|
-| **macOS — Apple Silicon** (M1/M2/M3/M4) | **[Download CulpMixer-arm64.dmg](https://github.com/22500107Zc/CulpMixer/releases/latest/download/CulpMixer-arm64.dmg)** |
-| **macOS — Intel** | **[Download CulpMixer-x64.dmg](https://github.com/22500107Zc/CulpMixer/releases/latest/download/CulpMixer-x64.dmg)** |
-| **macOS — installer** (either chip) | [CulpMixer-universal.pkg](https://github.com/22500107Zc/CulpMixer/releases/latest/download/CulpMixer-universal.pkg) |
-| **Windows** | **[Download CulpMixer-Setup.exe](https://github.com/22500107Zc/CulpMixer/releases/latest/download/CulpMixer-Setup.exe)** · [portable](https://github.com/22500107Zc/CulpMixer/releases/latest/download/CulpMixer-portable.exe) |
-| **Linux** | **[Download CulpMixer.AppImage](https://github.com/22500107Zc/CulpMixer/releases/latest/download/CulpMixer.AppImage)** · [.deb](https://github.com/22500107Zc/CulpMixer/releases/latest/download/CulpMixer.deb) |
+| **macOS — Apple Silicon** (M1/M2/M3/M4) | **[Download CulpMixer-arm64.dmg](https://github.com/22500107Zc/TheCulpMixer/releases/latest/download/CulpMixer-arm64.dmg)** |
+| **macOS — Intel** | **[Download CulpMixer-x64.dmg](https://github.com/22500107Zc/TheCulpMixer/releases/latest/download/CulpMixer-x64.dmg)** |
+| **macOS — installer** (either chip) | [CulpMixer-universal.pkg](https://github.com/22500107Zc/TheCulpMixer/releases/latest/download/CulpMixer-universal.pkg) |
+| **Windows** | **[Download CulpMixer-Setup.exe](https://github.com/22500107Zc/TheCulpMixer/releases/latest/download/CulpMixer-Setup.exe)** · [portable](https://github.com/22500107Zc/TheCulpMixer/releases/latest/download/CulpMixer-portable.exe) |
+| **Linux** | **[Download CulpMixer.AppImage](https://github.com/22500107Zc/TheCulpMixer/releases/latest/download/CulpMixer.AppImage)** · [.deb](https://github.com/22500107Zc/TheCulpMixer/releases/latest/download/CulpMixer.deb) |
 
 Not sure which Mac you have?  ▸ **About This Mac**. "Apple M1/M2/M3/M4" means
 Apple Silicon; "Intel" means Intel.
@@ -58,7 +58,7 @@ native Open and Save dialogs.
 ### Or build it yourself
 
 ```bash
-git clone https://github.com/22500107Zc/CulpMixer.git
+git clone https://github.com/22500107Zc/TheCulpMixer.git
 cd The Culp Mixer
 npm install
 

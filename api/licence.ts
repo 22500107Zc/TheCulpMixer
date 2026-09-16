@@ -32,7 +32,10 @@
  */
 
 import { createPrivateKey, sign } from 'node:crypto';
-import { KEYS, env, kvGet, kvSet, liveAccount, settings, signInAccount, standing } from './_store.js';
+import {
+  KEYS, callerKey, clearFailures, env, kvRead, kvSet, liveAccount, rateLimited, recordFailure,
+  settings, signInAccount, standing,
+} from './_store.js';
 
 /** Thirty-three hours. The same number the application and the LICENCE state. */
 const TRIAL_MS = 33 * 60 * 60 * 1000;
@@ -130,8 +133,9 @@ async function findSubscription(
       'expand[]': 'subscription',
     });
     const sub = found?.subscription as Record<string, unknown> | undefined;
-    if (sub && typeof sub === 'object' && isLive(sub)) {
-      return { name: emailOf(found) || email || 'The Culp Mixer subscriber', until: periodEnd(sub) };
+    const until = sub && typeof sub === 'object' ? liveUntil(sub) : null;
+    if (until !== null) {
+      return { name: emailOf(found) || email || 'The Culp Mixer subscriber', until };
     }
   }
 
@@ -142,7 +146,8 @@ async function findSubscription(
       limit: '1',
     });
     const sub = (found?.data as Record<string, unknown>[] | undefined)?.[0];
-    if (sub && isLive(sub)) return { name: email || 'The Culp Mixer subscriber', until: periodEnd(sub) };
+    const until = sub ? liveUntil(sub) : null;
+    if (until !== null) return { name: email || 'The Culp Mixer subscriber', until };
   }
 
   // 3. By email, which is how somebody who already paid unlocks a second
@@ -154,21 +159,77 @@ async function findSubscription(
         customer: String(customer.id), status: 'all', limit: '10',
       });
       for (const sub of (subs?.data as Record<string, unknown>[] | undefined) ?? []) {
-        if (isLive(sub)) return { name: email, until: periodEnd(sub) };
+        const until = liveUntil(sub);
+        if (until !== null) return { name: email, until };
       }
     }
   }
   return null;
 }
 
-/** Paid up, or inside the window Stripe still calls good. */
-function isLive(sub: Record<string, unknown>): boolean {
-  return sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due';
+/**
+ * How long a failing card keeps working.
+ *
+ * Stripe puts a subscription into `past_due` the moment a payment fails and
+ * leaves it there for the whole retry cycle. If every retry fails and no
+ * automatic cancellation is configured, it can sit in `past_due` for ever —
+ * so treating `past_due` as simply "live", which is what this used to do,
+ * handed somebody whose card was cancelled in March a free product in
+ * December, renewed a week at a time, for as long as they kept opening it.
+ *
+ * Two weeks past the end of the period they actually paid for. Long enough
+ * that an expired card, a bank's fraud hold or a holiday does not interrupt
+ * somebody's work; short enough that it is a grace period rather than a gift.
+ */
+const PAST_DUE_GRACE_MS = 14 * 24 * 60 * 60 * 1000;
+
+/**
+ * When the period Stripe says was paid for ends, or null if it does not say.
+ *
+ * Returning null rather than a default is the point. This used to answer
+ * `now + LEASE_MS` when the field was missing or unparseable, which meant a
+ * malformed or unexpected Stripe response granted a week's access — and
+ * because every poll asked again, a week each time, indefinitely. A response
+ * that does not say what was paid for is not evidence that anything was.
+ */
+function periodEnd(sub: Record<string, unknown>): number | null {
+  const seconds = Number(sub.current_period_end);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : null;
 }
 
-function periodEnd(sub: Record<string, unknown>): number {
-  const seconds = Number(sub.current_period_end);
-  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : Date.now() + LEASE_MS;
+/**
+ * Whether this subscription entitles its owner to use The Culp Mixer, right now.
+ *
+ * Every state Stripe defines is named, deliberately, rather than left to fall
+ * through a default. A state nobody has considered must mean "no": the failure
+ * that costs a sale is recoverable by signing in again, and the one that gives
+ * the product away is not.
+ */
+function liveUntil(sub: Record<string, unknown>, now = Date.now()): number | null {
+  const ends = periodEnd(sub);
+  if (ends === null) return null;
+  switch (sub.status) {
+    // Paid, or inside a Stripe-run trial. Entitled until the period ends.
+    case 'active':
+    case 'trialing':
+      return ends > now ? ends : null;
+    // Payment failed and Stripe is retrying. Entitled, but only through the
+    // grace window above — not for as long as Stripe happens to keep the
+    // subscription in this state.
+    case 'past_due':
+      return ends + PAST_DUE_GRACE_MS > now ? ends + PAST_DUE_GRACE_MS : null;
+    // Retries are over and it was never paid; the customer cancelled; the
+    // first payment never completed; the checkout was abandoned; the
+    // subscription is deliberately stopped. None of these is entitlement.
+    case 'unpaid':
+    case 'canceled':
+    case 'incomplete':
+    case 'incomplete_expired':
+    case 'paused':
+      return null;
+    default:
+      return null;
+  }
 }
 
 function emailOf(session: Record<string, unknown> | null): string {
@@ -176,10 +237,30 @@ function emailOf(session: Record<string, unknown> | null): string {
   return typeof details?.email === 'string' ? details.email : '';
 }
 
-/** Where the trial stands for this install. */
+/**
+ * Where the trial stands for this install.
+ *
+ * Throws `trial-store-unavailable` rather than inventing an answer when the
+ * store cannot be consulted, and that is the point of it.
+ *
+ * The trial is only a trial because the clock is kept somewhere the customer
+ * cannot reach. If the store is missing or down, a null read is
+ * indistinguishable from "an install nobody has seen before" — so the old code
+ * minted a fresh thirty-three hours, wrote it nowhere, and returned it. Clear
+ * the browser, get a new install id, get another thirty-three hours, for ever;
+ * and a deployment that simply forgot an environment variable gave the product
+ * away without a single line in a log to say so.
+ *
+ * So infrastructure failure is not allowed to become free access. It becomes a
+ * 503 and an explicit message. A paying customer is unaffected: their
+ * entitlement is a signed key checked offline, and the subscription lookup
+ * above this never touches the store.
+ */
 async function trialEndsAt(install: string, claimed: number, now: number): Promise<number> {
-  const stored = await kvGet(KEYS.trial(install));
-  const started = Number(stored);
+  const { reached, value } = await kvRead(KEYS.trial(install));
+  if (!reached) throw new Error('trial-store-unavailable');
+
+  const started = Number(value);
   if (Number.isFinite(started) && started > 0) return started + TRIAL_MS;
 
   // First time this install has been seen. A clock the client claims is
@@ -187,7 +268,12 @@ async function trialEndsAt(install: string, claimed: number, now: number): Promi
   // browser would be a fresh thirty-three hours, which is the hole this
   // closes.
   const begin = Number.isFinite(claimed) && claimed > 0 && claimed < now ? claimed : now;
-  await kvSet(KEYS.trial(install), String(begin));
+  // A start that cannot be written down is a trial nobody can enforce, so it
+  // is not granted. Refusing is recoverable; handing out an unenforceable
+  // trial is not.
+  if (!(await kvSet(KEYS.trial(install), String(begin)))) {
+    throw new Error('trial-store-unavailable');
+  }
   return begin + TRIAL_MS;
 }
 
@@ -256,8 +342,19 @@ export default async function handler(req: Req, res: Res): Promise<void> {
       // is the whole of "log in": one request, and what comes back is the
       // same signed entitlement everything else returns.
       const password = typeof body?.password === 'string' ? body.password : '';
+      // A ceiling on guessing, checked before the password is so that a source
+      // over the line costs nothing to turn away.
+      const who = callerKey(req.headers);
+      if (rateLimited(who)) {
+        res.status(429).json({
+          error: 'too-many-attempts',
+          message: 'Too many failed sign-ins from this address. Wait ten minutes and try again.',
+        });
+        return;
+      }
       const account = await signInAccount(email, password);
       if (!account) {
+        recordFailure(who);
         // One answer for every kind of wrong, at the same cost, so this
         // cannot be used to find out which emails have accounts.
         await new Promise((done) => setTimeout(done, 400));
@@ -268,6 +365,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
       // must not be reported as one — but it is emphatically not a key
       // either. signInAccount deliberately stops filtering these out, so the
       // check has to happen here.
+      clearFailures(who);
       const where = standing(account, now);
       if (where.state === 'locked') {
         const { paymentLink } = await settings();
@@ -326,6 +424,19 @@ export default async function handler(req: Req, res: Res): Promise<void> {
     // "no-signing-key" means somebody deployed this without the key. Saying so
     // is better than quietly handing every visitor a trial for ever.
     const reason = error instanceof Error ? error.message : 'error';
+    if (reason === 'trial-store-unavailable') {
+      // Not a bug in the application and not the customer's fault: the trial
+      // clock has nowhere to live. 503 rather than 500 because it is a
+      // temporary condition with an operator-side fix, and the message says
+      // which so that a support email answers itself.
+      res.status(503).json({
+        error: 'trial-store-unavailable',
+        message: 'The Culp Mixer cannot start a trial right now because its licence store is '
+          + 'unavailable. Please try again in a few minutes. If you have already paid, sign in '
+          + 'and your subscription will be recognised.',
+      });
+      return;
+    }
     res.status(500).json({ error: reason });
   }
 }

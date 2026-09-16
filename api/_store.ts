@@ -170,6 +170,67 @@ async function upstash(path: string, body?: string): Promise<unknown> {
   }
 }
 
+/**
+ * A read that says whether the store was actually consulted.
+ *
+ * `kvGet` returns null for two completely different situations: "the store
+ * answered, and there is no such key" and "there is no store, or it did not
+ * answer". For a preference that difference does not matter. For the trial
+ * clock it is the whole ballgame — treating an unreachable store as "no record
+ * of this install" mints a fresh thirty-three hours, so a missing environment
+ * variable or a momentary outage silently becomes unlimited free access, and
+ * nothing anywhere reports that it happened.
+ *
+ * Callers that gate access use this and refuse when `reached` is false.
+ * Everything else can keep using kvGet, where degrading quietly is correct.
+ */
+export async function kvRead(key: string): Promise<{ reached: boolean; value: string | null }> {
+  if (supabaseConfigured()) {
+    const value = await supabaseGet(key);
+    // supabaseGet returns null for both cases too, so ask separately whether
+    // the store is answering at all before believing a null.
+    if (value !== null) return { reached: true, value };
+    return { reached: await supabaseReachable(), value: null };
+  }
+  if (!upstashConfigured()) return { reached: false, value: null };
+  const result = await upstash(`get/${encodeURIComponent(key)}`);
+  if (result != null) return { reached: true, value: String(result) };
+  return { reached: await upstashReachable(), value: null };
+}
+
+/** Whether Supabase answers at all, regardless of what is in it. */
+async function supabaseReachable(): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `${supabaseUrl()}/rest/v1/${TABLE}?select=key&limit=1`,
+      { headers: supabaseHeaders() },
+    );
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Whether the Upstash-compatible store answers at all. */
+async function upstashReachable(): Promise<boolean> {
+  // A read of a key nobody writes. A configured store answers it with a null
+  // result and a 2xx; an unreachable one does not answer at all.
+  return (await upstashRaw('get/culpmixer:health')) !== 'unreachable';
+}
+
+async function upstashRaw(path: string): Promise<'unreachable' | unknown> {
+  const url = env('KV_REST_API_URL');
+  const token = env('KV_REST_API_TOKEN');
+  if (!url || !token) return 'unreachable';
+  try {
+    const response = await fetch(`${url}/${path}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok) return 'unreachable';
+    return ((await response.json()) as { result?: unknown }).result ?? null;
+  } catch {
+    return 'unreachable';
+  }
+}
+
 export async function kvGet(key: string): Promise<string | null> {
   if (supabaseConfigured()) return supabaseGet(key);
   const result = await upstash(`get/${encodeURIComponent(key)}`);
@@ -440,4 +501,76 @@ export function validSession(token: string): boolean {
   } catch {
     return false;
   }
+}
+
+/* --------------------------------------------------------- rate limiting ---- */
+
+/**
+ * A ceiling on how fast a password can be guessed.
+ *
+ * Both login endpoints already answer wrong credentials slowly and vaguely,
+ * which stops somebody *learning* anything from a single attempt. Neither
+ * stopped them making a thousand attempts a second in parallel, and the
+ * founder password unlocks every account in the product.
+ *
+ * Deliberately in-process, and deliberately honest about what that is worth.
+ * Serverless instances are ephemeral and horizontally scaled, so this is a
+ * ceiling per warm instance rather than a global one. That still turns an
+ * unbounded online guessing attack into one that needs many instances and
+ * shows up plainly in the platform's own metrics, and it costs nothing and
+ * cannot fail. It is defence in depth under a strong password, not a
+ * replacement for one.
+ *
+ * It fails OPEN by design: a limiter that breaks must never be the reason the
+ * founder cannot get into their own console. The thing that fails closed is
+ * the trial, where the cost of being wrong is money rather than lockout.
+ */
+const attempts = new Map<string, number[]>();
+
+/** How many failures from one source before it is asked to wait. */
+export const RATE_LIMIT = 8;
+/** The window those failures are counted over. */
+export const RATE_WINDOW_MS = 10 * 60 * 1000;
+
+/** Who is asking, as well as this can be known behind a proxy. */
+export function callerKey(headers: Record<string, string | string[] | undefined>): string {
+  const raw = headers['x-forwarded-for'] ?? headers['x-real-ip'] ?? '';
+  const first = Array.isArray(raw) ? raw[0] : raw;
+  // The left-most entry is the client; everything after it is proxies.
+  return String(first).split(',')[0].trim().slice(0, 64) || 'unknown';
+}
+
+/**
+ * Whether this source has spent its attempts. Does not record one.
+ *
+ * Checked before the password is, so a source already over the line is turned
+ * away without the work of hashing — which is also what stops the limiter
+ * from becoming its own denial of service.
+ */
+export function rateLimited(key: string, now = Date.now()): boolean {
+  const seen = attempts.get(key);
+  if (!seen) return false;
+  const fresh = seen.filter((at) => now - at < RATE_WINDOW_MS);
+  if (fresh.length === 0) attempts.delete(key);
+  else attempts.set(key, fresh);
+  return fresh.length >= RATE_LIMIT;
+}
+
+/** Record a failure. Only failures count, so a busy customer is never limited. */
+export function recordFailure(key: string, now = Date.now()): void {
+  const fresh = (attempts.get(key) ?? []).filter((at) => now - at < RATE_WINDOW_MS);
+  fresh.push(now);
+  attempts.set(key, fresh);
+  // Bounded so a flood of distinct sources cannot grow this without limit.
+  if (attempts.size > 5000) {
+    for (const [k, times] of attempts) {
+      if (times.every((at) => now - at >= RATE_WINDOW_MS)) attempts.delete(k);
+      if (attempts.size <= 2500) break;
+    }
+  }
+}
+
+/** Forget a source's failures, called when they finally get it right. */
+export function clearFailures(key: string): void {
+  attempts.delete(key);
 }

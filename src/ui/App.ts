@@ -209,7 +209,11 @@ export class App {
         // the licence server. A signed-in account has already been answered.
         if (!this.editor.signedIn) return this.editor.syncLicence();
         return undefined;
-      });
+      })
+      // However this ends — answered, refused, or never replied — the
+      // application now knows where it stands. Without this the "still
+      // checking" grace in canUse would never close on a path that threw.
+      .finally(() => this.editor.markLicenceSettled());
     this.homePage.refresh();
     this.editor.renderer.onTexturesReady = () => this.editor.requestRender();
     // Closing the tab: write a recovery copy, and let the browser ask its own

@@ -149,6 +149,42 @@ function createWindow() {
     return { action: 'deny' };
   });
 
+  /**
+   * The window shows this application and nothing else, ever.
+   *
+   * setWindowOpenHandler above covers window.open and target=_blank. It does
+   * NOT cover the main window navigating itself — `location.href = ...`, a
+   * plain link with no target, a meta refresh. Without this, a crafted project
+   * file or a generated program could move the window to a page of somebody
+   * else's choosing, and that page would inherit the preload bridge: saveFile,
+   * chooseFolder and writeInFolder, which together are a file write on the
+   * customer's disk. contextIsolation and sandbox do not help, because the
+   * bridge is deliberately exposed to whatever document is loaded.
+   *
+   * So navigation is pinned to the app's own scheme and everything else is
+   * handed to the browser, where it belongs and where it has no bridge.
+   */
+  const isTheApp = (url) => {
+    try {
+      return new URL(url).protocol === 'culpmixer:';
+    } catch {
+      return false;
+    }
+  };
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (isTheApp(url)) return;
+    event.preventDefault();
+    if (/^https?:/.test(url)) shell.openExternal(url);
+  });
+  // Same rule for a redirect the page did not initiate itself.
+  mainWindow.webContents.on('will-redirect', (event, url) => {
+    if (isTheApp(url)) return;
+    event.preventDefault();
+  });
+  // No webviews are used. Refusing one outright means a future template
+  // string cannot quietly introduce a frame with different settings.
+  mainWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
+
   mainWindow.loadURL('culpmixer://app/');
 
   // Smoke-test hook: `CULPMIXER_SMOKE=<png path> electron .` boots the shell, puts
@@ -333,7 +369,7 @@ function buildMenu(commands) {
       { type: 'separator' },
       {
         label: 'The Culp Mixer on GitHub',
-        click: () => shell.openExternal('https://github.com/22500107Zc/CulpMixer'),
+        click: () => shell.openExternal('https://theculpmixer.vercel.app/'),
       },
     ],
   });

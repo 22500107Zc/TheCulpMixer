@@ -269,9 +269,18 @@ export const COMMANDS: Command[] = [
     run: async (ed) => {
       const file = await openTextFile('.obj');
       if (!file) return;
-      const objects = importOBJ(file.text);
+      // Parsed before anything is touched, and named in the message if it
+      // fails. An import that throws must leave the open project exactly as
+      // it was — the file being opened is a stranger's, the scene is theirs.
+      let objects: ReturnType<typeof importOBJ>;
+      try {
+        objects = importOBJ(file.text);
+      } catch (err) {
+        ed.setStatus(`Could not import ${file.name}: ${(err as Error).message ?? 'unreadable'}`);
+        return;
+      }
       if (objects.length === 0) {
-        ed.setStatus('No geometry found in that OBJ');
+        ed.setStatus(`No geometry found in ${file.name}`);
         return;
       }
       objectOp(ed, 'Import OBJ', (scene) => {
@@ -1703,7 +1712,42 @@ export function runCommand(editor: Editor, id: string): void {
     // own cannot creep a mesh that arrived over the budget any further.
     if (faces >= MAX_EDITABLE_FACES && !withinFaceBudget(editor, faces + 1, cmd.label)) return;
   }
-  void cmd.run(editor);
+  // Both halves of "it went wrong" end up in front of the person.
+  //
+  // This was `void cmd.run(editor)`. For the synchronous commands that is
+  // fine; for the async ones — open, import, export, render, generate — a
+  // rejection became an unhandled promise rejection: a line in the console
+  // nobody sees, no message, and a button that appears to have silently done
+  // nothing. That is the worst shape a failure can take, because the person's
+  // next move is to press it again.
+  //
+  // Nothing is swallowed and nothing is re-thrown: the status bar is where
+  // this application says what happened, and the scene is left exactly as the
+  // command found it.
+  try {
+    const result = cmd.run(editor) as unknown;
+    if (result && typeof (result as PromiseLike<unknown>).then === 'function') {
+      void Promise.resolve(result).catch((err: unknown) => {
+        editor.setStatus(`${cmd.label} could not finish: ${describeError(err)}`);
+      });
+    }
+  } catch (err) {
+    editor.setStatus(`${cmd.label} could not finish: ${describeError(err)}`);
+  }
+}
+
+/**
+ * A failure in words a person can act on, and never a secret.
+ *
+ * An Error's message is written by this codebase and is safe to show. Anything
+ * else — a rejected fetch Response, a thrown string, a DOMException — is
+ * reported by shape rather than by contents, because an arbitrary thrown value
+ * can carry a URL with a token in it.
+ */
+function describeError(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === 'string' && err.length < 200) return err;
+  return 'something unexpected went wrong. Your project is untouched.';
 }
 
 /** Normalise a keyboard event into a lookup string such as "ctrl+shift+z". */

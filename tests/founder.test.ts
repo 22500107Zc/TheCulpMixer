@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
 import admin from '../api/admin';
 import licence from '../api/licence';
-import { hashPassword } from '../api/_store';
+import { callerKey, clearFailures, hashPassword } from '../api/_store';
 import { verifyKey } from '../src/licence/licence';
 
 /**
@@ -69,11 +69,19 @@ interface RunOptions {
   env?: Record<string, string>;
   kv?: ReturnType<typeof store>;
   routes?: Record<string, Json>;
+  /** Keep the limiter's memory, for the test that exercises it. */
+  keepRateLimit?: boolean;
 }
 
 async function run(
   which: typeof admin | typeof licence, body: Json, options: RunOptions = {},
 ): Promise<{ code: number; body: Json; headers: Record<string, string> }> {
+  // The rate limiter counts failures per caller, and every test here is the
+  // same caller in the same process — so one test's deliberate wrong password
+  // would otherwise be charged against the next test's correct one. Real
+  // callers are separated by address; the tests have to say so themselves.
+  // The test that is ABOUT the limiter opts out.
+  if (!options.keepRateLimit) clearFailures(callerKey({}));
   const previousEnv = { ...process.env };
   const previousFetch = globalThis.fetch;
   Object.assign(process.env, {
@@ -580,4 +588,95 @@ test('a NUL byte in a password cannot forge a match - every hashing path', async
   assert.ok(typeof real === 'string' && real.length > 10, 'the real founder password stopped unsealing');
   assert.equal(await unsealOwnerKey('founder10082004' + NUL), null,
     'a NUL-suffixed founder password unsealed the owner key');
+});
+
+// ------------------------------------------------- authorisation, exhaustively
+
+/**
+ * Every privileged action, enumerated, against a caller who is not the founder.
+ *
+ * Reading the file and seeing that the session check sits above the dispatch
+ * is not evidence — it is an observation about today's code that the next
+ * commit can quietly invalidate. So every action the console can perform is
+ * named here and asked for directly, the way a crafted request would ask, with
+ * no session, an empty one, a made-up one, one whose signature was tampered
+ * with, and one that has expired.
+ *
+ * A customer who has paid $199 has a perfectly valid *account*. That must not
+ * be worth anything here.
+ */
+const PRIVILEGED = [
+  'state',
+  'accounts.create',
+  'accounts.resetPassword',
+  'accounts.approve',
+  'accounts.revoke',
+  'accounts.delete',
+  'settings.save',
+];
+
+test('no privileged console action is reachable without a founder session', async () => {
+  const kv = store();
+  for (const action of PRIVILEGED) {
+    for (const [label, session] of [
+      ['none', undefined],
+      ['empty', ''],
+      ['invented', 'not-a-session'],
+      ['shaped like one', `${Date.now() + 3600000}.${'a'.repeat(64)}`],
+      ['expired', `${Date.now() - 1000}.${'a'.repeat(64)}`],
+    ] as [string, string | undefined][]) {
+      const result = await run(admin, {
+        action,
+        ...(session === undefined ? {} : { session }),
+        email: 'attacker@example.com',
+        password: 'whatever',
+        plan: 'Founder',
+        paid: true,
+      }, { kv });
+      assert.equal(result.code, 401,
+        `${action} with a ${label} session answered ${result.code}, not 401`);
+    }
+  }
+});
+
+test('a real customer session is not a founder session', async () => {
+  // The two are different kinds of token signed with different secrets. A
+  // customer holding a perfectly valid one must not be able to spend it here.
+  const kv = store();
+  const session = await signIn({ kv });
+  const created = await run(admin, {
+    action: 'accounts.create', session, email: 'buyer@example.com', plan: 'Studio',
+  }, { kv });
+  assert.equal(created.code, 200, `setup failed: ${JSON.stringify(created.body)}`);
+
+  const signedIn = await run(licence, {
+    action: 'signin', install: 'i-1', email: 'buyer@example.com',
+    password: String(created.body.password),
+  }, { kv });
+  assert.equal(signedIn.code, 200, 'the customer could not sign in');
+  const customerKey = String(signedIn.body.key);
+  assert.ok(customerKey.includes('.'), 'no entitlement was issued');
+
+  // Their entitlement, offered to the console as if it were a session.
+  for (const action of PRIVILEGED) {
+    const result = await run(admin, {
+      action, session: customerKey, email: 'buyer@example.com', paid: true,
+    }, { kv });
+    assert.equal(result.code, 401,
+      `a customer's own entitlement was accepted as a founder session for ${action}`);
+  }
+});
+
+test('the founder password cannot be guessed without limit', async () => {
+  const kv = store();
+  let sawLimit = false;
+  for (let i = 0; i < 20; i++) {
+    const result = await run(
+      admin, { action: 'login', email: FOUNDER_EMAIL, password: `guess-${i}` },
+      { kv, keepRateLimit: true },
+    );
+    if (result.code === 429) { sawLimit = true; break; }
+    assert.equal(result.code, 401, `attempt ${i} answered ${result.code}`);
+  }
+  assert.equal(sawLimit, true, 'twenty wrong passwords in a row were all answered normally');
 });

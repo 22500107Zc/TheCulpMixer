@@ -57,6 +57,15 @@ export type LicenceState =
   | { status: 'expired'; licence: LicencePayload }
   | { status: 'trial'; hoursLeft: number; endsAt: number }
   | { status: 'trial-over'; endsAt: number }
+  /**
+   * No licence, and no trial has been started for this copy yet.
+   *
+   * Distinct from 'trial-over' because the remedy is different and the message
+   * has to say so: this copy has never been given thirty-three hours, and the
+   * server is the only thing that can give them. Not usable, deliberately —
+   * see trialStartedAt for why a trial cannot start itself.
+   */
+  | { status: 'trial-unstarted' }
   | { status: 'unsigned'; reason: string }
   /** Built from source. Not a licence state so much as the absence of one. */
   | { status: 'source' };
@@ -213,11 +222,28 @@ export function storedLicence(): string | null {
  * to change their system time has already decided not to pay, and every trick
  * for catching them also catches a person whose laptop battery died.
  */
-export function trialStart(now = Date.now()): number {
+export function trialStartedAt(): number | null {
   const stored = Number(readStorage(TRIAL_KEY));
-  if (Number.isFinite(stored) && stored > 0) return stored;
-  writeStorage(TRIAL_KEY, String(now));
-  return now;
+  return Number.isFinite(stored) && stored > 0 ? stored : null;
+}
+
+/**
+ * Record when the trial started, as the server said it did.
+ *
+ * Only the server may decide this, which is the whole reason the read above
+ * no longer writes. It used to: a copy with no stored start wrote `now` and
+ * called itself a trial. That made the thirty-three hours a property of
+ * browser storage rather than of the customer — clear it and the clock
+ * restarted, for ever, and no amount of server-side enforcement mattered
+ * because the client never had to ask.
+ *
+ * A trial already under way still runs entirely offline from the timestamp
+ * this wrote, so a customer mid-trial on a plane is unaffected. What needs the
+ * network is *starting* one, exactly once.
+ */
+export function beginTrialAt(started: number): void {
+  if (!Number.isFinite(started) || started <= 0) return;
+  writeStorage(TRIAL_KEY, String(started));
 }
 
 /**
@@ -250,7 +276,8 @@ export async function licenceState(options: {
     return { status: 'licensed', licence };
   }
 
-  const started = trialStart(now);
+  const started = trialStartedAt();
+  if (started === null) return { status: 'trial-unstarted' };
   const endsAt = started + TRIAL_MS;
   if (now >= endsAt) return { status: 'trial-over', endsAt };
   return { status: 'trial', hoursLeft: Math.ceil((endsAt - now) / 3600000), endsAt };
@@ -303,6 +330,8 @@ export function describeLicence(state: LicenceState): string {
       return `Free trial — ${timeLeft(state.endsAt)} left of 33 hours. Then ${PRICE}.`;
     case 'trial-over':
       return `Your 33-hour free trial has ended. The Culp Mixer is ${PRICE} to keep using.`;
+    case 'trial-unstarted':
+      return `Connect to the internet once to start your 33-hour free trial. Then ${PRICE}.`;
     default:
       return state.reason;
   }
@@ -329,6 +358,13 @@ export function whyBlocked(state: LicenceState): string {
     return `The subscription for ${state.licence.name} has ended, so The Culp Mixer is locked. `
       + `It is ${PRICE} to continue. Every file you have made is still on your disk, `
       + 'untouched, and a new key unlocks everything immediately.';
+  }
+  if (state.status === 'trial-unstarted') {
+    // Not "your trial ended" — it never began, and saying the wrong one of
+    // those sends somebody to support convinced they have been charged.
+    return 'The Culp Mixer needs to reach its licence server once to start your 33-hour free '
+      + `trial. Check your connection and reload. After the trial it is ${PRICE}. `
+      + 'If you have already paid, sign in and your subscription will be recognised.';
   }
   return `Your 33-hour free trial has ended, so The Culp Mixer is locked. It is ${PRICE} to keep using it. `
     + 'Every file you have made is still on your disk, untouched, and a licence key unlocks '
