@@ -990,11 +990,10 @@ if (app.skip) {
     await resetScene(page);
     const state = await page.evaluate(async () => {
       const ed = window.culpmixer.editor;
-      // What the application itself does on a first launch. A trial is now
-      // started by the licence server rather than by the browser writing
-      // itself a timestamp, so refreshLicence alone reads the state before
-      // anybody has been given one — which is the state a first launch is in
-      // for the length of one request, and not what this test is about.
+      // What the application itself does on a first launch: read the local
+      // state, then let the server refine it. Going through the whole path
+      // rather than refreshLicence alone is the point — a first launch must
+      // land in trial whether or not anything answers.
       await ed.syncLicence();
       return {
         status: ed.licence.status,

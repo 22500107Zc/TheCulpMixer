@@ -61,16 +61,15 @@ async function call(
     env?: Record<string, string>;
     routes?: Record<string, Json>;
     kv?: Map<string, string>;
-    /** Deliberately deploy with no licence store, to test failing closed. */
+    /** Deliberately deploy with no licence store, which is a supported way to run. */
     noStore?: boolean;
   } = {},
 ): Promise<{ code: number; body: Json }> {
   const previousEnv = { ...process.env };
   const previousFetch = globalThis.fetch;
-  // A store by default, because every real deployment has one and the trial
-  // cannot be enforced without it. Tests that want the unconfigured case ask
-  // for it by name rather than getting it by omission — which is how the
-  // no-store hole survived being tested for as long as it did.
+  // A store by default, because it is the stronger of the two trial clocks.
+  // Tests that want the unconfigured deployment ask for it by name rather than
+  // getting it by omission, so it is always obvious which one is under test.
   const kv = options.noStore ? undefined : (options.kv ?? new Map<string, string>());
   Object.assign(process.env, {
     CULPMIXER_SIGNING_KEY: PEM,
@@ -331,40 +330,69 @@ test('the browser is allowed to ask, and the answer is never cached', async () =
 });
 
 /**
- * Infrastructure failure must never become free access.
+ * No store is a supported deployment, not a broken one.
  *
- * The hole: `kvGet` returns null both for "the store says there is no record
- * of this install" and for "there is no store". The trial clock read that null
- * as a first visit, minted thirty-three fresh hours, wrote them nowhere, and
- * returned them — so a deployment that forgot an environment variable, or a
- * store having a bad five minutes, gave the product away silently. Clear the
- * browser, get a new install id, get another thirty-three hours, for ever.
+ * The Culp Mixer requires no database, no dashboard and no account to sign up
+ * for. A brand-new visitor opens the page and their thirty-three hours start,
+ * whether or not a persistent store is configured and whether or not it is
+ * answering. When there is one it keeps the clock, because that clock is the
+ * stronger of the two; when there is not, the client's own clock stands.
  *
- * It now refuses, and says which kind of refusal it is.
+ * Somebody determined can clear their browser and take another thirty-three
+ * hours. That is an accepted business cost, not a hole to plug. What matters
+ * is the line this must never cross: it grants a TRIAL and only a trial. Paid
+ * access stays a signed entitlement minted from a real Stripe subscription,
+ * and nothing on this path can forge, substitute or extend one.
  */
-test('a deployment with no licence store refuses to start a trial', async () => {
+test('a deployment with no licence store still starts a trial', async () => {
   const answer = await call({ action: 'state', install: 'no-store-1' }, { noStore: true });
-  assert.equal(answer.code, 503, 'an unconfigured deployment handed out a trial');
-  assert.equal(answer.body.error, 'trial-store-unavailable');
-  assert.match(String(answer.body.message), /try again/i, 'the refusal was not actionable');
-  assert.ok(!('endsAt' in answer.body), 'a trial deadline was returned anyway');
+  assert.equal(answer.code, 200, 'an unconfigured deployment refused a new visitor');
+  assert.equal(answer.body.status, 'trial', 'a brand-new visitor was not put in trial');
+  const endsAt = Number(answer.body.endsAt);
+  assert.ok(endsAt > Date.now() + 32 * HOUR && endsAt < Date.now() + 34 * HOUR,
+    `the trial ran for the wrong length: ends at ${endsAt}`);
+  assert.ok(!('key' in answer.body), 'a store outage minted an entitlement');
 });
 
-test('a store that is down refuses rather than minting a fresh trial', async () => {
-  // Configured, but every request to it fails. Indistinguishable from "new
-  // install" to the old code, which is exactly why it was worth money.
+test('a store that is down still starts a trial rather than blocking', async () => {
+  // Configured, but every request to it fails. The application must open
+  // anyway: an outage in something optional cannot become a paywall.
   const answer = await call({ action: 'state', install: 'down-1' }, {
     env: { KV_REST_API_URL: 'https://kv.unreachable', KV_REST_API_TOKEN: 't' },
     noStore: true,
   });
-  assert.equal(answer.code, 503, 'an unreachable store handed out a trial');
-  assert.equal(answer.body.error, 'trial-store-unavailable');
+  assert.equal(answer.code, 200, 'an unreachable store locked a new visitor out');
+  assert.equal(answer.body.status, 'trial');
+  assert.ok(!('key' in answer.body), 'a store outage minted an entitlement');
+});
+
+test('with no store the trial runs from the clock the client already had', async () => {
+  // Mid-trial, no store. The client says when it started, and that must be
+  // honoured rather than reset — otherwise every reload is a fresh 33 hours
+  // even for somebody who is not trying to cheat.
+  const started = Date.now() - 20 * HOUR;
+  const answer = await call(
+    { action: 'state', install: 'no-store-2', startedAt: started },
+    { noStore: true },
+  );
+  assert.equal(answer.body.status, 'trial');
+  assert.equal(Number(answer.body.endsAt), started + 33 * HOUR,
+    'the client clock was ignored, restarting the trial');
+});
+
+test('with no store an expired trial is still over', async () => {
+  const started = Date.now() - 40 * HOUR;
+  const answer = await call(
+    { action: 'state', install: 'no-store-3', startedAt: started },
+    { noStore: true },
+  );
+  assert.equal(answer.body.status, 'expired', 'an ended trial came back alive');
+  assert.ok(!('key' in answer.body), 'an ended trial was handed an entitlement');
 });
 
 test('a paying customer is unaffected by the store being down', async () => {
-  // The whole point of failing closed on the trial is that it must not touch
-  // anybody who has paid. Their subscription is answered by Stripe and their
-  // entitlement is a signed key, neither of which is the licence store.
+  // A subscriber's access has nothing to do with the trial store: their
+  // subscription is answered by Stripe and their entitlement is a signed key.
   const answer = await call(
     { action: 'state', install: 'paid-nostore' },
     {

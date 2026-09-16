@@ -862,16 +862,10 @@ export class Editor {
    * way, with whatever is already on this machine still standing.
    */
   async syncLicence(options: { email?: string } = {}): Promise<LicenceState> {
-    try {
-      await syncLicence({
-        ...(options.email ? { email: options.email } : {}),
-        session: takeCheckoutSession(),
-      });
-    } finally {
-      // Settled whether the server answered, refused or never replied. An
-      // unsettled state that never resolves would be a permanent free pass.
-      this.markLicenceSettled();
-    }
+    await syncLicence({
+      ...(options.email ? { email: options.email } : {}),
+      session: takeCheckoutSession(),
+    });
     return this.refreshLicence();
   }
 
@@ -929,34 +923,7 @@ export class Editor {
     // precisely the moment the application must not get this wrong.
     if (this.licence.status === 'owner' || this.licence.status === 'licensed') return true;
     if (this.account) return this.account.status !== 'locked';
-    // "Nobody has asked yet" is not "you are not entitled".
-    //
-    // A trial can only be started by the server now, so a first-ever visit
-    // reads as 'trial-unstarted' until that round trip lands. Treating that as
-    // locked put the paywall in front of every new customer for the length of
-    // a network request — the worst possible first second of a product.
-    //
-    // This grants nothing that outlives the check: it is bounded by the
-    // request's own timeout, after which the state settles to whatever the
-    // server actually said and the wall goes up if it should.
-    if (!this.licenceSettled && this.licence.status === 'trial-unstarted') return true;
     return licenceAllowsUse(this.licence);
-  }
-
-  /**
-   * Whether the first licence check has finished, one way or the other.
-   *
-   * Set once, by whichever of the startup paths completes first, and never
-   * unset: after this the application knows where it stands and says so.
-   */
-  private licenceSettled = false;
-
-  /** Called when the first check resolves, times out, or fails. */
-  markLicenceSettled(): void {
-    if (this.licenceSettled) return;
-    this.licenceSettled = true;
-    this.emit('licence');
-    this.changed();
   }
 
   /** Whether finished work can leave the application. */
@@ -972,17 +939,17 @@ export class Editor {
     // Nothing to explain when nothing is being refused.
     //
     // whyBlocked reads the LICENCE alone, and the licence is only one of the
-    // three things that decide access — a signed-in account and the
-    // still-checking grace both outrank it. Without this line a copy that is
-    // working perfectly well returned a paragraph about being locked, which
-    // the status bar then showed to somebody who was not.
+    // two things that decide access — a signed-in account outranks it. Without
+    // this line a copy that is working perfectly well returned a paragraph
+    // about being locked, which the status bar then showed to somebody who
+    // was not.
     if (this.canUse) return '';
     // The account is asked first, because it is the more specific answer.
     //
     // Somebody whose account is locked usually has no licence key at all, so
-    // the licence reads 'trial-unstarted' — and telling a customer whose paid
-    // month lapsed to "check your connection" sends them to support over a
-    // billing question. Whoever is actually blocking says why.
+    // the licence reads as an ordinary ended trial — and telling a customer
+    // whose paid month lapsed about a trial they never took sends them to
+    // support over a billing question. Whoever is actually blocking says why.
     if (this.account?.status === 'locked') {
       return `Your 33-hour free trial has ended, so The Culp Mixer is locked. It is ${PRICE} to `
         + 'keep using it. Every file you have made is still on your disk, untouched, and a '

@@ -240,25 +240,32 @@ function emailOf(session: Record<string, unknown> | null): string {
 /**
  * Where the trial stands for this install.
  *
- * Throws `trial-store-unavailable` rather than inventing an answer when the
- * store cannot be consulted, and that is the point of it.
+ * There are two clocks, and this prefers the better one without ever
+ * requiring it.
  *
- * The trial is only a trial because the clock is kept somewhere the customer
- * cannot reach. If the store is missing or down, a null read is
- * indistinguishable from "an install nobody has seen before" — so the old code
- * minted a fresh thirty-three hours, wrote it nowhere, and returned it. Clear
- * the browser, get a new install id, get another thirty-three hours, for ever;
- * and a deployment that simply forgot an environment variable gave the product
- * away without a single line in a log to say so.
+ * When a persistent store is configured and answering, it keeps the start
+ * time, which is the stronger clock because the customer cannot reach it. When
+ * there is no store at all, or it is having a bad five minutes, the clock the
+ * client keeps stands instead and the trial still starts. That is deliberate:
+ * The Culp Mixer requires no database, no dashboard, no account and no setup
+ * step, so a brand-new visitor must get their thirty-three hours the moment
+ * they open the page — an outage in something optional must never become a
+ * paywall in front of somebody who has not even tried the product yet.
  *
- * So infrastructure failure is not allowed to become free access. It becomes a
- * 503 and an explicit message. A paying customer is unaffected: their
- * entitlement is a signed key checked offline, and the subscription lookup
- * above this never touches the store.
+ * Somebody determined can clear their browser and take another thirty-three
+ * hours. Accepted, and cheaper than the alternative. The line this must never
+ * cross is the other one: it grants a TRIAL and only a trial. Paid access is a
+ * signed entitlement minted from a real Stripe subscription in the lookup
+ * above, which never touches this store, and nothing on this path can forge,
+ * substitute or extend one.
  */
 async function trialEndsAt(install: string, claimed: number, now: number): Promise<number> {
   const { reached, value } = await kvRead(KEYS.trial(install));
-  if (!reached) throw new Error('trial-store-unavailable');
+  if (!reached) {
+    // No store configured, or it is not answering: the client's clock stands
+    // and the trial starts anyway. Never a refusal — see above.
+    return (Number.isFinite(claimed) && claimed > 0 && claimed < now ? claimed : now) + TRIAL_MS;
+  }
 
   const started = Number(value);
   if (Number.isFinite(started) && started > 0) return started + TRIAL_MS;
@@ -268,12 +275,9 @@ async function trialEndsAt(install: string, claimed: number, now: number): Promi
   // browser would be a fresh thirty-three hours, which is the hole this
   // closes.
   const begin = Number.isFinite(claimed) && claimed > 0 && claimed < now ? claimed : now;
-  // A start that cannot be written down is a trial nobody can enforce, so it
-  // is not granted. Refusing is recoverable; handing out an unenforceable
-  // trial is not.
-  if (!(await kvSet(KEYS.trial(install), String(begin)))) {
-    throw new Error('trial-store-unavailable');
-  }
+  // A write that does not land leaves this install on the client clock, the
+  // same as having no store at all. The trial still starts.
+  await kvSet(KEYS.trial(install), String(begin));
   return begin + TRIAL_MS;
 }
 
@@ -424,19 +428,6 @@ export default async function handler(req: Req, res: Res): Promise<void> {
     // "no-signing-key" means somebody deployed this without the key. Saying so
     // is better than quietly handing every visitor a trial for ever.
     const reason = error instanceof Error ? error.message : 'error';
-    if (reason === 'trial-store-unavailable') {
-      // Not a bug in the application and not the customer's fault: the trial
-      // clock has nowhere to live. 503 rather than 500 because it is a
-      // temporary condition with an operator-side fix, and the message says
-      // which so that a support email answers itself.
-      res.status(503).json({
-        error: 'trial-store-unavailable',
-        message: 'The Culp Mixer cannot start a trial right now because its licence store is '
-          + 'unavailable. Please try again in a few minutes. If you have already paid, sign in '
-          + 'and your subscription will be recognised.',
-      });
-      return;
-    }
     res.status(500).json({ error: reason });
   }
 }

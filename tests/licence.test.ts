@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import {
-  LicencePayload, PRICE, TERMS, TRIAL_MS, beginTrialAt, canExport, canUse, describeLicence,
+  LicencePayload, PRICE, TERMS, TRIAL_MS, canExport, canUse, describeLicence,
   licenceState, verifyKey, whyBlocked,
 } from '../src/licence/licence';
 
@@ -166,16 +166,11 @@ test('the trial runs for thirty-three hours, then locks the whole application', 
     const at = (now: number) => licenceState({ fromSource: false, key: null, publicKey: spki, now });
     const HOUR = 3600000;
 
-    // A copy with no stored start is NOT in trial: only the server may begin
-    // one, because a trial the client can start itself restarts every time
-    // site data is cleared. See beginTrialAt.
-    const before = await at(NOW);
-    assert.equal(before.status, 'trial-unstarted', 'the client started its own trial');
-    assert.equal(canUse(before), false, 'an unstarted trial was usable');
-
-    // The server answers, and that is what starts the clock.
-    beginTrialAt(NOW);
-
+    // A brand-new copy is in trial the instant it is opened, with nothing
+    // asked of it: no account, no network, no store behind the licence API.
+    // That somebody can clear site data and take another thirty-three hours is
+    // a known and accepted cost — this path grants a trial and only a trial,
+    // and paid access is a signed entitlement it cannot forge.
     const first = await at(NOW);
     assert.equal(first.status, 'trial', 'a first run was not a trial');
     assert.equal(canUse(first), true, 'the trial could not be used');
