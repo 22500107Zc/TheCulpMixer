@@ -164,7 +164,7 @@ export function savedAs(filename: string): string | null {
  * else on that engine — this is a real save: a picker the person chooses a
  * folder in, a write that either lands or throws, and a second Save that goes
  * to the same file without asking again. That is the difference between
- * "Downloading scene.kline" and "Saved scene.kline", and it is also what makes
+ * "Downloading scene.mixer" and "Saved scene.mixer", and it is also what makes
  * a cancelled save and a failed write distinguishable from a successful one,
  * which nothing downstream could tell apart before.
  *
@@ -217,7 +217,11 @@ async function saveInBrowser(filename: string, blob: Blob, mime: string): Promis
 /** A word for the file type, for the picker's filter row. */
 function describeKind(extension: string): string {
   switch (extension) {
-    case '.kline': return 'The Culp Mixer scene';
+    case '.mixer': return 'The Culp Mixer scene';
+    // Still named, so a file saved before the rename is described properly
+    // in the picker rather than showing up as an unknown type.
+    case '.kline':
+    case '.kiln': return 'The Culp Mixer scene (older)';
     case '.gltf': return 'glTF 2.0';
     case '.obj': return 'Wavefront OBJ';
     case '.mtl': return 'Material library';
@@ -329,7 +333,7 @@ function startDownload(filename: string, blob: Blob): SaveOutcome {
 
 export function openTextFile(accept: string): Promise<{ name: string; text: string } | null> {
   const bridge = desktop();
-  if (bridge && accept.includes('.kline')) return bridge.openScene();
+  if (bridge && accept.includes('.mixer')) return bridge.openScene();
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';

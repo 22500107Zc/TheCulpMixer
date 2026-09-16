@@ -42,6 +42,7 @@
       "action": "./",
       "accept": {
         "application/json": [
+          ".mixer",
           ".kline",
           ".kiln"
         ],

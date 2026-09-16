@@ -1024,7 +1024,7 @@ if (app.skip) {
       await new Promise((r) => setTimeout(r, 600));
       return { files: window.__saved, status: window.kline.editor.statusMessage };
     });
-    assert.deepEqual(saved.files, ['scene.kline'],
+    assert.deepEqual(saved.files, ['scene.mixer'],
       `saving was refused on a fresh install: ${saved.status}`);
   });
 

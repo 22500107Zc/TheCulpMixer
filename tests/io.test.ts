@@ -76,7 +76,8 @@ test('glTF export produces a valid-looking document', () => {
 
   // The root node converts Z-up to Y-up and owns every other node.
   const root = gltf.nodes[gltf.scenes[0].nodes[0]];
-  assert.equal(root.name, 'KlineScene');
+  assert.equal(root.name, 'CulpMixerScene',
+    'the exported file carries the old name into the customer\'s 3D application');
   assert.ok(Math.abs(root.rotation[0] + Math.SQRT1_2) < 1e-6);
   assert.equal(root.children.length, 2);
 

@@ -161,10 +161,10 @@ async function okToReplaceDocument(ed: Editor, action: string): Promise<boolean>
   }
   if (answer === 'discard') return true;
   const outcome = await saveText(
-    'scene.kline', JSON.stringify(ed.scene.toJSON(), null, 1), 'application/json',
+    'scene.mixer', JSON.stringify(ed.scene.toJSON(), null, 1), 'application/json',
   );
   if (!saveWorked(outcome)) {
-    ed.setStatus(`${describeSave(outcome, 'scene.kline')} — your project is untouched.`);
+    ed.setStatus(`${describeSave(outcome, 'scene.mixer')} — your project is untouched.`);
     return false;
   }
   ed.markSaved();
@@ -183,7 +183,7 @@ export const COMMANDS: Command[] = [
     },
   },
   {
-    id: 'file.save', label: 'Save Scene (.kline)', category: 'File', shortcut: 'Ctrl+S',
+    id: 'file.save', label: 'Save Scene (.mixer)', category: 'File', shortcut: 'Ctrl+S',
     run: async (ed) => {
       // Saving mid-preview would write a proposal into the file as though it
       // were the model. Said out loud rather than silently written: the
@@ -193,11 +193,11 @@ export const COMMANDS: Command[] = [
         ed.setStatus('A revision is waiting — accept or reject it before saving, or the file will hold the preview');
         return;
       }
-      ed.setStatus('Saving scene.kline…');
+      ed.setStatus('Saving scene.mixer…');
       const outcome = await saveText(
-        'scene.kline', JSON.stringify(ed.scene.toJSON(), null, 1), 'application/json',
+        'scene.mixer', JSON.stringify(ed.scene.toJSON(), null, 1), 'application/json',
       );
-      ed.setStatus(describeSave(outcome, 'scene.kline'));
+      ed.setStatus(describeSave(outcome, 'scene.mixer'));
       // Only a save that actually happened clears the document. Marking it
       // clean on a cancel is how somebody ends up closing over their work
       // having been told it was safe.
@@ -205,10 +205,10 @@ export const COMMANDS: Command[] = [
     },
   },
   {
-    id: 'file.open', label: 'Open Scene (.kline)', category: 'File', shortcut: 'Ctrl+O',
+    id: 'file.open', label: 'Open Scene (.mixer)', category: 'File', shortcut: 'Ctrl+O',
     run: async (ed) => {
       if (!await okToReplaceDocument(ed, 'Opening another project will replace them.')) return;
-      const file = await openTextFile('.kline,.kiln,application/json');
+      const file = await openTextFile('.mixer,.kline,.kiln,application/json');
       if (!file) return;
       try {
         ed.loadSceneJSON(JSON.parse(file.text));

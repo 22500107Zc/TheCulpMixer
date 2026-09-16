@@ -271,10 +271,10 @@ export class App {
     }
     if (answer === 'save') {
       const outcome = await saveText(
-        'scene.kline', JSON.stringify(this.editor.scene.toJSON(), null, 1), 'application/json',
+        'scene.mixer', JSON.stringify(this.editor.scene.toJSON(), null, 1), 'application/json',
       );
       if (!saveWorked(outcome)) {
-        this.editor.setStatus(`${describeSave(outcome, 'scene.kline')} — The Culp Mixer stayed open.`);
+        this.editor.setStatus(`${describeSave(outcome, 'scene.mixer')} — The Culp Mixer stayed open.`);
         bridge?.answerClose?.(false);
         return;
       }

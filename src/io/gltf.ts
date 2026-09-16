@@ -577,7 +577,10 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
 
   const roots = nodes.map((_, i) => i).filter((i) => !parented.has(i));
   const s = Math.SQRT1_2;
-  nodes.push({ name: 'KlineScene', rotation: [-s, 0, 0, s], children: roots });
+  // This name travels inside the customer's file and is what they see in
+  // Blender's outliner when they open it. It is the product's name, not the
+  // one the repository happens to still have.
+  nodes.push({ name: 'CulpMixerScene', rotation: [-s, 0, 0, s], children: roots });
   const rootIndex = nodes.length - 1;
 
   // Cameras are emitted above, one per camera object, each carrying its own
@@ -618,7 +621,7 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
     );
     if (unsupported.size) {
       note(`Animated ${[...unsupported].join(', ')} is not carried: glTF animates node `
-        + 'transforms and morph weights only, so those curves stay in the .kline file.');
+        + 'transforms and morph weights only, so those curves stay in the .mixer file.');
     }
     for (const { path, key } of paths) {
       const chans = obj.animation.filter((c: Channel) => c.path === key);
@@ -677,7 +680,7 @@ export function exportGLTF(scene: Scene, selectionOnly = false): GLTFExport {
     skins: skins.length ? skins : undefined,
     buffers: [{ byteLength, uri: `data:application/octet-stream;base64,${base64(totalBytes)}` }],
     animations: animChannels.length
-      ? [{ name: 'KlineAction', channels: animChannels, samplers: animSamplers }]
+      ? [{ name: 'CulpMixerAction', channels: animChannels, samplers: animSamplers }]
       : undefined,
     cameras,
   };

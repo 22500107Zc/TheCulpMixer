@@ -3603,7 +3603,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       results.failed = ed.statusMessage;
       results.stillDirtyAfterFailure = ed.hasUnsavedChanges;
 
-      answers.push({ status: 'saved', path: '/tmp/scene.kline' });
+      answers.push({ status: 'saved', path: '/tmp/scene.mixer' });
       k.run('file.save');
       await new Promise((r) => setTimeout(r, 60));
       results.saved = ed.statusMessage;

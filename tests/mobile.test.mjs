@@ -569,7 +569,7 @@ if (app.skip) {
 
     const got = [];
     for (const [label, item] of [
-      ['glTF', 'Export glTF'], ['OBJ', 'Export OBJ'], ['STL', 'Export STL'], ['.kline', 'Save'],
+      ['glTF', 'Export glTF'], ['OBJ', 'Export OBJ'], ['STL', 'Export STL'], ['.mixer', 'Save'],
     ]) {
       const pending = page.waitForEvent('download', { timeout: 15_000 }).catch(() => null);
       const clicked = await page.evaluate((text) => {
@@ -600,7 +600,8 @@ if (app.skip) {
     }
     // Named, not just non-empty: a file called "download" helps nobody.
     assert.equal(got.find((f) => f.label === 'glTF').name, 'scene.gltf');
-    assert.equal(got.find((f) => f.label === '.kline').name, 'scene.kline');
+    assert.equal(got.find((f) => f.label === '.mixer').name, 'scene.mixer',
+      'the customer\'s own saved file still carries the old product name');
   });
 
   test.after(() => app.close());
