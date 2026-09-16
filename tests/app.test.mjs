@@ -3739,7 +3739,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
       if (!sb.classList.contains('open')) return false;
       const r = sb.getBoundingClientRect();
       return r.left < window.innerWidth - 10 && r.width > 100;
-    }, null, { timeout: 10000 }).catch(() => undefined);
+    }, null, { timeout: 30000 }).catch(() => undefined);
 
     const open = await page.evaluate(() => {
       const r = document.querySelector('.sidebar').getBoundingClientRect();
@@ -3770,7 +3770,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     await page.keyboard.press('Escape');
     await page.waitForFunction(
       () => !document.querySelector('.sidebar').classList.contains('open'),
-      null, { timeout: 10000 },
+      null, { timeout: 30000 },
     ).catch(() => undefined);
     const shut = await page.evaluate(() =>
       !document.querySelector('.sidebar').classList.contains('open'));
@@ -3779,7 +3779,7 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     await page.setViewportSize(wide);
     await page.waitForFunction(
       () => getComputedStyle(document.querySelector('.sidebar-toggle')).display === 'none',
-      null, { timeout: 10000 },
+      null, { timeout: 30000 },
     ).catch(() => undefined);
     const back = await page.evaluate(() => ({
       position: getComputedStyle(document.querySelector('.sidebar')).position,

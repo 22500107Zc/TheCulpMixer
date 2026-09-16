@@ -346,6 +346,11 @@ export function marchingCubes(field: SignedDistanceField): Mesh {
  * shrinking the model.
  */
 export function laplacianSmooth(mesh: Mesh, amount = 0.5): void {
+  // Same clamp and the same reason as smoothVertices: past 1 this stops being
+  // smoothing and becomes extrapolation away from the neighbour average, and
+  // the error compounds. Nothing that reaches here — a slider, a typed field,
+  // a file, a generated program — is worth trusting with an unbounded factor.
+  const strength = Number.isFinite(amount) ? Math.min(1, Math.max(0, amount)) : 0;
   const t = mesh.topology();
   const next = mesh.positions.map((p) => p.clone());
   for (let v = 0; v < mesh.positions.length; v++) {
@@ -356,7 +361,7 @@ export function laplacianSmooth(mesh: Mesh, amount = 0.5): void {
       const e = t.edges[ei];
       sum.addInPlace(mesh.positions[e.a === v ? e.b : e.a]);
     }
-    next[v] = mesh.positions[v].lerp(sum.scale(1 / edges.length), amount);
+    next[v] = mesh.positions[v].lerp(sum.scale(1 / edges.length), strength);
   }
   mesh.positions = next;
   mesh.markDirty();

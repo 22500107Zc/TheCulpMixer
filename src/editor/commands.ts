@@ -107,6 +107,52 @@ function withinFaceBudget(ed: Editor, predicted: number, label: string): boolean
   return false;
 }
 
+/**
+ * The most a growing operator can multiply a mesh by, per command.
+ *
+ * The budget check used to pass `faces + 1` as its prediction, which meant it
+ * only ever refused a mesh that was ALREADY over the line. Every operator that
+ * multiplies was therefore unguarded right up to the limit and then allowed to
+ * blow straight through it: a mesh one face under the budget could be
+ * subdivided to four million, or bevelled with four segments to something far
+ * worse. That is precisely the frozen tab the budget exists to prevent, and
+ * the guard was arriving one operation too late to prevent it.
+ *
+ * These are upper bounds rather than exact counts, deliberately. An exact
+ * prediction needs the selection, the topology and the operator's own
+ * arithmetic; a bound needs none of that and cannot be wrong in the direction
+ * that matters. Subdivide has an exact predictor and uses it — this is the
+ * floor under everything else.
+ *
+ * A factor of 1 means the operator adds a bounded amount rather than
+ * multiplying, and only needs the mesh to be under the budget at all.
+ */
+export const GROWTH_FACTOR: Record<string, number> = {
+  // Each face becomes one quad per corner: four for a quad, more for an n-gon.
+  'mesh.subdivide': 4,
+  // Every face becomes a fan of triangles to its centre.
+  'mesh.poke': 4,
+  // A bevel replaces each selected edge with a strip, one face per segment,
+  // and the segment count is under the person's control.
+  'mesh.bevel': 12,
+  'mesh.bevelVertices': 12,
+  // A spin sweeps the selection through as many steps as were asked for.
+  'mesh.spin': 16,
+  // A cut adds a ring per cut requested.
+  'mesh.loopcut': 4,
+  // Mirroring doubles, and the walls added along the cut are bounded.
+  'mesh.symmetrizeX': 3,
+  // A copy of the selection, which at most is the whole mesh.
+  'mesh.duplicate': 2,
+  // These add side walls around a selection: bounded by its boundary, not by
+  // the whole mesh, so a small multiple is a safe bound.
+  'mesh.extrude': 3,
+  'mesh.inset': 3,
+  'mesh.bridge': 3,
+  'mesh.knife': 2,
+  'mesh.makeFace': 1,
+};
+
 /** How many faces subdividing this selection would leave behind. */
 export function facesAfterSubdivide(mesh: Mesh, faces: Iterable<number>): number {
   let total = mesh.faces.length;
@@ -1649,6 +1695,12 @@ export function runCommand(editor: Editor, id: string): void {
   // back down from a mesh that arrived over the line in a file.
   if (cmd.grows) {
     const faces = editor.editMesh?.faces.length ?? 0;
+    // Predicted from what the operator can do, not from the one extra face the
+    // old check assumed. See GROWTH_FACTOR for why a bound rather than a count.
+    const predicted = faces * (GROWTH_FACTOR[cmd.id] ?? 1);
+    if (predicted > MAX_EDITABLE_FACES && !withinFaceBudget(editor, predicted, cmd.label)) return;
+    // Still refused outright at the line, so an operator with no factor of its
+    // own cannot creep a mesh that arrived over the budget any further.
     if (faces >= MAX_EDITABLE_FACES && !withinFaceBudget(editor, faces + 1, cmd.label)) return;
   }
   void cmd.run(editor);

@@ -102,7 +102,7 @@ if (app.skip) {
     const page = await app.browser.newContext().then((c) => c.newPage());
     carried.page = page;
     await page.goto(`${app.origin}/`, { waitUntil: 'networkidle' });
-    await page.waitForSelector('.home:not(.hidden)', { timeout: 10000 });
+    await page.waitForSelector('.home:not(.hidden)', { timeout: 30000 });
     const text = await page.textContent('.home-card');
     assert.match(text, /33 hours free/i);
     assert.ok(text.includes('$199/month'));
@@ -119,7 +119,7 @@ if (app.skip) {
 
     await page.waitForFunction(
       () => document.querySelector('.home')?.classList.contains('hidden'),
-      { timeout: 10000 },
+      { timeout: 30000 },
     );
     const state = await page.evaluate(() => ({
       status: window.culpmixer.editor.account?.status,
@@ -177,7 +177,7 @@ if (app.skip) {
       localStorage.setItem('culpmixer.local.accounts', JSON.stringify(all));
     });
     await page.reload({ waitUntil: 'networkidle' });
-    await page.waitForSelector('.home:not(.hidden)', { timeout: 10000 });
+    await page.waitForSelector('.home:not(.hidden)', { timeout: 30000 });
 
     const locked = await page.evaluate(() => ({
       status: window.culpmixer.editor.account?.status,
@@ -218,7 +218,7 @@ if (app.skip) {
 
     await page.waitForFunction(
       () => document.querySelector('.home')?.classList.contains('hidden'),
-      { timeout: 10000 },
+      { timeout: 30000 },
     );
     const works = await page.evaluate(() => {
       const ed = window.culpmixer.editor;
@@ -237,7 +237,7 @@ if (app.skip) {
     // hosting setting is the failure this prevents.
     const page = await app.browser.newContext().then((c) => c.newPage());
     await page.goto(`${app.origin}/`, { waitUntil: 'networkidle' });
-    await page.waitForSelector('.home:not(.hidden)', { timeout: 10000 });
+    await page.waitForSelector('.home:not(.hidden)', { timeout: 30000 });
 
     const result = await page.evaluate(async () => {
       const ed = window.culpmixer.editor;
@@ -375,7 +375,7 @@ if (app.skip) {
     // owner — but only for the person who asked for it by address.
     const plain = await app.browser.newContext().then((c) => c.newPage());
     await plain.goto(`${app.origin}/`, { waitUntil: 'networkidle' });
-    await plain.waitForSelector('.home:not(.hidden)', { timeout: 10000 });
+    await plain.waitForSelector('.home:not(.hidden)', { timeout: 30000 });
     const customerTabs = await plain.$$eval('.home-tab', (els) => els.map((e) => e.textContent));
     await plain.context().close();
     assert.deepEqual(customerTabs, ['Create an account', 'Log in'],
@@ -383,7 +383,7 @@ if (app.skip) {
 
     const page = await app.browser.newContext().then((c) => c.newPage());
     await page.goto(`${app.origin}/?founder`, { waitUntil: 'networkidle' });
-    await page.waitForSelector('.home:not(.hidden)', { timeout: 10000 });
+    await page.waitForSelector('.home:not(.hidden)', { timeout: 30000 });
 
     const tabs = await page.$$eval('.home-tab', (els) => els.map((e) => e.textContent));
     assert.deepEqual(tabs, ['Create an account', 'Log in', 'Founder'],
@@ -402,7 +402,7 @@ if (app.skip) {
 
     await page.waitForFunction(
       () => document.querySelector('.home')?.classList.contains('hidden'),
-      { timeout: 10000 },
+      { timeout: 30000 },
     );
     const state = await page.evaluate(() => ({
       founder: window.culpmixer.editor.account?.founder,

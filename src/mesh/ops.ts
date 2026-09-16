@@ -1015,9 +1015,21 @@ export function recalculateNormals(mesh: Mesh, inside = false): void {
 
 /** Laplacian smoothing of the given vertices (or all of them). */
 export function smoothVertices(mesh: Mesh, verts: Iterable<number> | null, factor = 0.5, iterations = 1): void {
+  // Smoothing means somewhere between leaving a vertex alone and moving it
+  // onto the average of its neighbours. Values outside that are extrapolation
+  // — moving it AWAY, past the average — and the error compounds every
+  // iteration: a factor of 1e7 put a vertex at 1.6e13 within a few passes,
+  // which poisons the bounds, the normals and the BVH of the whole mesh.
+  //
+  // Clamped rather than refused, because every route in has a different idea
+  // of how to complain: a slider that has been dragged, a number typed into a
+  // field, a value read out of a file somebody else wrote, a generated
+  // program. A smooth that does nothing is recoverable; a mesh at 1e13 is not.
+  const strength = Number.isFinite(factor) ? Math.min(1, Math.max(0, factor)) : 0;
+  const passes = Number.isFinite(iterations) ? Math.min(64, Math.max(0, Math.floor(iterations))) : 1;
   const t0 = mesh.topology();
   const set = verts ? vertIndices(mesh, verts) : new Set(mesh.positions.map((_, i) => i));
-  for (let it = 0; it < iterations; it++) {
+  for (let it = 0; it < passes; it++) {
     const t = it === 0 ? t0 : mesh.topology();
     const next = mesh.positions.map((p) => p.clone());
     for (const v of set) {
@@ -1029,7 +1041,7 @@ export function smoothVertices(mesh: Mesh, verts: Iterable<number> | null, facto
         avg.addInPlace(mesh.positions[e.a === v ? e.b : e.a]);
       }
       avg.scaleInPlace(1 / nb.length);
-      next[v] = mesh.positions[v].lerp(avg, factor);
+      next[v] = mesh.positions[v].lerp(avg, strength);
     }
     mesh.positions = next;
     mesh.markDirty();

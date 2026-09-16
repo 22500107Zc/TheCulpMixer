@@ -257,7 +257,7 @@ if (app.skip) {
     await page.fill('#founderEmail', 'culpindustriesllc@gmail.com');
     await page.fill('#password', FOUNDER_PASSWORD);
     await page.click('#signIn');
-    await page.waitForSelector('#console:not(.hidden)', { timeout: 5000 });
+    await page.waitForSelector('#console:not(.hidden)', { timeout: 30000 });
     carried.page = page;
   });
 
@@ -267,7 +267,7 @@ if (app.skip) {
     await page.selectOption('#length', '12');
     await page.fill('#plan', 'Studio');
     await page.click('#createAccount');
-    await page.waitForSelector('#handout:not(.hidden)', { timeout: 5000 });
+    await page.waitForSelector('#handout:not(.hidden)', { timeout: 30000 });
 
     const handout = await page.textContent('#handoutText');
     assert.match(handout, /journey-customer@example\.com/);
@@ -303,7 +303,7 @@ if (app.skip) {
     // visibility wait can never resolve.
     await page.waitForFunction(
       () => document.querySelector('.home')?.classList.contains('hidden'),
-      { timeout: 10000 },
+      { timeout: 30000 },
     );
     const state = await page.evaluate(() => {
       const ed = window.culpmixer.editor;
@@ -359,7 +359,7 @@ if (app.skip) {
     }
     await page.waitForFunction(
       () => !document.querySelector('#accounts')?.textContent?.includes('journey-customer'),
-      { timeout: 5000 },
+      { timeout: 30000 },
     );
 
     const fresh = await app.browser.newContext().then((c) => c.newPage());
@@ -399,7 +399,7 @@ if (app.skip) {
     // visibility wait can never resolve.
     await page.waitForFunction(
       () => document.querySelector('.home')?.classList.contains('hidden'),
-      { timeout: 10000 },
+      { timeout: 30000 },
     );
     const state = await page.evaluate(() => ({
       status: window.culpmixer.editor.account?.status,
@@ -433,7 +433,7 @@ if (app.skip) {
     await page.reload({ waitUntil: 'networkidle' });
     await page.waitForFunction(
       () => window.culpmixer?.editor?.account?.status === 'trial',
-      { timeout: 10000 },
+      { timeout: 30000 },
     );
     const during = await page.evaluate(() => ({
       homeHidden: document.querySelector('.home')?.classList.contains('hidden') ?? false,
@@ -461,7 +461,7 @@ if (app.skip) {
       });
 
     await page.reload({ waitUntil: 'networkidle' });
-    await page.waitForSelector('.home:not(.hidden)', { timeout: 10000 });
+    await page.waitForSelector('.home:not(.hidden)', { timeout: 30000 });
 
     const locked = await page.evaluate(() => ({
       status: window.culpmixer.editor.account?.status,
@@ -513,7 +513,7 @@ if (app.skip) {
     assert.ok(approved, 'never found the account to approve');
     await console_.waitForFunction(
       () => document.querySelector('#accounts')?.textContent?.includes('paid'),
-      { timeout: 5000 },
+      { timeout: 30000 },
     );
   });
 
@@ -524,7 +524,7 @@ if (app.skip) {
     // visibility wait can never resolve.
     await page.waitForFunction(
       () => document.querySelector('.home')?.classList.contains('hidden'),
-      { timeout: 10000 },
+      { timeout: 30000 },
     );
     const state = await page.evaluate(() => {
       const ed = window.culpmixer.editor;

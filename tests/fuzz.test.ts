@@ -54,6 +54,14 @@ function rng(seed: number): () => number {
   };
 }
 
+/**
+ * The largest mesh a chain is allowed to reach, and the most any one operator
+ * is assumed to multiply it by. Together they bound the transient: a mesh is
+ * abandoned once one more step could take it past the cap.
+ */
+const FACE_CAP = 30_000;
+const WORST_GROWTH = 12;
+
 const PRIMITIVES = ['cube', 'uvSphere', 'icoSphere', 'cylinder', 'cone', 'torus', 'plane', 'grid', 'circle'] as const;
 
 /**
@@ -169,7 +177,7 @@ const STEPS: Step[] = [
   } },
 ];
 
-test('a long random chain of operators never corrupts a mesh', () => {
+test('a long random chain of operators never corrupts a mesh', async () => {
   const failures: string[] = [];
   for (let seed = 1; seed <= 60 * DEPTH; seed++) {
     const r = rng(seed * 7919);
@@ -182,11 +190,17 @@ test('a long random chain of operators never corrupts a mesh', () => {
       continue;
     }
     const chain: string[] = [];
+    // A long synchronous run gives the collector nowhere to work. Yielding
+    // between seeds lets the previous mesh actually go.
+    if (seed % 20 === 0) await new Promise((done) => { setTimeout(done, 0); });
     for (let step = 0; step < 24 + 8 * (DEPTH - 1); step++) {
       if (mesh.positions.length === 0 || mesh.faces.length === 0) break;
-      // Meshes that have grown past anything a person would make are not the
-      // subject here, and subdividing them wastes the whole budget.
-      if (mesh.faces.length > 6000) break;
+      // Capped by what the NEXT step could produce, not by what this one did.
+      // Capping on the current size let a bevel with segments take a mesh just
+      // under the cap to ten times it, and at high depth the transients from
+      // that outgrew the heap — the same mistake the application's own face
+      // budget was making, found the same way.
+      if (mesh.faces.length * WORST_GROWTH > FACE_CAP) break;
       const op = STEPS[Math.floor(r() * STEPS.length)];
       chain.push(op.name);
       try {
@@ -206,14 +220,15 @@ test('a long random chain of operators never corrupts a mesh', () => {
   assert.deepEqual(failures.slice(0, 12), [], `${failures.length} chains corrupted or crashed`);
 });
 
-test('a mesh survives a round trip through its own serialisation at every stage', () => {
+test('a mesh survives a round trip through its own serialisation at every stage', async () => {
   const failures: string[] = [];
   for (let seed = 1; seed <= 25 * DEPTH; seed++) {
     const r = rng(seed * 104729);
     let mesh = buildPrimitive(PRIMITIVES[Math.floor(r() * PRIMITIVES.length)]);
     const chain: string[] = [];
+    if (seed % 20 === 0) await new Promise((done) => { setTimeout(done, 0); });
     for (let step = 0; step < 8; step++) {
-      if (!mesh.faces.length || mesh.faces.length > 4000) break;
+      if (!mesh.faces.length || mesh.faces.length * WORST_GROWTH > FACE_CAP) break;
       const op = STEPS[Math.floor(r() * STEPS.length)];
       chain.push(op.name);
       try {
@@ -261,7 +276,7 @@ test('a clone is never entangled with the mesh it came from', () => {
     const before = mesh.clone();
     const snapshot = JSON.stringify(before.toJSON());
     for (let step = 0; step < 6; step++) {
-      if (!mesh.faces.length || mesh.faces.length > 3000) break;
+      if (!mesh.faces.length || mesh.faces.length * WORST_GROWTH > FACE_CAP) break;
       const op = STEPS[Math.floor(r() * STEPS.length)];
       try {
         op.run(mesh, r);
@@ -300,4 +315,42 @@ test('booleans between real shapes do not produce corrupt geometry', () => {
     if (bad) failures.push(`seed ${seed}: ${op} at ${offset} produced ${bad}`);
   }
   assert.deepEqual(failures.slice(0, 8), [], `${failures.length} boolean results were corrupt`);
+});
+
+/**
+ * The face budget has to refuse an operator BEFORE it runs.
+ *
+ * It used to predict `faces + 1`, which meant it only ever refused a mesh that
+ * was already over the line. A mesh one face under the budget could be
+ * subdivided to four times it, or bevelled with segments to far worse — the
+ * exact frozen tab the budget exists to prevent, arrived at through the guard
+ * rather than around it.
+ */
+test('every growing operator is held to the budget by what it will produce', async () => {
+  const { COMMANDS, MAX_EDITABLE_FACES } = await import('../src/editor/commands');
+  const growing = COMMANDS.filter((c) => c.grows);
+  assert.ok(growing.length >= 10, `only ${growing.length} growing commands were found`);
+
+  const { GROWTH_FACTOR } = await import('../src/editor/commands') as unknown as
+    { GROWTH_FACTOR: Record<string, number> };
+
+  const unbounded: string[] = [];
+  for (const cmd of growing) {
+    const factor = GROWTH_FACTOR?.[cmd.id];
+    // An operator that multiplies must say by how much. One that genuinely
+    // adds a bounded amount is fine without a factor, but it has to be a
+    // deliberate entry rather than an omission.
+    if (factor === undefined) unbounded.push(cmd.id);
+  }
+  assert.deepEqual(unbounded, [],
+    'these growing operators have no declared growth factor, so the budget cannot predict them');
+
+  // And the arithmetic itself: just under the budget, times any factor above
+  // one, must land over it.
+  for (const [id, factor] of Object.entries(GROWTH_FACTOR ?? {})) {
+    if (factor <= 1) continue;
+    const justUnder = MAX_EDITABLE_FACES - 1;
+    assert.ok(justUnder * factor > MAX_EDITABLE_FACES,
+      `${id} with a factor of ${factor} would not be caught just under the budget`);
+  }
 });

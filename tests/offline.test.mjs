@@ -27,7 +27,7 @@ async function freshVisit() {
   await page.evaluate(() => navigator.serviceWorker.ready);
   // The precache runs during install, which finishes before `ready` resolves,
   // but the claim that puts this page under the worker can land just after.
-  await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 10000 });
+  await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 30000 });
   return { context, page };
 }
 

@@ -21,7 +21,7 @@
     "test:unit": "esbuild tests/*.test.ts --bundle --platform=node --format=esm --outdir=.test-build --log-level=warning && node --test '.test-build/*.test.js'",
     "test:app": "node --test tests/app.test.mjs && node --test tests/journey.test.mjs && node --test tests/console.test.mjs && node --test tests/offline-accounts.test.mjs && node --test tests/offline.test.mjs && node --test tests/mobile.test.mjs && node --test tests/hammer.test.mjs",
     "check:workflows": "node tools/check-workflows.mjs",
-    "test:deep": "CULPMIXER_FUZZ=5 npm test"
+    "test:deep": "CULPMIXER_FUZZ=11 npm test"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
