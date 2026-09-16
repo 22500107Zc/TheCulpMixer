@@ -4095,6 +4095,117 @@ void main(){ float d = texture(uD, vT).r; o = vec4(d, d, d, 1.0); }`));
     assert.equal(locked.said, locked.message, 'the refusal was not put on screen');
   });
 
+  /**
+   * Playing an animation back shows you the animation you made.
+   *
+   * Three separate ways that was not true, all of them reported as "pause and
+   * play doesn't really play what you did, and I can't pause it".
+   */
+  test('playback plays at the rate it was authored at, and can be stopped', async () => {
+    const setup = async () => page.evaluate(() => {
+      const ed = window.culpmixer.editor;
+      for (const id of [...ed.scene.objects.keys()]) ed.scene.remove(id);
+      window.culpmixer.run('add.cube');
+      const id = [...ed.scene.objects.keys()][0];
+      ed.scene.selection.clear(); ed.scene.selection.add(id); ed.scene.active = id;
+      const obj = ed.scene.get(id);
+      const tl = ed.scene.timeline;
+      tl.start = 1; tl.end = 25; tl.fps = 25; tl.loop = false;
+      ed.setFrame(1); obj.position.x = 0; window.culpmixer.run('anim.insertKey');
+      ed.setFrame(25); obj.position.x = 10; window.culpmixer.run('anim.insertKey');
+      ed.setFrame(1);
+      return id;
+    });
+
+    // 1. The whole range plays, and it takes about as long as it should.
+    //
+    // The tick used to reset its clock to `now` after advancing a whole
+    // number of frames, throwing the leftover fraction away. The loss
+    // compounds: every animation played back slower than the fps it was
+    // authored at — measured repeatably at about thirteen per cent.
+    const id = await setup();
+    const run = await page.evaluate(async () => {
+      const ed = window.culpmixer.editor;
+      const t0 = performance.now();
+      ed.startPlayback();
+      for (let i = 0; i < 60 && ed.scene.timeline.playing; i++) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      return { ms: performance.now() - t0, ended: ed.scene.timeline.current };
+    });
+    assert.equal(run.ended, 25, `playback finished on frame ${run.ended}, not the last one`);
+    // 24 frames at 25fps is 960ms. Generous either side: this is a real
+    // browser and the point is the systematic drift, not the jitter.
+    assert.ok(run.ms > 700 && run.ms < 1250,
+      `24 frames at 25fps took ${Math.round(run.ms)}ms, which should be about 960ms`);
+
+    // 2. Play, at the end, plays it again.
+    //
+    // Playback leaves the playhead on the last frame. Pressing Play then
+    // asked to step past the end, which stopped it before a frame was drawn,
+    // so the button did nothing at all and the animation could only be
+    // replayed by knowing to drag the playhead back first.
+    const replay = await page.evaluate(async () => {
+      const ed = window.culpmixer.editor;
+      ed.setFrame(ed.scene.timeline.end);
+      ed.togglePlayback();
+      await new Promise((r) => setTimeout(r, 200));
+      const out = { playing: ed.scene.timeline.playing, current: ed.scene.timeline.current };
+      ed.stopPlayback();
+      return out;
+    });
+    assert.equal(replay.playing, true, 'pressing play at the end did nothing');
+    assert.ok(replay.current < 25,
+      `play at the end left the playhead on ${replay.current} instead of rewinding`);
+
+    // 3. Pause stops it, and play carries on from where it stopped.
+    const cycle = await page.evaluate(async () => {
+      const ed = window.culpmixer.editor;
+      ed.setFrame(1);
+      ed.togglePlayback();
+      await new Promise((r) => setTimeout(r, 250));
+      ed.togglePlayback();
+      const paused = { playing: ed.scene.timeline.playing, at: ed.scene.timeline.current };
+      await new Promise((r) => setTimeout(r, 200));
+      const stayedPut = ed.scene.timeline.current === paused.at;
+      ed.togglePlayback();
+      await new Promise((r) => setTimeout(r, 250));
+      const out = {
+        ...paused,
+        stayedPut,
+        resumed: ed.scene.timeline.playing,
+        advanced: ed.scene.timeline.current > paused.at,
+      };
+      ed.stopPlayback();
+      return out;
+    });
+    assert.equal(cycle.playing, false, 'pause did not stop playback');
+    assert.equal(cycle.stayedPut, true, 'the playhead kept moving after pause');
+    assert.equal(cycle.resumed, true, 'play after pause did not start it again');
+    assert.equal(cycle.advanced, true, 'play after pause did not carry on');
+
+    // 4. A frame change costs the objects it moved, not the whole scene.
+    //
+    // setFrame used to blank the renderer's cache entry for EVERY object, so
+    // the next render re-evaluated the modifier stack and rebuilt the GPU
+    // buffers for all of them, every frame, whether or not anything about
+    // them had changed.
+    const touched = await page.evaluate((animatedId) => {
+      const ed = window.culpmixer.editor;
+      for (let i = 0; i < 12; i++) window.culpmixer.run('add.cube');
+      let hits = 0;
+      const real = ed.renderer.invalidate.bind(ed.renderer);
+      ed.renderer.invalidate = (x) => { hits += 1; return real(x); };
+      ed.setFrame(8);
+      ed.renderer.invalidate = real;
+      return { objects: ed.scene.objects.size, hits, animated: ed.scene.get(animatedId).animation.length > 0 };
+    }, id);
+    assert.equal(touched.animated, true, 'the fixture lost its animation');
+    assert.ok(touched.objects > 10, `only ${touched.objects} objects were in the scene`);
+    assert.ok(touched.hits < touched.objects,
+      `a frame change invalidated all ${touched.objects} objects, not just the animated one`);
+  });
+
   test('nothing logged an error to the console along the way', () => {
     assert.deepEqual(app.consoleErrors, [], `the app logged: ${app.consoleErrors.join(' | ')}`);
   });

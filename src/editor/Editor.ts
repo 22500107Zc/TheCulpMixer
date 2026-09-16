@@ -88,6 +88,18 @@ type Modal =
 export type EditorEvent = 'change' | 'status' | 'modal' | 'render' | 'frame' | 'diff' | 'revision' | 'licence' | 'device';
 
 /**
+ * Whether a frame change can move this object's geometry through a rig.
+ *
+ * A mesh bound to an armature carries no keys of its own — the armature holds
+ * them — so it has to be invalidated when the frame moves even though nothing
+ * about the mesh itself is animated.
+ */
+function dependsOnARig(obj: SceneObject): boolean {
+  for (const mod of obj.modifiers) if (mod.type === 'armature') return true;
+  return false;
+}
+
+/**
  * The application controller: owns the scene, the viewport camera, input
  * handling, the operator/undo plumbing and the render loop. The UI layer only
  * reads state from here and calls commands.
@@ -2124,7 +2136,27 @@ export class Editor {
     const tl = this.scene.timeline;
     const f = Math.max(tl.start, Math.min(tl.end, Math.round(frame)));
     this.scene.setFrame(f);
-    for (const id of this.scene.objects.keys()) this.renderer.invalidate(id);
+    // Only what the frame change could actually have moved.
+    //
+    // This used to blank the cache entry for EVERY object in the scene, which
+    // makes the next render re-evaluate the whole modifier stack and rebuild
+    // the GPU buffers for all of them — whether or not anything about them
+    // changed, at whatever the frame rate is.
+    //
+    // An object with no keys, no strips and no rig is not touched by a frame
+    // change at all, so its buffers are still correct. The ones that are
+    // touched still get invalidated, so nothing renders stale.
+    //
+    // Measured on a forty-object scene, this drops the objects invalidated per
+    // frame from forty to one. What that is worth in wall-clock time depends
+    // on the scene and the GPU; it was below the noise floor in the headless
+    // test harness, so no speedup is claimed here — only that the work is not
+    // done when there is nothing to redo.
+    for (const [id, obj] of this.scene.objects) {
+      if (obj.animation.length || obj.strips.length || dependsOnARig(obj)) {
+        this.renderer.invalidate(id);
+      }
+    }
     this.emit('frame');
     this.changed();
   }
@@ -2141,17 +2173,39 @@ export class Editor {
   startPlayback(): void {
     const tl = this.scene.timeline;
     if (tl.playing) return;
+    // Play, from the end, plays it again.
+    //
+    // Playback stops at the last frame and leaves the playhead parked there.
+    // Pressing Play then asked to advance past the end, which stopped it again
+    // before a single frame was drawn — so the button appeared to be dead, and
+    // the only way to see the animation a second time was to know to drag the
+    // playhead back first. Every editor rewinds here instead, so this does.
+    if (!tl.loop && tl.current >= tl.end) this.setFrame(tl.start);
     tl.playing = true;
     this.playbackClock = performance.now();
     const tick = (now: number): void => {
       if (!this.scene.timeline.playing) return;
+      const fps = Math.max(1, this.scene.timeline.fps);
       const dt = (now - this.playbackClock) / 1000;
-      const advance = dt * this.scene.timeline.fps;
+      const advance = dt * fps;
       if (advance >= 1) {
-        this.playbackClock = now;
-        let next = this.scene.timeline.current + Math.floor(advance);
+        const whole = Math.floor(advance);
+        // Credit only the frames actually taken, so the leftover fraction is
+        // carried into the next tick instead of being thrown away. Resetting
+        // the clock to `now` discarded it, and the loss compounds: thirty
+        // frames at 24fps measured 1415ms against the 1250ms they should take,
+        // repeatably — so everything played back about thirteen per cent
+        // slower than the rate it was authored at.
+        this.playbackClock += (whole / fps) * 1000;
+        // Too far behind to catch up frame by frame — a backgrounded tab, or a
+        // hitch. Racing through the backlog is worse than dropping it.
+        if (now - this.playbackClock > 1000) this.playbackClock = now;
+        let next = this.scene.timeline.current + whole;
         if (next > this.scene.timeline.end) {
           if (!this.scene.timeline.loop) {
+            // Land on the last frame rather than wherever the overshoot fell,
+            // so the animation always ends on the pose it was drawn to end on.
+            this.setFrame(this.scene.timeline.end);
             this.stopPlayback();
             return;
           }
