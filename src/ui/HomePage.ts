@@ -28,6 +28,20 @@ import { button, clear, h } from './dom';
  *    it may take a moment, and why paying from a different address is fine.
  *    Saying it up front turns a support complaint into an expectation.
  */
+/**
+ * Whether this visit is the founder's rather than a customer's.
+ *
+ * Asked of the address bar, not of any stored state, so it costs a customer
+ * nothing and cannot be stumbled into. `?founder` or `#founder` both work —
+ * one is easier to bookmark, the other survives being pasted around without
+ * a query string. This reveals the tab; it does not sign anybody in. The
+ * password still has to unseal the owner key, exactly as before.
+ */
+export function founderRequested(search = typeof location === 'undefined' ? '' : location.search,
+  hash = typeof location === 'undefined' ? '' : location.hash): boolean {
+  return /(^|[?&])founder(=|&|$)/.test(search) || /^#founder$/.test(hash);
+}
+
 export class HomePage {
   readonly root = h('div', { class: 'home hidden' });
   private card = h('div', { class: 'home-card' });
@@ -138,13 +152,21 @@ export class HomePage {
           this.mode = 'signin';
           this.render();
         }),
-        // Its own way in, named, rather than a customer login that happens to
-        // also accept the owner. One person runs this and they should not
-        // have to remember that their door is the same as everybody else's.
-        tab('Founder', this.mode === 'founder', () => {
+        // The founder's door is deliberately not here.
+        //
+        // It used to be a third tab, sitting between "Create an account" and
+        // "Log in", on the first screen every customer sees. Whatever it does,
+        // what it *says* to somebody deciding whether to pay is that this is
+        // one person's side project and they are looking at the back office.
+        // Nobody else puts an admin login on their sign-up page.
+        //
+        // It is still one tab away for the person who needs it — ?founder on
+        // the address, or the console at founder.html — and invisible to
+        // everybody else. See founderRequested().
+        ...(founderRequested() ? [tab('Founder', this.mode === 'founder', () => {
           this.mode = 'founder';
           this.render();
-        }),
+        })] : []),
       ]),
     );
 

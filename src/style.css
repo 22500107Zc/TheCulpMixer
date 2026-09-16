@@ -40,7 +40,29 @@
 }
 
 html,
+/*
+ * An application, not a document.
+ *
+ * On a phone this was the difference between working and not. Holding a
+ * toolbar button on an iPhone did not press it — it started selecting the
+ * label inside it, put a caret and a grab handle on the screen and opened
+ * the copy/look-up callout. Every control in the application behaved that
+ * way, because a <button> with text in it is selectable text as far as
+ * WebKit is concerned unless it is told otherwise.
+ *
+ * touch-action: manipulation on the controls is the other half: it turns off
+ * double-tap-to-zoom, and with it the ~300ms wait before a tap is delivered
+ * at all, which is what made everything feel like it was ignoring you.
+ *
+ * Text inputs and anything deliberately selectable opt back in below. The
+ * canvas is untouched — it sets touch-action: none itself, because it wants
+ * the raw gestures.
+ */
 body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
   margin: 0;
   height: 100%;
   overflow: hidden;
@@ -3589,4 +3611,124 @@ button:disabled {
  */
 :root[data-pointing='touch'] .menu-item kbd {
   display: none;
+}
+
+/* ------------------------------------------------ pressing things ---- */
+
+/*
+ * Every control takes a press immediately, and a press is all it takes.
+ * See the note on body: without this a long press on a phone selects the
+ * button's own label instead of activating it.
+ */
+button,
+.menu-label,
+.menu-item,
+.tool-btn,
+.tl-btn,
+.tab,
+label,
+select,
+summary {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/*
+ * Text the person may legitimately want to copy — a licence key, an error,
+ * a field they are typing into — opts back in. A key they cannot select is
+ * a key they cannot send to the customer who paid for it.
+ */
+input,
+textarea,
+.issue-out,
+.handout,
+.licence-key,
+code,
+kbd,
+pre {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* ------------------------------------------- room to breathe on a phone ---- */
+
+/*
+ * The phone layout fitted everything on the screen and then stopped.
+ *
+ * Fitting is not the same as being usable. On a real iPhone the toolbar
+ * buttons sat 2px apart with a keyboard hint printed across the corner of
+ * each one — a hint for a keyboard that is not there — the status bar ran
+ * three rows of text into each other, and the timeline transport was a row
+ * of 20px arrows. It all *worked*, and it looked like something nobody had
+ * ever opened on a phone.
+ *
+ * Driven by the pointer rather than the width, for the reason given in the
+ * coarse-pointer block above: a tablet in landscape is wider than a laptop
+ * and is still being used with a thumb.
+ */
+:root[data-coarse='yes'] .toolbar {
+  gap: 8px;
+  padding: 8px 6px;
+}
+
+:root[data-coarse='yes'] .tool-btn {
+  height: 44px;
+  min-width: 44px;
+}
+
+/*
+ * The keyboard letter printed on each tool is noise where there is no
+ * keyboard, and it was overlapping the icon at this size.
+ */
+:root[data-pointing='touch'] .tool-key {
+  display: none;
+}
+
+:root[data-coarse='yes'] .status-bar {
+  gap: 10px;
+  row-gap: 6px;
+  padding: 6px 10px calc(6px + env(safe-area-inset-bottom));
+  line-height: 1.7;
+}
+
+:root[data-coarse='yes'] .trial-chip,
+:root[data-coarse='yes'] .issue-chip,
+:root[data-coarse='yes'] .founder-chip {
+  padding: 4px 12px;
+  min-height: 32px;
+}
+
+:root[data-coarse='yes'] .timeline {
+  gap: 8px;
+  padding: 6px 8px;
+}
+
+:root[data-coarse='yes'] .menu-label {
+  padding: 0 16px;
+}
+
+/* A field a thumb can land in, and one iOS will not zoom the page to reach:
+   Safari zooms in on focus for anything under 16px. */
+:root[data-coarse='yes'] input[type='text'],
+:root[data-coarse='yes'] input[type='email'],
+:root[data-coarse='yes'] input[type='password'],
+:root[data-coarse='yes'] input[type='number'],
+:root[data-coarse='yes'] textarea,
+:root[data-coarse='yes'] select {
+  font-size: 16px;
+  min-height: 40px;
+  padding: 6px 10px;
+}
+
+:root[data-coarse='yes'] .home-field {
+  margin-bottom: 12px;
+}
+
+:root[data-coarse='yes'] .panel-body,
+:root[data-coarse='yes'] .prop-row,
+:root[data-coarse='yes'] .prop-vector {
+  row-gap: 8px;
 }

@@ -304,11 +304,22 @@ if (app.skip) {
     await page.context().close();
   });
 
-  test('10 · the Founder tab is on the login page, and it works', async () => {
-    // Asked for repeatedly: its own named way in, not a customer login that
-    // happens to also accept the owner.
+  test('10 · the Founder tab is hidden from customers and reachable by the owner', async () => {
+    // It used to be a third tab on the first screen every customer sees.
+    // Whatever it does, what it SAYS to somebody deciding whether to pay is
+    // that they are looking at one person's back office. So: still its own
+    // named way in, still not a customer login that happens to accept the
+    // owner — but only for the person who asked for it by address.
+    const plain = await app.browser.newContext().then((c) => c.newPage());
+    await plain.goto(`${app.origin}/`, { waitUntil: 'networkidle' });
+    await plain.waitForSelector('.home:not(.hidden)', { timeout: 10000 });
+    const customerTabs = await plain.$$eval('.home-tab', (els) => els.map((e) => e.textContent));
+    await plain.context().close();
+    assert.deepEqual(customerTabs, ['Create an account', 'Log in'],
+      `a paying stranger is shown: ${customerTabs.join(', ')}`);
+
     const page = await app.browser.newContext().then((c) => c.newPage());
-    await page.goto(`${app.origin}/`, { waitUntil: 'networkidle' });
+    await page.goto(`${app.origin}/?founder`, { waitUntil: 'networkidle' });
     await page.waitForSelector('.home:not(.hidden)', { timeout: 10000 });
 
     const tabs = await page.$$eval('.home-tab', (els) => els.map((e) => e.textContent));
