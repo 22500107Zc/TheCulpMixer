@@ -80,7 +80,50 @@ export function facesToVerts(mesh: Mesh, faces: Iterable<number>): Set<number> {
   return s;
 }
 
+/**
+ * A face loop with repeats and unusable indices taken out.
+ *
+ * Consecutive repeats (including the wrap from last to first) are simply the
+ * same corner written twice and are dropped. A vertex that appears twice
+ * non-consecutively is a pinch — the loop touches itself — and the larger
+ * piece is the face worth keeping; splitting it properly is the caller's job
+ * where the caller knows enough to do it, which dissolveFaces now does.
+ *
+ * Returns null when fewer than three distinct corners remain.
+ */
+function dedupeLoop(loop: number[], vertexCount: number): number[] | null {
+  const out: number[] = [];
+  const seen = new Set<number>();
+  for (const v of loop) {
+    if (!Number.isInteger(v) || v < 0 || v >= vertexCount) continue;
+    if (seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+  }
+  return out.length >= 3 ? out : null;
+}
+
+/**
+ * Add one face, refusing the degenerate shapes outright.
+ *
+ * A face that names the same vertex twice has no well-defined normal: the
+ * cross product at the repeat is the zero vector, so lighting, the BVH and
+ * every exporter get a direction of NaN or an arbitrary one. It triangulates
+ * to slivers of zero area, which then survive every later operator and spread.
+ * Nothing visibly breaks at the moment it is created, which is what makes it
+ * dangerous — it is found much later, in somebody's export.
+ *
+ * Cleaning here rather than at each call site is deliberate: this is the one
+ * place faces are made, so it is the one place the guarantee can be made to
+ * hold for operators that have not been written yet.
+ *
+ * Returns -1 when nothing usable is left, which callers must treat as "no face
+ * was added" rather than as an index.
+ */
 function pushFace(mesh: Mesh, loop: number[], likeFace: number, uv?: number[] | null): number {
+  const clean = dedupeLoop(loop, mesh.positions.length);
+  if (clean === null) return -1;
+  loop = clean;
   const idx = mesh.faces.length;
   mesh.faces.push(loop);
   mesh.faceMaterial.push(mesh.faceMaterial[likeFace] ?? 0);
@@ -176,7 +219,11 @@ export function splitRegion(mesh: Mesh, region: Set<number>): RegionSplitResult 
       const uvB = ib >= 0 ? sourceUV.get(be.face)?.[ib] ?? null : null;
       uv = packUV([uvB, uvA, uvA, uvB]);
     }
-    walls.push(pushFace(mesh, [b2, a2, be.a, be.b], be.face, uv));
+    // -1 means the loop was degenerate and no face was added. Collecting it
+    // would hand the caller an index that names no face, which later shows up
+    // as a selection nothing can act on.
+    const wall = pushFace(mesh, [b2, a2, be.a, be.b], be.face, uv);
+    if (wall >= 0) walls.push(wall);
   }
 
   mesh.markDirty();
@@ -783,13 +830,37 @@ export function dissolveFaces(mesh: Mesh, faces: Iterable<number>): number[] {
   const created: number[] = [];
   const used = new Set<string>();
   const template = [...faceSet][0];
+  const emit = (ring: number[]): void => {
+    if (ring.length < 3) return;
+    const f = pushFace(mesh, ring, template);
+    if (f >= 0) created.push(f);
+  };
   for (const be of boundary) {
     if (used.has(`${be.a}>${be.b}`)) continue;
     const loop: number[] = [be.a];
+    // Where each vertex sits in the loop so far, so a revisit is recognised
+    // the moment it happens rather than discovered in the finished face.
+    const at = new Map<number, number>([[be.a, 0]]);
     let cur = be.b;
     let guard = 0;
     used.add(`${be.a}>${be.b}`);
     while (cur !== be.a && guard++ < boundary.length + 2) {
+      // The boundary of a dissolved region is not always a simple ring. Where
+      // the region touches itself — a bridge one face wide, a hole that meets
+      // the outer edge — the walk arrives back at a vertex it has already
+      // passed through. Writing that vertex into the loop a second time made
+      // a face that names a corner twice: no usable normal, zero-area slivers
+      // after triangulation, and nothing wrong on screen until it turns up in
+      // an export. It is also not what the geometry means. A figure-eight
+      // boundary is two faces meeting at a point, so the closed piece is cut
+      // off and kept as its own face, and the walk carries on with the rest.
+      const seenAt = at.get(cur);
+      if (seenAt !== undefined) {
+        emit(loop.slice(seenAt));
+        for (let i = seenAt; i < loop.length; i++) at.delete(loop[i]);
+        loop.length = seenAt;
+      }
+      at.set(cur, loop.length);
       loop.push(cur);
       const outs = nextOf.get(cur);
       if (!outs || outs.length === 0) break;
@@ -798,7 +869,7 @@ export function dissolveFaces(mesh: Mesh, faces: Iterable<number>): number[] {
       used.add(`${cur}>${nxt}`);
       cur = nxt;
     }
-    if (cur === be.a && loop.length >= 3) created.push(pushFace(mesh, loop, template));
+    if (cur === be.a) emit(loop);
   }
   if (created.length === 0) return [...faceSet];
   deleteFaces(mesh, faceSet);
@@ -1017,7 +1088,8 @@ export function duplicateFaces(
   const newFaces: number[] = [];
   for (const f of faceSet) {
     const uv = mesh.uvFor(f);
-    newFaces.push(pushFace(mesh, mesh.faces[f].map((v) => map.get(v)!), f, uv ? uv.slice() : null));
+    const copy = pushFace(mesh, mesh.faces[f].map((v) => map.get(v)!), f, uv ? uv.slice() : null);
+    if (copy >= 0) newFaces.push(copy);
   }
   mesh.markDirty();
   return { faces: newFaces, verts };
